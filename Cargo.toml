@@ -1,0 +1,31 @@
+[package]
+name = "gateway-rs"
+version = "0.1.0"
+authors = ["Marc Nijdam <marc@helium.com>"]
+edition = "2018"
+license = "Apache-2.0"
+
+[[bin]]
+name = "gateway"
+path = "src/main.rs"
+doc = false
+
+[dependencies]
+config = {version="0.9", default-features=false, features=["toml"]}
+lazy_static = "1"
+serde = "1"
+structopt = {version = "0.3", default-features=false}
+anyhow = "1.0"
+semtech-udp = { git = "https://github.com/helium/semtech-udp.git", branch = "master", features=["server"] }
+tokio = { version = "0.3", features = ["full"] }
+triggered = "0.1"
+tracing = "0.1"
+tracing-futures = { version = "0.2" }
+tracing-subscriber = "0.2"
+base64 = "0.12.0"
+
+[dependencies.libp2p]
+git = "https://github.com/libp2p/rust-libp2p.git"
+branch = "master"
+default-features=false
+features=["noise", "mplex", "plaintext", "ping"]

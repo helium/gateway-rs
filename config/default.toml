@@ -1,0 +1,2 @@
+[semtech_udp]
+listen_addr = "127.0.0.1:1680"
