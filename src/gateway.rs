@@ -7,7 +7,7 @@ use semtech_udp::{
     //StringOrNum,
     Up as UdpPacket,
 };
-use std::{io, net::SocketAddr};
+use std::net::SocketAddr;
 use tracing::{debug, info};
 
 #[derive(Debug)]
@@ -51,11 +51,11 @@ impl Gateway {
                             debug!("Received packets:");
                             rxpk.sort_by(|a, b| b.snr().partial_cmp(&a.snr()).unwrap());
                             for received_packet in rxpk {
+                                let mut packet_data =
+                                    &base64::decode(received_packet.data.clone())?[..];
                                 let packet = lorawan::PHYPayload::read(
                                     lorawan::Direction::Uplink,
-                                    &mut io::Cursor::new(&base64::decode(
-                                        received_packet.data.clone(),
-                                    )?),
+                                    &mut packet_data,
                                 )?;
                                 info!("Packet: {:?}", packet);
                             }

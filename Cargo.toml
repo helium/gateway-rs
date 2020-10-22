@@ -27,12 +27,11 @@ tracing-futures = "0.2"
 tracing-subscriber = "0.2"
 base64 = "0.12.0"
 lorawan = { package = "lorawan", path = "lorawan" }
-# semtech-udp = { git = "https://github.com/helium/semtech-udp.git", branch = "master", features=["server"] }
-semtech-udp = { path = "../semtech-udp", features=["server"] }
+semtech-udp = { git = "https://github.com/helium/semtech-udp.git", branch = "madninja/snr", features=["server"] }
 helium-proto = { git = "https://github.com/helium/proto", branch="master"}
 
-[dependencies.libp2p]
-git = "https://github.com/libp2p/rust-libp2p.git"
-branch = "master"
-default-features=false
-features=["noise", "mplex", "plaintext", "ping"]
+# [dependencies.libp2p]
+# git = "https://github.com/libp2p/rust-libp2p.git"
+# branch = "master"
+# default-features=false
+# features=["noise", "mplex", "plaintext", "ping"]
