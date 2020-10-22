@@ -1,11 +1,13 @@
 use crate::settings::Settings;
 use anyhow::Result;
+//use helium_proto::{packet::PacketType, Packet};
 use semtech_udp::{
-    pull_resp,
+    //  pull_resp,
     server_runtime::{Event, UdpRuntime},
-    StringOrNum, Up as Packet,
+    //StringOrNum,
+    Up as UdpPacket,
 };
-use std::net::SocketAddr;
+use std::{io, net::SocketAddr};
 use tracing::{debug, info};
 
 #[derive(Debug)]
@@ -44,45 +46,18 @@ impl Gateway {
                     info!("Mac existed, but IP updated: {}, {}", mac, addr);
                 }
                 Event::Packet(packet) => match packet {
-                    Packet::PushData(packet) => {
-                        if let Some(rxpk) = &packet.data.rxpk {
+                    UdpPacket::PushData(mut packet) => {
+                        if let Some(rxpk) = &mut packet.data.rxpk {
                             debug!("Received packets:");
+                            rxpk.sort_by(|a, b| b.snr().partial_cmp(&a.snr()).unwrap());
                             for received_packet in rxpk {
-                                println!("\t{:?}", received_packet);
-
-                                let buffer = [1, 2, 3, 4];
-                                let size = buffer.len() as u64;
-                                let data = base64::encode(buffer);
-                                let tmst = StringOrNum::N(received_packet.tmst + 1_000_000);
-
-                                let txpk = pull_resp::TxPk {
-                                    imme: false,
-                                    tmst,
-                                    freq: 902.800_000,
-                                    rfch: 0,
-                                    powe: 27,
-                                    modu: "LORA".to_string(),
-                                    datr: "SF8BW500".to_string(),
-                                    codr: "4/5".to_string(),
-                                    ipol: true,
-                                    size,
-                                    data,
-                                    tmms: None,
-                                    fdev: None,
-                                    prea: None,
-                                    ncrc: None,
-                                };
-
-                                let prepared_send =
-                                    self.udp_runtime.prepare_send(txpk, packet.gateway_mac);
-
-                                tokio::spawn(async move {
-                                    if let Err(e) = prepared_send.dispatch().await {
-                                        panic!("Transmit Dispatch threw error: {:?}", e)
-                                    } else {
-                                        debug!("Send complete");
-                                    }
-                                });
+                                let packet = lorawan::PHYPayload::read(
+                                    lorawan::Direction::Uplink,
+                                    &mut io::Cursor::new(&base64::decode(
+                                        received_packet.data.clone(),
+                                    )?),
+                                )?;
+                                info!("Packet: {:?}", packet);
                             }
                         }
                     }
@@ -95,3 +70,18 @@ impl Gateway {
         }
     }
 }
+
+// fn to_helium_packet(packet: &RxPk) -> Result<Packet> {
+//     let packet = Packet {
+//         r#type: PacketType::Lorawan.into(),
+//         signal_strength: packet.rssi() as f32,
+//         snr: packet.snr() as f32,
+//         frequency: packet.freq as f32,
+//         timestamp: packet.tmst,
+//         datarate: packet.datr.clone(),
+//         payload: base64::decode(&packet.data)?,
+//         routing: None,
+//         rx2_window: None,
+//         oui: 0,
+//     };
+// }
