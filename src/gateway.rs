@@ -1,6 +1,6 @@
-use crate::settings::Settings;
-use anyhow::Result;
+use crate::{base64, key, result::Result, settings::Settings};
 //use helium_proto::{packet::PacketType, Packet};
+use log::{debug, info};
 use semtech_udp::{
     //  pull_resp,
     server_runtime::{Event, UdpRuntime},
@@ -8,23 +8,30 @@ use semtech_udp::{
     Up as UdpPacket,
 };
 use std::net::SocketAddr;
-use tracing::{debug, info};
 
 #[derive(Debug)]
 pub struct Gateway {
+    listen_addr: SocketAddr,
+    key: key::Key,
     udp_runtime: UdpRuntime,
 }
 
 impl Gateway {
     pub async fn new(settings: &Settings) -> Result<Self> {
-        let addr: SocketAddr = settings.semtech_udp.listen_addr.parse()?;
+        let listen_addr = settings.listen_addr()?;
         let gateway = Gateway {
-            udp_runtime: UdpRuntime::new(addr).await?,
+            listen_addr,
+            key: settings.key()?,
+            udp_runtime: UdpRuntime::new(listen_addr).await?,
         };
         Ok(gateway)
     }
 
-    pub async fn run(&mut self, shutdown: triggered::Listener) -> Result<()> {
+    pub async fn run(&mut self, shutdown: triggered::Listener) -> Result {
+        info!(
+            "Starting gateway listener {} on {}",
+            self.key, self.listen_addr
+        );
         loop {
             let event = tokio::select! {
                 _ = shutdown.clone() => {
@@ -52,7 +59,7 @@ impl Gateway {
                             rxpk.sort_by(|a, b| b.snr().partial_cmp(&a.snr()).unwrap());
                             for received_packet in rxpk {
                                 let mut packet_data =
-                                    &base64::decode(received_packet.data.clone())?[..];
+                                    &base64::decode_block(&received_packet.data.clone())?[..];
                                 let packet = lorawan::PHYPayload::read(
                                     lorawan::Direction::Uplink,
                                     &mut packet_data,

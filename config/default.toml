@@ -1,2 +1,2 @@
-[semtech_udp]
+key_file = "/etc/gateway/gateway_key.pem"
 listen_addr = "127.0.0.1:1680"

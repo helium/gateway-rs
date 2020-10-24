@@ -1,2 +1,5 @@
 [target.mipsel-unknown-linux-musl]
-linker = "mipsel-openwrt-linux-musl-gcc"
+rustflags = [
+    "-C", "target-feature=+crt-static",
+    "-C", "link-args=-static",
+]
