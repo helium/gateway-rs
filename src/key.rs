@@ -1,6 +1,6 @@
 use crate::result::Result;
 use foreign_types::ForeignType;
-use openssl::pkey;
+use openssl::{pkey, sign::Signer, sign::Verifier};
 use openssl_sys::EVP_PKEY;
 use std::{fmt, fs, path, result};
 
@@ -44,6 +44,18 @@ impl Key {
         Ok(Self(pkey))
     }
 
+    /// Signs a given messase with this key.
+    pub fn sign(&self, data: &[u8]) -> Result<Vec<u8>> {
+        let mut signer = Signer::new_without_digest(&self.0)?;
+        Ok(signer.sign_oneshot_to_vec(&data)?)
+    }
+
+    /// Verifies a given messase against a signature with this key.
+    pub fn verify(&self, signature: &[u8], data: &[u8]) -> Result<bool> {
+        let mut verifier = Verifier::new_without_digest(&self.0)?;
+        Ok(verifier.verify_oneshot(&signature, &data)?)
+    }
+
     fn get_raw_public_key(&self, dest: &mut [u8]) {
         let mut len: usize = 32;
         let _ = unsafe {
@@ -56,18 +68,8 @@ impl Key {
     }
 }
 
-// impl string::ToString for Key {
-//     fn to_string(&self) -> String {
-//         // First 0 value is the "version" number defined for addresses in the
-//         // classic helium addressing scheme. The '1' indicates the ed25519
-//         // keytype.
-//         let mut data = [0u8; 34];
-//         data[0] = 0;
-//         data[1] = 1;
-//         self.get_raw_public_key(&mut data[2..]);
-//         bs58::encode(data.as_ref()).with_check().into_string()
-//     }
-// }
+const KEY_BIN_VERSION: u8 = 0;
+const KEY_TYPE_ED25519: u8 = 1;
 
 impl fmt::Display for Key {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> result::Result<(), fmt::Error> {
@@ -75,8 +77,8 @@ impl fmt::Display for Key {
         // classic helium addressing scheme. The '1' indicates the ed25519
         // keytype.
         let mut data = [0u8; 34];
-        data[0] = 0;
-        data[1] = 1;
+        data[0] = KEY_BIN_VERSION;
+        data[1] = KEY_TYPE_ED25519;
         self.get_raw_public_key(&mut data[2..]);
         write!(
             f,
@@ -100,8 +102,15 @@ mod test {
 
     #[test]
     fn pem() {
-        let key = Key::generate().expect("key generated");
+        let key = Key::generate().expect("key");
         let data = key.to_pem().expect("pem encode");
         assert_eq!(key, Key::from_pem(&data).unwrap())
+    }
+
+    #[test]
+    fn sign() {
+        let key = Key::generate().expect("key");
+        let signature = key.sign(b"hello world").unwrap();
+        assert!(key.verify(&signature, b"hello world").unwrap());
     }
 }
