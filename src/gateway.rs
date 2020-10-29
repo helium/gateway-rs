@@ -1,13 +1,18 @@
 use crate::{base64, key, result::Result, settings::Settings};
-//use helium_proto::{packet::PacketType, Packet};
+use helium_proto::{
+    packet::PacketType, routing_information::Data as RoutingData, Eui, Packet as HeliumPacket,
+    RoutingInformation,
+};
 use log::{debug, info};
+use lorawan::{PHYPayload, PHYPayloadFrame};
 use semtech_udp::{
     //  pull_resp,
+    push_data,
     server_runtime::{Event, UdpRuntime},
     //StringOrNum,
     Up as UdpPacket,
 };
-use std::net::SocketAddr;
+use std::{io::Cursor, net::SocketAddr};
 
 #[derive(Debug)]
 pub struct Gateway {
@@ -56,15 +61,15 @@ impl Gateway {
                     UdpPacket::PushData(mut packet) => {
                         if let Some(rxpk) = &mut packet.data.rxpk {
                             debug!("Received packets:");
+                            // Sort packets by snr
                             rxpk.sort_by(|a, b| b.snr().partial_cmp(&a.snr()).unwrap());
                             for received_packet in rxpk {
-                                let mut packet_data =
+                                let packet_data =
                                     &base64::decode_block(&received_packet.data.clone())?[..];
-                                let packet = lorawan::PHYPayload::read(
-                                    lorawan::Direction::Uplink,
-                                    &mut packet_data,
-                                )?;
-                                info!("Packet: {:?}", packet);
+                                if self.route_longfi_data(&received_packet, &packet_data).await {
+                                    self.route_lorawan_data(&received_packet, &packet_data)
+                                        .await;
+                                }
                             }
                         }
                     }
@@ -76,19 +81,65 @@ impl Gateway {
             }
         }
     }
+
+    async fn route_longfi_data(&self, _received_packet: &push_data::RxPk, data: &[u8]) -> bool {
+        let mut decoded = [0xFE, 65];
+        match longfi::Datagram::decode(data, &mut decoded) {
+            Ok(_) => {
+                info!("Decoded longfi packet, ignoring");
+                true
+            }
+            Err(_) => false,
+        }
+    }
+
+    async fn route_lorawan_data(&self, received_packet: &push_data::RxPk, data: &[u8]) -> bool {
+        let mut cursor = Cursor::new(data);
+        match lorawan::PHYPayload::read(lorawan::Direction::Uplink, &mut cursor) {
+            Ok(packet) => match mk_routing_information(&packet) {
+                // Ignore packets with no available routing information
+                None => false,
+                Some(routing) => {
+                    let helium_packet = mk_helium_packet(received_packet, Some(routing), data);
+                    info!("TO_ROUTER: {:?}", helium_packet);
+                    true
+                }
+            },
+            // invalid lorawan packet
+            Err(_) => false,
+        }
+    }
 }
 
-// fn to_helium_packet(packet: &RxPk) -> Result<Packet> {
-//     let packet = Packet {
-//         r#type: PacketType::Lorawan.into(),
-//         signal_strength: packet.rssi() as f32,
-//         snr: packet.snr() as f32,
-//         frequency: packet.freq as f32,
-//         timestamp: packet.tmst,
-//         datarate: packet.datr.clone(),
-//         payload: base64::decode(&packet.data)?,
-//         routing: None,
-//         rx2_window: None,
-//         oui: 0,
-//     };
-// }
+fn mk_routing_information(packet: &PHYPayload) -> Option<RoutingInformation> {
+    let routing_data = match &packet.payload {
+        PHYPayloadFrame::JoinRequest(request) => Some(RoutingData::Eui(Eui {
+            deveui: request.dev_eui,
+            appeui: request.app_eui,
+        })),
+        PHYPayloadFrame::MACPayload(mac_payload) => {
+            Some(RoutingData::Devaddr(mac_payload.dev_addr()))
+        }
+        _ => None,
+    };
+    routing_data.map(|r| RoutingInformation { data: Some(r) })
+}
+
+fn mk_helium_packet(
+    packet: &push_data::RxPk,
+    routing: Option<RoutingInformation>,
+    data: &[u8],
+) -> HeliumPacket {
+    HeliumPacket {
+        r#type: PacketType::Lorawan.into(),
+        signal_strength: packet.rssi() as f32,
+        snr: packet.snr() as f32,
+        frequency: packet.freq as f32,
+        timestamp: packet.tmst,
+        datarate: packet.datr.clone(),
+        payload: data.to_vec(),
+        routing: routing,
+        rx2_window: None,
+        oui: 0,
+    }
+}

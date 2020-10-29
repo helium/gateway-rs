@@ -32,6 +32,7 @@ semtech-udp = { git = "https://github.com/helium/semtech-udp.git", branch = "mad
 helium-proto = { git = "https://github.com/helium/proto", branch="master"}
 foreign-types = "0.3.1"
 bs58 = {version = "0.3.0", features=["check"]}
+longfi = { git = "https://github.com/helium/longfi-rs", branch = "main" }
 
 [profile.release]
 opt-level = 'z'

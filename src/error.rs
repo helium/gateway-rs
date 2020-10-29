@@ -9,6 +9,8 @@ pub enum GWError {
     ServerError(String),
     #[error("io error")]
     IOError(#[from] std::io::Error),
+    #[error("longfi error")]
+    LfcError(#[from] longfi::LfcError),
 }
 
 impl From<net::AddrParseError> for GWError {
