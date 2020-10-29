@@ -12,21 +12,21 @@ use semtech_udp::{
     //StringOrNum,
     Up as UdpPacket,
 };
-use std::{io::Cursor, net::SocketAddr};
+use std::{io::Cursor, net::SocketAddr, sync::Arc};
 
 #[derive(Debug)]
 pub struct Gateway {
     listen_addr: SocketAddr,
-    key: key::Key,
+    key: Arc<key::Key>,
     udp_runtime: UdpRuntime,
 }
 
 impl Gateway {
     pub async fn new(settings: &Settings) -> Result<Self> {
-        let listen_addr = settings.listen_addr()?;
+        let listen_addr = settings.listen_addr;
         let gateway = Gateway {
             listen_addr,
-            key: settings.key()?,
+            key: settings.key.clone(),
             udp_runtime: UdpRuntime::new(listen_addr).await?,
         };
         Ok(gateway)
@@ -138,7 +138,7 @@ fn mk_helium_packet(
         timestamp: packet.tmst,
         datarate: packet.datr.clone(),
         payload: data.to_vec(),
-        routing: routing,
+        routing,
         rx2_window: None,
         oui: 0,
     }

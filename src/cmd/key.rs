@@ -21,7 +21,7 @@ impl Cmd {
 
 impl Info {
     pub async fn run(&self, settings: Settings) -> Result {
-        println!("{}", settings.key()?.to_string());
+        println!("{}", settings.key.to_string());
         Ok(())
     }
 }
