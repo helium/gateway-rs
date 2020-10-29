@@ -1,4 +1,4 @@
-use crate::{key::Key, result::Result, settings::Settings};
+use crate::{result::Result, settings::Settings};
 use structopt::StructOpt;
 
 /// Commands on gateway keys
@@ -20,9 +20,8 @@ impl Cmd {
 }
 
 impl Info {
-    pub async fn run(&self, _settings: Settings) -> Result {
-        let key = Key::generate()?;
-        println!("Key {:?}", key.to_string());
+    pub async fn run(&self, settings: Settings) -> Result {
+        println!("{}", settings.key()?.to_string());
         Ok(())
     }
 }

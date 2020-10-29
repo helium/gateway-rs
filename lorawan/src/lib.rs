@@ -37,7 +37,7 @@ impl From<u8> for MType {
 }
 
 bitfield! {
-    struct MHDR(u8);
+    pub struct MHDR(u8);
     impl Debug;
     pub into MType, mtype, set_mtype: 7, 5;
     rfu, _: 4, 2;
@@ -52,9 +52,9 @@ impl MHDR {
 
 #[derive(Debug)]
 pub struct PHYPayload {
-    mhdr: MHDR,
-    payload: PHYPayloadFrame,
-    mic: [u8; 4],
+    pub mhdr: MHDR,
+    pub payload: PHYPayloadFrame,
+    pub mic: [u8; 4],
 }
 
 impl PHYPayload {
@@ -72,6 +72,10 @@ impl PHYPayload {
         };
         res.mic.copy_from_slice(&mic);
         Ok(res)
+    }
+
+    pub fn mtype(&self) -> MType {
+        self.mhdr.mtype()
     }
 }
 
@@ -98,10 +102,10 @@ impl PHYPayloadFrame {
 }
 
 pub struct FHDR {
-    dev_addr: u32,
-    fctrl: FCtrl,
-    fcnt: u16,
-    fopts: Vec<u8>,
+    pub dev_addr: u32,
+    pub fctrl: FCtrl,
+    pub fcnt: u16,
+    pub fopts: Vec<u8>,
 }
 
 impl fmt::Debug for FHDR {
@@ -189,9 +193,9 @@ impl FCtrl {
 
 #[derive(Debug)]
 pub struct MACPayload {
-    fhdr: FHDR,
-    fport: Option<u8>,
-    payload: Option<FRMPayload>,
+    pub fhdr: FHDR,
+    pub fport: Option<u8>,
+    pub payload: Option<FRMPayload>,
 }
 
 impl MACPayload {
@@ -210,12 +214,19 @@ impl MACPayload {
             ),
             _ => (None, None),
         };
+        if fport == Some(0) && fhdr.fctrl.fopts_len() > 0 {
+            return Err(LoraWanError::InvalidFPortForFopts);
+        }
         let res = Self {
             fhdr,
             fport,
             payload,
         };
         Ok(res)
+    }
+
+    pub fn dev_addr(&self) -> u32 {
+        self.fhdr.dev_addr
     }
 }
 
@@ -254,9 +265,9 @@ impl Payload {
 }
 
 pub struct JoinRequest {
-    app_eui: u64,
-    dev_eui: u64,
-    dev_nonce: [u8; 2],
+    pub app_eui: u64,
+    pub dev_eui: u64,
+    pub dev_nonce: [u8; 2],
 }
 
 impl fmt::Debug for JoinRequest {
@@ -283,11 +294,11 @@ impl JoinRequest {
 
 #[derive(Debug)]
 pub struct JoinAccept {
-    app_nonce: [u8; 3],
-    net_id: [u8; 3],
-    dev_addr: u32,
-    dl_settings: u8,
-    rx_delay: u8,
+    pub app_nonce: [u8; 3],
+    pub net_id: [u8; 3],
+    pub dev_addr: u32,
+    pub dl_settings: u8,
+    pub rx_delay: u8,
     // cf_list: Option<CFList>,
 }
 
@@ -312,8 +323,6 @@ impl JoinAccept {
 mod test {
     use super::*;
     use base64;
-
-    const test_data: [&str; 2] = ["AOY2A9B+1bNwB3AlEzaJaVauvIVcxQA=", "oF8BAEgwAAACqgDdfYY="];
 
     #[test]
     fn test_read() {
