@@ -7,7 +7,7 @@ use std::{fmt, fs, path, result};
 /// A Key for gateways. The key is used to identify the gateway with remote
 /// connections through certs used for both authentication and encryption of
 /// those connections.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Key(pkey::PKey<pkey::Private>);
 
 impl Key {
@@ -56,6 +56,14 @@ impl Key {
         Ok(verifier.verify_oneshot(&signature, &data)?)
     }
 
+    pub fn to_key_bin(&self) -> Vec<u8> {
+        let mut dest = vec![0u8; 34];
+        dest[0] = KEY_BIN_VERSION;
+        dest[1] = KEY_TYPE_ED25519;
+        self.get_raw_public_key(&mut dest[2..]);
+        dest
+    }
+
     fn get_raw_public_key(&self, dest: &mut [u8]) {
         let mut len: usize = 32;
         let _ = unsafe {
@@ -73,17 +81,10 @@ const KEY_TYPE_ED25519: u8 = 1;
 
 impl fmt::Display for Key {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> result::Result<(), fmt::Error> {
-        // First 0 value is the "version" number defined for addresses in the
-        // classic helium addressing scheme. The '1' indicates the ed25519
-        // keytype.
-        let mut data = [0u8; 34];
-        data[0] = KEY_BIN_VERSION;
-        data[1] = KEY_TYPE_ED25519;
-        self.get_raw_public_key(&mut data[2..]);
         write!(
             f,
             "{}",
-            bs58::encode(data.as_ref()).with_check().into_string()
+            bs58::encode(&self.to_key_bin()).with_check().into_string()
         )
     }
 }

@@ -1,9 +1,7 @@
+use env_logger::Env;
 use gateway_rs::{cmd, result::Result, settings::Settings};
-use log::LevelFilter;
-use simple_logger::SimpleLogger;
 use std::path::PathBuf;
 use structopt::StructOpt;
-use tokio::signal;
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "gateway", version = env!("CARGO_PKG_VERSION"), about = "Helium Light Gateway")]
@@ -24,10 +22,7 @@ pub enum Cmd {
 
 #[tokio::main]
 pub async fn main() -> Result {
-    SimpleLogger::new()
-        .with_level(LevelFilter::Info)
-        .init()
-        .unwrap();
+    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
 
     let cli = Cli::from_args();
 
@@ -35,7 +30,7 @@ pub async fn main() -> Result {
 
     let (shutdown_trigger, shutdown_listener) = triggered::trigger();
     tokio::spawn(async move {
-        let _ = signal::ctrl_c().await;
+        let _ = tokio::signal::ctrl_c().await;
         shutdown_trigger.trigger();
     });
     run(cli, settings, &shutdown_listener).await
