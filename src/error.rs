@@ -42,3 +42,9 @@ impl From<semtech_udp::server_runtime::Error> for GWError {
         Self::ServerError(v.to_string())
     }
 }
+
+impl From<prost::EncodeError> for GWError {
+    fn from(v: prost::EncodeError) -> Self {
+        Self::ServerError(v.to_string())
+    }
+}

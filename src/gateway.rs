@@ -1,6 +1,7 @@
-use crate::{base64, key, result::Result, settings::Settings};
+use crate::{base64, result::Result, settings::Settings};
 use helium_proto::{
-    packet::PacketType, routing_information::Data as RoutingData, Eui, Packet as HeliumPacket,
+    packet::PacketType, routing_information::Data as RoutingData,
+    BlockchainStateChannelPacketV1 as RouterPacket, Eui, Message, Packet as HeliumPacket,
     RoutingInformation,
 };
 use log::{debug, info};
@@ -12,22 +13,19 @@ use semtech_udp::{
     //StringOrNum,
     Up as UdpPacket,
 };
-use std::{io::Cursor, net::SocketAddr, sync::Arc};
+use std::io::Cursor;
 
 #[derive(Debug)]
 pub struct Gateway {
-    listen_addr: SocketAddr,
-    key: Arc<key::Key>,
+    settings: Settings,
     udp_runtime: UdpRuntime,
 }
 
 impl Gateway {
     pub async fn new(settings: &Settings) -> Result<Self> {
-        let listen_addr = settings.listen_addr;
         let gateway = Gateway {
-            listen_addr,
-            key: settings.key.clone(),
-            udp_runtime: UdpRuntime::new(listen_addr).await?,
+            settings: settings.clone(),
+            udp_runtime: UdpRuntime::new(settings.listen_addr).await?,
         };
         Ok(gateway)
     }
@@ -35,7 +33,7 @@ impl Gateway {
     pub async fn run(&mut self, shutdown: triggered::Listener) -> Result {
         info!(
             "Starting gateway listener {} on {}",
-            self.key, self.listen_addr
+            self.settings.key, self.settings.listen_addr
         );
         loop {
             let event = tokio::select! {
@@ -48,8 +46,7 @@ impl Gateway {
 
             match event {
                 Event::UnableToParseUdpFrame(buf) => {
-                    info!("Semtech UDP Parsing Error");
-                    info!("UDP data: {:?}", buf);
+                    info!("Ignorint semtech udp parsing error for {:?}", buf);
                 }
                 Event::NewClient((mac, addr)) => {
                     info!("New packet forwarder client: {}, {}", mac, addr);
@@ -60,20 +57,19 @@ impl Gateway {
                 Event::Packet(packet) => match packet {
                     UdpPacket::PushData(mut packet) => {
                         if let Some(rxpk) = &mut packet.data.rxpk {
-                            debug!("Received packets:");
                             // Sort packets by snr
-                            rxpk.sort_by(|a, b| b.snr().partial_cmp(&a.snr()).unwrap());
+                            rxpk.sort_by(|a, b| b.get_snr().partial_cmp(&a.get_snr()).unwrap());
                             for received_packet in rxpk {
                                 let packet_data =
-                                    &base64::decode_block(&received_packet.data.clone())?[..];
-                                if self.route_longfi_data(&received_packet, &packet_data).await {
+                                    &base64::decode_block(&received_packet.get_data().clone())?[..];
+                                if !self.route_longfi_data(&received_packet, &packet_data).await {
                                     self.route_lorawan_data(&received_packet, &packet_data)
                                         .await;
                                 }
                             }
                         }
                     }
-                    _ => debug!("{:?}", packet),
+                    _ => debug!("ignoring {:?}", packet),
                 },
                 Event::NoClientWithMac(_packet, mac) => {
                     info!("Tried to send to client with unknown MAC: {:?}", mac)
@@ -93,21 +89,60 @@ impl Gateway {
         }
     }
 
-    async fn route_lorawan_data(&self, received_packet: &push_data::RxPk, data: &[u8]) -> bool {
+    async fn route_lorawan_data(&self, received_packet: &push_data::RxPk, data: &[u8]) {
         let mut cursor = Cursor::new(data);
         match lorawan::PHYPayload::read(lorawan::Direction::Uplink, &mut cursor) {
             Ok(packet) => match mk_routing_information(&packet) {
                 // Ignore packets with no available routing information
-                None => false,
+                None => {
+                    debug!("No routing info for: {:?}", packet);
+                }
                 Some(routing) => {
-                    let helium_packet = mk_helium_packet(received_packet, Some(routing), data);
-                    info!("TO_ROUTER: {:?}", helium_packet);
-                    true
+                    match self.to_router_packet(received_packet, Some(routing), data) {
+                        Ok(router_packet) => self.send_to_router(&router_packet).await,
+                        Err(err) => info!("Failed to construct router packet: {:?}", err),
+                    }
                 }
             },
             // invalid lorawan packet
-            Err(_) => false,
+            Err(err) => {
+                info!("invalid lorawan packet {:?}", err);
+            }
         }
+    }
+
+    async fn send_to_router(&self, packet: &RouterPacket) {
+        debug!("SEND TO ROUTER: {:?}", packet);
+    }
+
+    fn to_router_packet(
+        &self,
+        packet: &push_data::RxPk,
+        routing: Option<RoutingInformation>,
+        data: &[u8],
+    ) -> Result<RouterPacket> {
+        let helium_packet = HeliumPacket {
+            r#type: PacketType::Lorawan.into(),
+            signal_strength: packet.get_rssi() as f32,
+            snr: packet.get_snr() as f32,
+            frequency: *packet.get_frequency() as f32,
+            timestamp: *packet.get_timestamp(),
+            datarate: packet.get_datarate(),
+            payload: data.to_vec(),
+            routing,
+            rx2_window: None,
+            oui: 0,
+        };
+        let mut envelope = RouterPacket {
+            packet: Some(helium_packet),
+            signature: vec![],
+            hotspot: self.settings.key.to_key_bin(),
+            region: self.settings.region.into(),
+        };
+        let mut encoded = vec![];
+        envelope.encode(&mut encoded)?;
+        envelope.signature = self.settings.key.sign(&encoded)?;
+        Ok(envelope)
     }
 }
 
@@ -123,23 +158,4 @@ fn mk_routing_information(packet: &PHYPayload) -> Option<RoutingInformation> {
         _ => None,
     };
     routing_data.map(|r| RoutingInformation { data: Some(r) })
-}
-
-fn mk_helium_packet(
-    packet: &push_data::RxPk,
-    routing: Option<RoutingInformation>,
-    data: &[u8],
-) -> HeliumPacket {
-    HeliumPacket {
-        r#type: PacketType::Lorawan.into(),
-        signal_strength: packet.rssi() as f32,
-        snr: packet.snr() as f32,
-        frequency: packet.freq as f32,
-        timestamp: packet.tmst,
-        datarate: packet.datr.clone(),
-        payload: data.to_vec(),
-        routing,
-        rx2_window: None,
-        oui: 0,
-    }
 }

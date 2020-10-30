@@ -2,10 +2,10 @@ use crate::{key, result::Result};
 use config::{Config, Environment, File};
 use helium_proto::Region;
 use serde::{de, Deserialize, Deserializer};
-use std::{net::SocketAddr, path::PathBuf, sync::Arc};
+use std::{net::SocketAddr, path::PathBuf};
 
 /// Settings are all the configuration parameters the service needs to operate.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct Settings {
     /// The listen address to use for listening for the semtech UDP packet forwarder.
     /// Default "127.0.0.1:1680"
@@ -15,7 +15,7 @@ pub struct Settings {
     /// "/etc/gateway/gateway_key.pem". If the keyfile is not found there a new
     /// one is generated and saved in that location.
     #[serde(deserialize_with = "deserialize_key")]
-    pub key: Arc<key::Key>,
+    pub key: key::Key,
     /// The lorawan region to use. This value should line up with the configured
     /// region of the semtech packet forwarder. Defaults to "US91%"
     #[serde(deserialize_with = "deserialize_region")]
@@ -46,19 +46,19 @@ impl Settings {
     }
 }
 
-fn deserialize_key<'de, D>(d: D) -> std::result::Result<Arc<key::Key>, D::Error>
+fn deserialize_key<'de, D>(d: D) -> std::result::Result<key::Key, D::Error>
 where
     D: Deserializer<'de>,
 {
     let s = String::deserialize(d)?;
     match key::Key::load(&s) {
-        Ok(k) => Ok(Arc::new(k)),
+        Ok(k) => Ok(k),
         Err(_) => {
             let new_key = key::Key::generate().map_err(de::Error::custom)?;
             new_key.save(&s).map_err(|e| {
                 de::Error::custom(format!("unable to save key file \"{}\": {:?}", s, e))
             })?;
-            Ok(Arc::new(new_key))
+            Ok(new_key)
         }
     }
 }
