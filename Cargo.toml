@@ -20,7 +20,7 @@ members = ["lorawan"]
 structopt = "0.3"
 config = {version="0.9", default-features=false, features=["toml"]}
 serde = "1"
-tokio = { version = "0.3", default-features=false, features=["macros", "signal", "rt-multi-thread"] }
+tokio = { version = "0.2", default-features=false, features=["macros", "signal", "rt-threaded"] }
 triggered = "0.1"
 log  = "0.4"
 env_logger = {version = "0.8", default-features = false, features = ["humantime"]}
@@ -29,7 +29,7 @@ openssl = {version="0.10", features=["vendored"]}
 openssl-sys = "*"
 bs58 = {version = "0.3.0", features=["check"]}
 prost = "*"
-reqwest = "0.10"
+reqwest = {version = "0.10", features=["native-tls"]}
 foreign-types = "0.3.1"
 lorawan = { package = "lorawan", path = "lorawan" }
 semtech-udp = { git = "https://github.com/helium/semtech-udp.git", branch = "master", features=["server"] }

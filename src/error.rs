@@ -7,6 +7,10 @@ pub enum GWError {
     ConfigError(#[from] config::ConfigError),
     #[error("server error")]
     ServerError(String),
+    #[error("ssl error")]
+    SSLError(#[from] openssl::error::ErrorStack),
+    #[error("client error")]
+    ClientError(#[from] reqwest::Error),
     #[error("io error")]
     IOError(#[from] std::io::Error),
     #[error("longfi error")]
@@ -19,14 +23,8 @@ impl From<net::AddrParseError> for GWError {
     }
 }
 
-impl From<tokio::sync::broadcast::error::RecvError> for GWError {
-    fn from(v: tokio::sync::broadcast::error::RecvError) -> Self {
-        Self::ServerError(v.to_string())
-    }
-}
-
-impl From<openssl::error::ErrorStack> for GWError {
-    fn from(v: openssl::error::ErrorStack) -> Self {
+impl From<tokio::sync::broadcast::RecvError> for GWError {
+    fn from(v: tokio::sync::broadcast::RecvError) -> Self {
         Self::ServerError(v.to_string())
     }
 }
@@ -45,6 +43,12 @@ impl From<semtech_udp::server_runtime::Error> for GWError {
 
 impl From<prost::EncodeError> for GWError {
     fn from(v: prost::EncodeError) -> Self {
+        Self::ServerError(v.to_string())
+    }
+}
+
+impl From<prost::DecodeError> for GWError {
+    fn from(v: prost::DecodeError) -> Self {
         Self::ServerError(v.to_string())
     }
 }
