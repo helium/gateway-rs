@@ -6,3 +6,4 @@ pub mod result;
 pub mod server;
 pub mod settings;
 pub use openssl::base64;
+pub mod router;

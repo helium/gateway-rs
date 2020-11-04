@@ -8,7 +8,7 @@ use std::{fmt, fs, path, result};
 /// connections through certs used for both authentication and encryption of
 /// those connections.
 #[derive(Debug, Clone)]
-pub struct Key(pkey::PKey<pkey::Private>);
+pub struct Key(pub pkey::PKey<pkey::Private>);
 
 impl Key {
     /// Generate a new key. Keys are ed25519 for compatibility with other Helium
