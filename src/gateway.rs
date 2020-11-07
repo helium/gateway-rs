@@ -13,16 +13,18 @@ pub const UPLINK_TIMEOUT_SECS: u64 = 6;
 
 #[derive(Debug)]
 pub struct Gateway {
-    settings: Settings,
     router: Arc<router::Client>,
     key: Arc<key::Key>,
+    region: router::Region,
+    router_targets: Vec<router::Url>,
     udp_runtime: UdpRuntime,
 }
 
 impl Gateway {
     pub async fn new(settings: &Settings) -> Result<Self> {
         let gateway = Gateway {
-            settings: settings.clone(),
+            router_targets: settings.routers.clone(),
+            region: settings.region,
             router: Arc::new(router::Client::new(&settings)?),
             key: Arc::new(settings.key.clone()),
             udp_runtime: UdpRuntime::new(settings.listen_addr).await?,
@@ -31,10 +33,7 @@ impl Gateway {
     }
 
     pub async fn run(&mut self, shutdown: triggered::Listener) -> Result {
-        info!(
-            "Starting gateway listener {} on {}",
-            self.settings.key, self.settings.listen_addr
-        );
+        info!("Starting gateway listener {}", self.key);
         loop {
             let event = tokio::select! {
                 _ = shutdown.clone() => {
@@ -62,10 +61,10 @@ impl Gateway {
                             for rxpk in rxpks {
                                 let router = self.router.clone();
                                 let push_data = rxpk.clone();
-                                let region = self.settings.region;
+                                let region = self.region;
                                 let key = self.key.clone();
                                 let mut push_targets = vec![];
-                                for target in &self.settings.routers {
+                                for target in &self.router_targets {
                                     push_targets.push((
                                         target.clone(),
                                         self.udp_runtime.prepare_empty_downlink(packet.gateway_mac),
