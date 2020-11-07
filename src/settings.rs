@@ -1,7 +1,10 @@
-use crate::{key, result::Result};
+use crate::{
+    key,
+    result::Result,
+    router::{Certificate, Url},
+};
 use config::{Config, Environment, File};
 use helium_proto::Region;
-use reqwest::{Certificate, Url};
 use serde::{de, Deserialize, Deserializer};
 use std::{net::SocketAddr, path::PathBuf};
 
