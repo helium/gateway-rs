@@ -1,3 +1,5 @@
+# cargo-features = ["strip"]
+
 [package]
 name = "gateway-rs"
 version = "0.1.0"
@@ -15,24 +17,29 @@ members = ["lorawan"]
 
 
 [dependencies]
+structopt = "0.3"
 config = {version="0.9", default-features=false, features=["toml"]}
-lazy_static = "1"
 serde = "1"
-structopt = {version = "0.3", default-features=false}
-anyhow = "1.0"
-tokio = { version = "0.3", features = ["full"] }
+tokio = { version = "0.2", default-features=false, features=["macros", "signal", "rt-threaded"] }
 triggered = "0.1"
-tracing = "0.1"
-tracing-futures = "0.2"
-tracing-subscriber = "0.2"
-base64 = "0.12.0"
+log  = "0.4"
+env_logger = {version = "0.8", default-features = false, features = ["humantime"]}
+thiserror = "1.0"
+openssl = {version="0.10", features=["vendored"]}
+openssl-sys = "*"
+bs58 = {version = "0.3.0", features=["check"]}
+prost = "*"
+reqwest = {version = "0.10", features=["native-tls"]}
+foreign-types = "0.3.1"
 lorawan = { package = "lorawan", path = "lorawan" }
-# semtech-udp = { git = "https://github.com/helium/semtech-udp.git", branch = "master", features=["server"] }
-semtech-udp = { path = "../semtech-udp", features=["server"] }
+semtech-udp = { git = "https://github.com/helium/semtech-udp.git", branch = "master", features=["server"] }
 helium-proto = { git = "https://github.com/helium/proto", branch="master"}
+longfi = { git = "https://github.com/helium/longfi-rs", branch = "main" }
 
-[dependencies.libp2p]
-git = "https://github.com/libp2p/rust-libp2p.git"
-branch = "master"
-default-features=false
-features=["noise", "mplex", "plaintext", "ping"]
+[profile.release]
+opt-level = 'z'
+lto = true
+codegen-units = 1
+panic = 'abort'
+# strip = "debuginfo"
+

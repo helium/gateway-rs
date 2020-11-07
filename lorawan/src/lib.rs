@@ -1,8 +1,6 @@
-#[macro_use]
-extern crate bitfield;
-
+use bitfield::bitfield;
 use byteorder::{LittleEndian, ReadBytesExt};
-use std::{convert::From, io};
+use std::{convert::From, fmt, io, result};
 
 pub mod error;
 pub use error::LoraWanError;
@@ -39,7 +37,7 @@ impl From<u8> for MType {
 }
 
 bitfield! {
-    struct MHDR(u8);
+    pub struct MHDR(u8);
     impl Debug;
     pub into MType, mtype, set_mtype: 7, 5;
     rfu, _: 4, 2;
@@ -54,9 +52,9 @@ impl MHDR {
 
 #[derive(Debug)]
 pub struct PHYPayload {
-    mhdr: MHDR,
-    payload: PHYPayloadFrame,
-    mic: [u8; 4],
+    pub mhdr: MHDR,
+    pub payload: PHYPayloadFrame,
+    pub mic: [u8; 4],
 }
 
 impl PHYPayload {
@@ -66,13 +64,18 @@ impl PHYPayload {
         let mut data = vec![];
         reader.read_to_end(&mut data)?;
         let mic = data.split_off(data.len() - 4);
+        let mut payload = &data[..];
         let mut res = Self {
             mhdr,
-            payload: PHYPayloadFrame::read(direction, packet_type, &mut io::Cursor::new(&data))?,
+            payload: PHYPayloadFrame::read(direction, packet_type, &mut payload)?,
             mic: [0; 4],
         };
         res.mic.copy_from_slice(&mic);
         Ok(res)
+    }
+
+    pub fn mtype(&self) -> MType {
+        self.mhdr.mtype()
     }
 }
 
@@ -98,12 +101,22 @@ impl PHYPayloadFrame {
     }
 }
 
-#[derive(Debug)]
 pub struct FHDR {
-    dev_addr: u32,
-    fctrl: FCtrl,
-    fcnt: u16,
-    fopts: Vec<u8>,
+    pub dev_addr: u32,
+    pub fctrl: FCtrl,
+    pub fcnt: u16,
+    pub fopts: Vec<u8>,
+}
+
+impl fmt::Debug for FHDR {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> result::Result<(), fmt::Error> {
+        f.debug_struct("FHDR")
+            .field("dev_addr", &format_args!("{:#04x}", self.dev_addr))
+            .field("fctrl", &self.fctrl)
+            .field("fcnt", &self.fcnt)
+            .field("fopts", &self.fopts)
+            .finish()
+    }
 }
 
 impl FHDR {
@@ -178,17 +191,11 @@ impl FCtrl {
     }
 }
 
-impl Default for FCtrl {
-    fn default() -> Self {
-        FCtrl::Uplink(FCtrlUplink(0))
-    }
-}
-
 #[derive(Debug)]
 pub struct MACPayload {
-    fhdr: FHDR,
-    fport: Option<u8>,
-    payload: Option<FRMPayload>,
+    pub fhdr: FHDR,
+    pub fport: Option<u8>,
+    pub payload: Option<FRMPayload>,
 }
 
 impl MACPayload {
@@ -207,12 +214,19 @@ impl MACPayload {
             ),
             _ => (None, None),
         };
+        if fport == Some(0) && fhdr.fctrl.fopts_len() > 0 {
+            return Err(LoraWanError::InvalidFPortForFopts);
+        }
         let res = Self {
             fhdr,
             fport,
             payload,
         };
         Ok(res)
+    }
+
+    pub fn dev_addr(&self) -> u32 {
+        self.fhdr.dev_addr
     }
 }
 
@@ -250,11 +264,20 @@ impl Payload {
     }
 }
 
-#[derive(Debug)]
 pub struct JoinRequest {
-    app_eui: u64,
-    dev_eui: u64,
-    dev_nonce: [u8; 2],
+    pub app_eui: u64,
+    pub dev_eui: u64,
+    pub dev_nonce: [u8; 2],
+}
+
+impl fmt::Debug for JoinRequest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> result::Result<(), fmt::Error> {
+        f.debug_struct("JoinRequest")
+            .field("app_eui", &format_args!("{:#08x}", self.app_eui))
+            .field("dev_eui", &format_args!("{:#08x}", self.dev_eui))
+            .field("dev_nonce", &self.dev_nonce)
+            .finish()
+    }
 }
 
 impl JoinRequest {
@@ -271,11 +294,11 @@ impl JoinRequest {
 
 #[derive(Debug)]
 pub struct JoinAccept {
-    app_nonce: [u8; 3],
-    net_id: [u8; 3],
-    dev_addr: u32,
-    dl_settings: u8,
-    rx_delay: u8,
+    pub app_nonce: [u8; 3],
+    pub net_id: [u8; 3],
+    pub dev_addr: u32,
+    pub dl_settings: u8,
+    pub rx_delay: u8,
     // cf_list: Option<CFList>,
 }
 
@@ -293,5 +316,18 @@ impl JoinAccept {
             rx_delay: reader.read_u8()?,
         };
         Ok(res)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use base64;
+
+    #[test]
+    fn test_read() {
+        let mut data = &base64::decode("IL1ciMu7b3ZOP5Q1cBA7isI=").unwrap()[..];
+        let payload = PHYPayload::read(Direction::Uplink, &mut data).unwrap();
+        eprintln!("PAYLOAD {:?}", payload);
     }
 }
