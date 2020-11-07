@@ -25,6 +25,10 @@ pub struct Routing(RoutingInformation);
 
 pub use helium_proto::Region;
 
+pub use reqwest::Url;
+
+pub use reqwest::Certificate;
+
 impl Client {
     pub fn new(settings: &Settings) -> Result<Self> {
         use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
