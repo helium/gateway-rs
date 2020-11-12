@@ -9,7 +9,7 @@ use serde::{de, Deserialize, Deserializer};
 use std::{net::SocketAddr, path::PathBuf};
 
 /// The Helium staging router URL. Used as one of the default routers.
-pub const HELIUM_STAGING_ROUTER: &str = "http://54.176.88.149:20443";
+pub const HELIUM_STAGING_ROUTER: &str = "http://54.176.88.149:20443/v1/router/message";
 
 /// Settings are all the configuration parameters the service needs to operate.
 #[derive(Debug, Deserialize, Clone)]

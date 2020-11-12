@@ -1,0 +1,35 @@
+#!/bin/sh
+
+PATH=/sbin:/bin:/usr/sbin:/usr/bin
+DAEMON=/usr/bin/helium_gateway
+NAME=helium_gateway
+DESC="Helium Gateway"
+PID_FILE=/var/run/helium_gateway.pid
+OPTS="--use-syslog --daemon server"
+
+case "$1" in
+  start)
+	echo "Starting $DESC: "
+	start-stop-daemon -S -b -p "$PID_FILE" -x "$DAEMON" -- $OPTS 
+	echo "$NAME."
+	;;
+  stop)
+	echo "Stopping $DESC: "
+	start-stop-daemon -K -x "$DAEMON"
+	echo "$NAME."
+	;;
+  restart|force-reload)
+	echo "Restarting $DESC: "
+	start-stop-daemon -K -p "$PID_FILE" -x "$DAEMON"
+	sleep 1
+	start-stop-daemon -S -b -p "$PID_FILE" -x "$DAEMON" -- $OPTS
+	echo "$NAME."
+	;;
+  *)
+	N=/etc/init.d/$NAME
+	echo "Usage: $N {start|stop|restart|force-reload}" >&2
+	exit 1
+	;;
+esac
+
+exit 0

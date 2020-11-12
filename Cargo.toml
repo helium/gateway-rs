@@ -8,7 +8,7 @@ edition = "2018"
 license = "Apache-2.0"
 
 [[bin]]
-name = "gateway"
+name = "helium_gateway"
 path = "src/main.rs"
 doc = false
 
@@ -24,11 +24,13 @@ tokio = { version = "0.2", default-features=false, features=["macros", "signal",
 triggered = "0.1"
 log  = "0.4"
 env_logger = {version = "0.8", default-features = false, features = ["humantime"]}
+syslog = {version = "5"}
 thiserror = "1.0"
 openssl = {version="0.10", features=["vendored"]}
 openssl-sys = "*"
 bs58 = {version = "0.3.0", features=["check"]}
 prost = "*"
+daemonize = "0.4"
 reqwest = {version = "0.10", features=["native-tls"]}
 foreign-types = "0.3.1"
 lorawan = { package = "lorawan", path = "lorawan" }
