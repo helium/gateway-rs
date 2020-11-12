@@ -1,0 +1,6 @@
+#!/bin/sh
+
+ln -sf /etc/init.d/helium_gateway /etc/rcU.d/S60helium_gateway
+ln -sf /etc/init.d/helium_gateway /etc/rcK.d/K60helium_gateway
+
+/etc/init.d/helium_gateway start
