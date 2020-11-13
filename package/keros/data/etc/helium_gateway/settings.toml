@@ -4,6 +4,5 @@ region = "US915"
 routers = ["http://54.176.88.149:20443/v1/router/message"]
 
 [log]
-method = "stdio"
+method = "syslog"
 level = "info"
-

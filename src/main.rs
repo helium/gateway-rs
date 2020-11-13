@@ -1,5 +1,8 @@
-use env_logger::Env;
-use gateway_rs::{cmd, result::Result, settings::Settings};
+use gateway_rs::{
+    cmd,
+    result::Result,
+    settings::{LogMethod, Settings},
+};
 use std::path::PathBuf;
 use structopt::StructOpt;
 use syslog::{BasicLogger, Facility, Formatter3164};
@@ -10,10 +13,6 @@ pub struct Cli {
     /// Config file to load. Defaults to "config/default"
     #[structopt(short = "c")]
     config: Option<PathBuf>,
-
-    /// Use syslog for logging. If not specified stdout is used.
-    #[structopt(long)]
-    use_syslog: bool,
 
     /// Daemonize the application
     #[structopt(long)]
@@ -29,21 +28,26 @@ pub enum Cmd {
     Server(cmd::server::Cmd),
 }
 
-fn install_logger(use_syslog: bool) {
-    if use_syslog {
-        use log::LevelFilter;
-        let formatter = Formatter3164 {
-            facility: Facility::LOG_USER,
-            hostname: None,
-            process: env!("CARGO_BIN_NAME").into(),
-            pid: std::process::id() as i32,
-        };
-        let logger = syslog::unix(formatter).expect("could not connect to syslog");
-        log::set_boxed_logger(Box::new(BasicLogger::new(logger)))
-            .map(|()| log::set_max_level(LevelFilter::Info))
-            .expect("coult not set log level");
-    } else {
-        env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+fn install_logger(method: &LogMethod, level: log::LevelFilter) {
+    match method {
+        LogMethod::Syslog => {
+            let formatter = Formatter3164 {
+                facility: Facility::LOG_USER,
+                hostname: None,
+                process: env!("CARGO_BIN_NAME").into(),
+                pid: std::process::id() as i32,
+            };
+            let logger = syslog::unix(formatter).expect("could not connect to syslog");
+            log::set_boxed_logger(Box::new(BasicLogger::new(logger)))
+                .map(|()| log::set_max_level(level))
+                .expect("coult not set log level")
+        }
+        LogMethod::Stdio => {
+            let mut builder = env_logger::Builder::new();
+            builder.filter_level(level);
+            builder.parse_default_env();
+            builder.init();
+        }
     }
 }
 
@@ -56,7 +60,7 @@ pub fn main() -> Result {
     }
 
     let settings = Settings::new(cli.config.clone())?;
-    install_logger(cli.use_syslog);
+    install_logger(&settings.log.method, settings.log.level);
     // Start the runtime after the daemon fork
     tokio::runtime::Builder::new()
         .threaded_scheduler()
