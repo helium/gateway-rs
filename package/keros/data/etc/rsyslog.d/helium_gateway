@@ -1,0 +1,3 @@
+:syslogtag, isequal, "helium_gateway:" /var/log/helium_gateway.log
+:syslogtag, startswith, "helium_gateway[" /var/log/helium_gateway.log
+& stop

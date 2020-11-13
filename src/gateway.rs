@@ -45,13 +45,13 @@ impl Gateway {
 
             match event {
                 Event::UnableToParseUdpFrame(buf) => {
-                    info!("Ignorint semtech udp parsing error for {:?}", buf);
+                    info!("ignoring semtech udp parsing error for {:?}", buf);
                 }
                 Event::NewClient((mac, addr)) => {
-                    info!("New packet forwarder client: {}, {}", mac, addr);
+                    info!("new packet forwarder client: {}, {}", mac, addr);
                 }
                 Event::UpdateClient((mac, addr)) => {
-                    info!("Mac existed, but IP updated: {}, {}", mac, addr);
+                    info!("mac existed, but IP updated: {}, {}", mac, addr);
                 }
                 Event::Packet(packet) => match packet {
                     UdpPacket::PushData(mut packet) => {
@@ -81,7 +81,7 @@ impl Gateway {
                     _ => debug!("ignoring {:?}", packet),
                 },
                 Event::NoClientWithMac(_packet, mac) => {
-                    warn!("Tried to send to client with unknown MAC: {:?}", mac)
+                    warn!("send to client with unknown MAC: {:?}", mac)
                 }
             }
         }
@@ -96,7 +96,7 @@ async fn handle_push_data(
     push_targets: Vec<(reqwest::Url, Downlink)>,
 ) {
     let payload = match base64::decode_block(&push_data.get_data()) {
-        Err(err) => return debug!("Ignoring bad push data: {:?}", err),
+        Err(err) => return debug!("ignoring bad push data: {:?}", err),
         Ok(v) => v,
     };
     if is_lonfi_packet(&payload) {
