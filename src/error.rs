@@ -52,3 +52,9 @@ impl From<prost::DecodeError> for GWError {
         Self::ServerError(v.to_string())
     }
 }
+
+impl From<daemonize::DaemonizeError> for GWError {
+    fn from(v: daemonize::DaemonizeError) -> Self {
+        Self::ServerError(v.to_string())
+    }
+}
