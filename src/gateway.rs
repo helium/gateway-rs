@@ -7,6 +7,7 @@ use semtech_udp::{
     tx_ack, StringOrNum, Up as UdpPacket,
 };
 use std::{sync::Arc, time::Duration};
+use tokio::sync::broadcast;
 
 pub const DOWNLINK_TIMEOUT_SECS: u64 = 5;
 pub const UPLINK_TIMEOUT_SECS: u64 = 6;
@@ -42,9 +43,15 @@ impl Gateway {
                     info!("Shutting down gateway");
                     return Ok(())
                 },
-                res = self.udp_runtime.recv() => res?
+                res = self.udp_runtime.recv() => match res {
+                    Err(broadcast::RecvError::Closed) => return Err(broadcast::RecvError::Closed.into()),
+                    Err(broadcast::RecvError::Lagged(skipped)) => {
+                        warn!("skipped {} udp events", skipped);
+                        continue;
+                    },
+                    Ok(v) => v,
+                }
             };
-
             match event {
                 Event::UnableToParseUdpFrame(buf) => {
                     info!("ignoring semtech udp parsing error for {:?}", buf);
@@ -81,7 +88,6 @@ impl Gateway {
                             }
                         }
                     }
-                    UdpPacket::PullData(_) => (), // Silently ignore since this happens often
                     _ => debug!("ignoring {:?}", packet),
                 },
                 Event::NoClientWithMac(_packet, mac) => {
@@ -163,6 +169,7 @@ async fn send_downlink(
         Some(packet.timestamp),
     );
     downlink.set_packet(pull_resp);
+    debug!("sending downlink {:?}", packet);
     match downlink
         .dispatch(Some(Duration::from_secs(DOWNLINK_TIMEOUT_SECS)))
         .await
@@ -178,7 +185,7 @@ async fn send_downlink(
                     Some(rx2.timestamp),
                 );
                 downlink_rx2.set_packet(pull_resp);
-                debug!("sending rx2 downlink");
+                debug!("sending rx2 downlink {:?}", packet);
                 downlink_rx2
                     .dispatch(Some(Duration::from_secs(DOWNLINK_TIMEOUT_SECS)))
                     .await
@@ -186,6 +193,7 @@ async fn send_downlink(
                 Ok(())
             }
         }
+        Err(SemtechError::AckError(tx_ack::Error::NONE)) => Ok(()),
         other => other,
     }
 }
@@ -201,8 +209,6 @@ fn mk_pull_resp(
     datarate: String,
     timestamp: Option<u64>,
 ) -> pull_resp::TxPk {
-    let payload = base64::encode_block(data);
-    let payload_len = payload.len();
     pull_resp::TxPk {
         imme: timestamp.is_none(),
         ipol: true,
@@ -212,8 +218,8 @@ fn mk_pull_resp(
         // for normal lorawan packets we're not selecting different frequencies
         // like we are for PoC
         freq: frequency as f64,
-        data: payload,
-        size: payload_len as u64,
+        data: base64::encode_block(data),
+        size: data.len() as u64,
         powe: 27,
         rfch: 0,
         tmst: match timestamp {
