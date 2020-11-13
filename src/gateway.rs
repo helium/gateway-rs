@@ -115,7 +115,7 @@ async fn handle_push_data(
             // router and make it into the signed message to post
             let router_packet = to_router_packet(&push_data, routing, &payload);
             let router_message = match router::Message::from_packet(router_packet, &key, region) {
-                Err(err) => return debug!("unable to create router message: {:?}", err),
+                Err(err) => return warn!("unable to create router message: {:?}", err),
                 Ok(m) => m,
             };
             for (router_address, downlinks) in push_targets {
@@ -138,7 +138,7 @@ async fn handle_push_data(
                         Ok(Some(response)) => {
                             if let Some(packet) = response.downlink() {
                                 match send_downlink(packet, downlinks).await {
-                                    Ok(()) => (),
+                                    Ok(()) => debug!("downlink sent"),
                                     Err(err) => warn!("failed to send downlink: {:?}", err),
                                 }
                             }

@@ -13,6 +13,7 @@ pub struct Client(reqwest::Client);
 static USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 static AGENT_ID_HEADER: &str = "x-gateway-id";
 static DEV_ADDR_HEADER: &str = "x-devaddr";
+const CONNECT_TIMEOUT: u64 = 5;
 
 #[derive(Debug, Clone)]
 pub struct Message(BlockchainStateChannelMessageV1);
@@ -41,6 +42,7 @@ impl Client {
             .danger_accept_invalid_hostnames(true)
             .default_headers(default_headers)
             .user_agent(USER_AGENT)
+            .connect_timeout(Duration::from_secs(CONNECT_TIMEOUT))
             .http2_prior_knowledge();
         // .identity(Self::mk_identity(settings)?);
         for cert in &settings.root_certs {
