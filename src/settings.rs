@@ -34,6 +34,29 @@ pub struct Settings {
     /// production routers.
     #[serde(deserialize_with = "deserialize_routers")]
     pub routers: Vec<Url>,
+    /// Log settings
+    pub log: LogSettings,
+}
+
+/// The method to use for logging.
+#[derive(Debug, Deserialize, Clone)]
+pub enum LogMethod {
+    /// Display logging information on stdout
+    Stdio,
+    /// Send logging information to syslog
+    Syslog,
+}
+
+/// Settings for log method and level to be used by the running service.
+#[derive(Debug, Deserialize, Clone)]
+pub struct LogSettings {
+    /// Log level to show
+    #[serde(deserialize_with = "deserialize_log_level")]
+    pub level: log::LevelFilter,
+
+    ///  Which log method to use
+    #[serde(deserialize_with = "deserialize_log_method")]
+    pub method: LogMethod,
 }
 
 impl Settings {
@@ -46,11 +69,13 @@ impl Settings {
     /// override the key file location.
     pub fn new(path: Option<PathBuf>) -> Result<Self> {
         let mut c = Config::new();
-        c.set_default("key", "/etc/gateway/gateway_key.pem")?;
+        c.set_default("key", "/etc/helium_gateway/key.pem")?;
         c.set_default("listen_addr", "127.0.0.1:1680")?;
         c.set_default("region", "US915")?;
         c.set_default("root_certs", Vec::<String>::new())?;
         c.set_default("routers", vec![HELIUM_STAGING_ROUTER])?;
+        c.set_default("log.level", "info")?;
+        c.set_default("log.method", "stdio")?;
         if let Some(p) = path {
             let path_str = p.to_str().unwrap();
             c.merge(File::with_name(&path_str))?;
@@ -138,4 +163,30 @@ where
         result.push(router);
     }
     Ok(result)
+}
+
+fn deserialize_log_level<'de, D>(d: D) -> std::result::Result<log::LevelFilter, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s = String::deserialize(d)?;
+    s.parse()
+        .map_err(|e| de::Error::custom(format!("invalid log level \"{}\": {}", s, e)))
+}
+
+fn deserialize_log_method<'de, D>(d: D) -> std::result::Result<LogMethod, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let method = match String::deserialize(d)?.to_lowercase().as_str() {
+        "stdio" => LogMethod::Stdio,
+        "syslog" => LogMethod::Syslog,
+        unsupported => {
+            return Err(de::Error::custom(format!(
+                "unsupported log method: \"{}\"",
+                unsupported
+            )))
+        }
+    };
+    Ok(method)
 }

@@ -6,7 +6,7 @@ target=$1
 package_arch=klkgw
 
 package_name=helium_gateway
-package_version="0.0.1"
+package_version="0.0.2"
 
 machine="$(cut -d '-' -f1 <<<"${target}")"
 package_src=package/keros

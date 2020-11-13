@@ -1,35 +1,74 @@
-#!/bin/sh
+#!/bin/sh -e
 
-PATH=/sbin:/bin:/usr/sbin:/usr/bin
-DAEMON=/usr/bin/helium_gateway
-NAME=helium_gateway
-DESC="Helium Gateway"
-PID_FILE=/var/run/helium_gateway.pid
-OPTS="--use-syslog --daemon server"
+### BEGIN INIT INFO
+# Provides:        helium_gateway
+# Required-Start:  $syslog 
+# Required-Stop:   $syslog
+# Default-Start:   5
+# Default-Stop:    0 6
+# Short-Description: The helium_gateway forwarder
+### END INIT INFO
 
-case "$1" in
-  start)
-	echo "Starting $DESC: "
-	start-stop-daemon -S -b -p "$PID_FILE" -x "$DAEMON" -- $OPTS 
-	echo "$NAME."
-	;;
-  stop)
-	echo "Stopping $DESC: "
-	start-stop-daemon -K -x "$DAEMON"
-	echo "$NAME."
-	;;
-  restart|force-reload)
-	echo "Restarting $DESC: "
-	start-stop-daemon -K -p "$PID_FILE" -x "$DAEMON"
-	sleep 1
-	start-stop-daemon -S -b -p "$PID_FILE" -x "$DAEMON" -- $OPTS
-	echo "$NAME."
-	;;
-  *)
-	N=/etc/init.d/$NAME
-	echo "Usage: $N {start|stop|restart|force-reload}" >&2
-	exit 1
-	;;
+BINARY="/usr/bin/helium_gateway"
+PIDFILE="/var/run/helium_gateway.pid"
+CONFIGURATION_FILE="/etc/helium_gateway/settings.toml"
+
+alive() { [ "${1}" ] && kill -0 ${1} 2> /dev/null ; }
+pid() { ([ -f ${PIDFILE} ] && cat ${PIDFILE}) || pidof helium_gateway ; }
+
+start()
+{
+	# Find the running pid and return if already alive.
+    if alive $(pid) ; then return 0; fi
+
+    # Enable firewall rules
+	OUT_RULE="OUTPUT -t filter -p tcp --dport 20443 -j ACCEPT"
+    iptables -C ${OUT_RULE} 2> /dev/null || iptables -I ${RULE}
+	IN_RULE="INPUT -t filter -p tcp -m state --state ESTABLISHED,RELATED -j ACCEPT"
+    iptables -C ${IN_RULE} 2> /dev/null || iptables -I ${RULE}
+
+    # Start the LoRa forwarder.
+    ${BINARY} -c ${CONFIGURATION_FILE} --daemon server
+
+    # Start monitoring.
+    monit monitor helium_gateway
+}
+
+stop()
+{
+    # Stop monitoring.
+    monit unmonitor lorafwd
+
+    # Stop the LoRa forwarder.
+    PID=$(pid)
+    if alive ${PID}
+	then
+        kill -TERM ${PID} && sleep 1
+        if alive ${PID}
+        then
+            kill -KILL ${PID} && sleep 1
+        fi
+    fi
+
+    # Check if the process has exited.
+    ! alive ${PID}
+}
+
+case "${1}" in
+        start)
+            echo "Starting helium_gateway"
+            start
+            ;;
+        stop)
+            echo "Stopping helium_gateway"
+            stop
+            ;;
+        restart | force-reload)
+            echo "Restarting helium_gateway"
+            stop && start
+            ;;
+        *)
+            echo >&2 "Usage: ${0##*/} { start | stop | restart }"
+            exit 1
+            ;;
 esac
-
-exit 0
