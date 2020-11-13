@@ -3,10 +3,11 @@ use helium_proto::{packet::PacketType, Packet as LoraPacket, Region};
 use log::{debug, info, warn};
 use semtech_udp::{
     pull_resp, push_data,
-    server_runtime::{Downlink, Event, UdpRuntime},
-    StringOrNum, Up as UdpPacket,
+    server_runtime::{Downlink, Error as SemtechError, Event, UdpRuntime},
+    tx_ack, StringOrNum, Up as UdpPacket,
 };
 use std::{sync::Arc, time::Duration};
+use tokio::sync::broadcast;
 
 pub const DOWNLINK_TIMEOUT_SECS: u64 = 5;
 pub const UPLINK_TIMEOUT_SECS: u64 = 6;
@@ -19,6 +20,8 @@ pub struct Gateway {
     router_targets: Vec<router::Url>,
     udp_runtime: UdpRuntime,
 }
+
+type Downlinks = (Downlink, Downlink);
 
 impl Gateway {
     pub async fn new(settings: &Settings) -> Result<Self> {
@@ -40,9 +43,15 @@ impl Gateway {
                     info!("Shutting down gateway");
                     return Ok(())
                 },
-                res = self.udp_runtime.recv() => res?
+                res = self.udp_runtime.recv() => match res {
+                    Err(broadcast::RecvError::Closed) => return Err(broadcast::RecvError::Closed.into()),
+                    Err(broadcast::RecvError::Lagged(skipped)) => {
+                        warn!("skipped {} udp events", skipped);
+                        continue;
+                    },
+                    Ok(v) => v,
+                }
             };
-
             match event {
                 Event::UnableToParseUdpFrame(buf) => {
                     info!("ignoring semtech udp parsing error for {:?}", buf);
@@ -65,10 +74,12 @@ impl Gateway {
                                 let key = self.key.clone();
                                 let mut push_targets = vec![];
                                 for target in &self.router_targets {
-                                    push_targets.push((
-                                        target.clone(),
+                                    let downlinks = (
                                         self.udp_runtime.prepare_empty_downlink(packet.gateway_mac),
-                                    ))
+                                        self.udp_runtime.prepare_empty_downlink(packet.gateway_mac),
+                                    );
+
+                                    push_targets.push((target.clone(), downlinks))
                                 }
                                 tokio::spawn(async move {
                                     handle_push_data(push_data, router, region, key, push_targets)
@@ -77,7 +88,6 @@ impl Gateway {
                             }
                         }
                     }
-                    UdpPacket::PullData(_) => (), // Silently ignore since this happens often
                     _ => debug!("ignoring {:?}", packet),
                 },
                 Event::NoClientWithMac(_packet, mac) => {
@@ -93,7 +103,7 @@ async fn handle_push_data(
     router: Arc<router::Client>,
     region: Region,
     key: Arc<key::Key>,
-    push_targets: Vec<(reqwest::Url, Downlink)>,
+    push_targets: Vec<(reqwest::Url, Downlinks)>,
 ) {
     let payload = match base64::decode_block(&push_data.get_data()) {
         Err(err) => return debug!("ignoring bad push data: {:?}", err),
@@ -111,10 +121,10 @@ async fn handle_push_data(
             // router and make it into the signed message to post
             let router_packet = to_router_packet(&push_data, routing, &payload);
             let router_message = match router::Message::from_packet(router_packet, &key, region) {
-                Err(err) => return debug!("unable to create router message: {:?}", err),
+                Err(err) => return warn!("unable to create router message: {:?}", err),
                 Ok(m) => m,
             };
-            for (router_address, mut downlink) in push_targets {
+            for (router_address, downlinks) in push_targets {
                 let inner_router = router.clone();
                 let inner_message = router_message.clone();
                 // Spawn of each target router target into its own thread.
@@ -133,14 +143,9 @@ async fn handle_push_data(
                         // A response, dispatch to the device if there's a downlink
                         Ok(Some(response)) => {
                             if let Some(packet) = response.downlink() {
-                                let pull_resp = to_pull_resp(&packet);
-                                downlink.set_packet(pull_resp);
-                                match downlink
-                                    .dispatch(Some(Duration::from_secs(DOWNLINK_TIMEOUT_SECS)))
-                                    .await
-                                {
-                                    Err(err) => debug!("Failed to send downlink {:?}", err),
-                                    Ok(()) => (),
+                                match send_downlink(packet, downlinks).await {
+                                    Ok(()) => debug!("downlink sent"),
+                                    Err(err) => warn!("failed to send downlink: {:?}", err),
                                 }
                             }
                         }
@@ -152,29 +157,75 @@ async fn handle_push_data(
     }
 }
 
+async fn send_downlink(
+    packet: &LoraPacket,
+    downlinks: Downlinks,
+) -> std::result::Result<(), SemtechError> {
+    let (mut downlink, mut downlink_rx2) = downlinks;
+    let pull_resp = mk_pull_resp(
+        &packet.payload,
+        packet.frequency,
+        packet.datarate.clone(),
+        Some(packet.timestamp),
+    );
+    downlink.set_packet(pull_resp);
+    debug!("sending downlink {:?}", packet);
+    match downlink
+        .dispatch(Some(Duration::from_secs(DOWNLINK_TIMEOUT_SECS)))
+        .await
+    {
+        // On a too early or too late error retry on the rx2 slot if available.
+        Err(SemtechError::AckError(tx_ack::Error::TOO_EARLY))
+        | Err(SemtechError::AckError(tx_ack::Error::TOO_LATE)) => {
+            if let Some(rx2) = &packet.rx2_window {
+                let pull_resp = mk_pull_resp(
+                    &packet.payload,
+                    rx2.frequency,
+                    rx2.datarate.clone(),
+                    Some(rx2.timestamp),
+                );
+                downlink_rx2.set_packet(pull_resp);
+                debug!("sending rx2 downlink {:?}", packet);
+                downlink_rx2
+                    .dispatch(Some(Duration::from_secs(DOWNLINK_TIMEOUT_SECS)))
+                    .await
+            } else {
+                Ok(())
+            }
+        }
+        Err(SemtechError::AckError(tx_ack::Error::NONE)) => Ok(()),
+        other => other,
+    }
+}
+
 fn is_lonfi_packet(data: &[u8]) -> bool {
     let mut decoded = [0xFE, 65];
     longfi::Datagram::decode(data, &mut decoded).is_ok()
 }
 
-fn to_pull_resp(packet: &LoraPacket) -> pull_resp::TxPk {
-    let payload = base64::encode_block(&packet.payload);
-    let payload_len = payload.len();
+fn mk_pull_resp(
+    data: &[u8],
+    frequency: f32,
+    datarate: String,
+    timestamp: Option<u64>,
+) -> pull_resp::TxPk {
     pull_resp::TxPk {
-        imme: true,
+        imme: timestamp.is_none(),
         ipol: true,
         modu: "LORA".to_string(),
         codr: "4/5".to_string(),
-        datr: packet.datarate.clone(),
+        datr: datarate,
         // for normal lorawan packets we're not selecting different frequencies
         // like we are for PoC
-        freq: packet.frequency as f64,
-        data: payload,
-        size: payload_len as u64,
+        freq: frequency as f64,
+        data: base64::encode_block(data),
+        size: data.len() as u64,
         powe: 27,
         rfch: 0,
-        // tmst will be ignored since imme is true
-        tmst: StringOrNum::N(packet.timestamp),
+        tmst: match timestamp {
+            Some(t) => StringOrNum::N(t),
+            None => StringOrNum::S("immediate".to_string()),
+        },
         tmms: None,
         fdev: None,
         prea: None,

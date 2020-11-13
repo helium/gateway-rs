@@ -13,21 +13,20 @@ pub struct Client(reqwest::Client);
 static USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 static AGENT_ID_HEADER: &str = "x-gateway-id";
 static DEV_ADDR_HEADER: &str = "x-devaddr";
+const CONNECT_TIMEOUT: u64 = 5;
 
 #[derive(Debug, Clone)]
 pub struct Message(BlockchainStateChannelMessageV1);
 
 #[derive(Debug, Clone)]
-pub struct Response(BlockchainStateChannelResponseV1);
+pub struct Response(BlockchainStateChannelMessageV1);
 
 #[derive(Debug, Clone)]
 pub struct Routing(RoutingInformation);
 
 pub use helium_proto::Region;
-
-pub use reqwest::Url;
-
 pub use reqwest::Certificate;
+pub use reqwest::Url;
 
 impl Client {
     pub fn new(settings: &Settings) -> Result<Self> {
@@ -41,6 +40,7 @@ impl Client {
             .danger_accept_invalid_hostnames(true)
             .default_headers(default_headers)
             .user_agent(USER_AGENT)
+            .connect_timeout(Duration::from_secs(CONNECT_TIMEOUT))
             .http2_prior_knowledge();
         // .identity(Self::mk_identity(settings)?);
         for cert in &settings.root_certs {
@@ -116,11 +116,16 @@ impl Message {
 
 impl Response {
     pub fn decode(mut buf: &mut dyn Buf) -> Result<Self> {
-        Ok(Self(BlockchainStateChannelResponseV1::decode(&mut buf)?))
+        Ok(Self(BlockchainStateChannelMessageV1::decode(&mut buf)?))
     }
 
     pub fn downlink(&self) -> Option<&Packet> {
-        self.0.downlink.as_ref()
+        match &self.0 {
+            BlockchainStateChannelMessageV1 {
+                msg: Some(Msg::Response(BlockchainStateChannelResponseV1 { downlink, .. })),
+            } => downlink.as_ref(),
+            _ => None,
+        }
     }
 }
 
