@@ -11,6 +11,7 @@ use std::{net::SocketAddr, path::PathBuf};
 
 /// The Helium staging router URL. Used as one of the default routers.
 pub const HELIUM_STAGING_ROUTER: &str = "http://54.176.88.149:20443/v1/router/message";
+pub const GITHUB_RELEASES: &str = "https://api.github.com/repos/helium/gateway-rs/releases";
 
 /// Settings are all the configuration parameters the service needs to operate.
 #[derive(Debug, Deserialize, Clone)]
@@ -60,6 +61,9 @@ pub struct LogSettings {
     ///  Which log method to use (stdio or syslog, default stdio)
     #[serde(deserialize_with = "deserialize_log_method")]
     pub method: LogMethod,
+
+    /// Whehter to show timestamps in the stdio output stream (default false)
+    pub timestamp: bool,
 }
 
 /// Settings for log method and level to be used by the running service.
@@ -74,6 +78,10 @@ pub struct UpdateSettings {
     pub channel: updater::Channel,
     /// The platform identifier to use for released packages (default: keros)
     pub platform: String,
+    /// The github release url to use (default
+    /// https://api.github.com/repos/helium/gateway-rs/releases)
+    #[serde(deserialize_with = "deserialize_url")]
+    pub url: Url,
 }
 
 impl Settings {
@@ -93,10 +101,12 @@ impl Settings {
         c.set_default("routers", vec![HELIUM_STAGING_ROUTER])?;
         c.set_default("log.level", "info")?;
         c.set_default("log.method", "stdio")?;
+        c.set_default("log.timestamp", "false")?;
         c.set_default("update.enabled", "true")?;
         c.set_default("update.channel", "release")?;
         c.set_default("update.platform", "keros")?;
-        c.set_default("update.interval", "10")?;
+        c.set_default("update.interval", 10)?;
+        c.set_default("update.url", GITHUB_RELEASES)?;
         if let Some(p) = path {
             let path_str = p.to_str().unwrap();
             c.merge(File::with_name(&path_str))?;
@@ -228,4 +238,18 @@ where
         }
     };
     Ok(channel)
+}
+
+fn deserialize_url<'de, D>(d: D) -> std::result::Result<reqwest::Url, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let url_string = String::deserialize(d)?;
+    match reqwest::Url::parse(&url_string) {
+        Ok(url) => Ok(url),
+        Err(err) => Err(de::Error::custom(format!(
+            "invalid url format: \"{}\"",
+            err
+        ))),
+    }
 }
