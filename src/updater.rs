@@ -31,6 +31,7 @@ impl fmt::Display for Channel {
 pub struct Updater {
     enabled: bool,
     client: reqwest::Client,
+    url: reqwest::Url,
     channel: Channel,
     platform: String,
     interval: time::Duration,
@@ -55,6 +56,7 @@ impl Updater {
             channel: settings.update.channel.clone(),
             platform: settings.update.platform.clone(),
             interval: time::Duration::from_secs(settings.update.interval as u64 * 60),
+            url: settings.update.url.clone(),
         })
     }
 
@@ -83,11 +85,11 @@ impl Updater {
                     // version in the settings channel that is newer than the
                     // package version.
                     let current_version = Version::parse(env!("CARGO_PKG_VERSION")).expect("semver package version");
-                    let mut release_list = ReleaseList::new(self.client.clone());
+                    let mut release_list = ReleaseList::new(self.client.clone(), self.url.clone());
                     match release_list.first(|r| {
                         r.in_channel(&self.channel) && r.version > current_version
-                    }).await? {
-                        Some(release) => {
+                    }).await {
+                        Ok(Some(release)) => {
                             // TODO: Make platform specific
                             let package_name = format!("helium-gateway-{}-{}.ipk",
                                                        release.version.to_string(),
@@ -104,7 +106,8 @@ impl Updater {
                                 None => warn!("no release asset found for {}", package_name)
                             }
                         },
-                        None => info!("No update found")
+                        Ok(None) => info!("no update found"),
+                        Err(err) => warn!("failed to fetch releases: {:?}", err)
                     }
                 }
             }
@@ -260,19 +263,20 @@ impl ReleaseAsset {
 #[derive(Debug)]
 pub struct ReleaseList {
     client: reqwest::Client,
+    url: reqwest::Url,
     next_page: u8,
     current_page: Vec<Release>,
     finished: bool,
 }
 
-static GH_RELEASES: &str = "https://api.github.com/repos/helium/gateway-rs/releases";
 const GH_PAGE_SIZE: u8 = 10;
 
 impl ReleaseList {
     /// Creates a new release list given a request client.
-    pub fn new(client: reqwest::Client) -> Self {
+    pub fn new(client: reqwest::Client, url: reqwest::Url) -> Self {
         Self {
             client,
+            url,
             next_page: 1,
             current_page: vec![],
             finished: false,
@@ -301,7 +305,7 @@ impl ReleaseList {
         if self.current_page.is_empty() {
             let next_page = self
                 .client
-                .get(GH_RELEASES)
+                .get(self.url.clone())
                 .query(&[("per_page", GH_PAGE_SIZE), ("page", self.next_page)])
                 .send()
                 .await?
