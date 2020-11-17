@@ -28,8 +28,8 @@ pub enum Cmd {
     Server(cmd::server::Cmd),
 }
 
-fn install_logger(method: &LogMethod, level: log::LevelFilter) {
-    match method {
+fn install_logger(settings: &Settings) {
+    match settings.log.method {
         LogMethod::Syslog => {
             let formatter = Formatter3164 {
                 facility: Facility::LOG_USER,
@@ -39,12 +39,15 @@ fn install_logger(method: &LogMethod, level: log::LevelFilter) {
             };
             let logger = syslog::unix(formatter).expect("could not connect to syslog");
             log::set_boxed_logger(Box::new(BasicLogger::new(logger)))
-                .map(|()| log::set_max_level(level))
+                .map(|()| log::set_max_level(settings.log.level))
                 .expect("coult not set log level")
         }
         LogMethod::Stdio => {
             let mut builder = env_logger::Builder::new();
-            builder.filter_level(level);
+            if !settings.log.timestamp {
+                builder.format_timestamp(None);
+            };
+            builder.filter_level(settings.log.level);
             builder.parse_default_env();
             builder.init();
         }
@@ -60,7 +63,7 @@ pub fn main() -> Result {
     }
 
     let settings = Settings::new(cli.config.clone())?;
-    install_logger(&settings.log.method, settings.log.level);
+    install_logger(&settings);
     // Start the runtime after the daemon fork
     tokio::runtime::Builder::new()
         .threaded_scheduler()

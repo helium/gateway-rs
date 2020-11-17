@@ -4,7 +4,7 @@ region = "US915"
 routers = ["http://54.176.88.149:20443/v1/router/message"]
 
 [log]
-method = "syslog"
+method = "stdio"
 level = "info"
 timestamp = false
 
@@ -12,4 +12,4 @@ timestamp = false
 enabled = true
 channel = "release"
 interval = 10
-platform = "keros"
+platform = "openwrt"
