@@ -2,6 +2,7 @@ use crate::{
     key,
     result::Result,
     router::{Certificate, Url},
+    updater,
 };
 use config::{Config, Environment, File};
 use helium_proto::Region;
@@ -36,6 +37,8 @@ pub struct Settings {
     pub routers: Vec<Url>,
     /// Log settings
     pub log: LogSettings,
+    /// Update settings
+    pub update: UpdateSettings,
 }
 
 /// The method to use for logging.
@@ -50,13 +53,27 @@ pub enum LogMethod {
 /// Settings for log method and level to be used by the running service.
 #[derive(Debug, Deserialize, Clone)]
 pub struct LogSettings {
-    /// Log level to show
+    /// Log level to show (default info)
     #[serde(deserialize_with = "deserialize_log_level")]
     pub level: log::LevelFilter,
 
-    ///  Which log method to use
+    ///  Which log method to use (stdio or syslog, default stdio)
     #[serde(deserialize_with = "deserialize_log_method")]
     pub method: LogMethod,
+}
+
+/// Settings for log method and level to be used by the running service.
+#[derive(Debug, Deserialize, Clone)]
+pub struct UpdateSettings {
+    /// Whether the auto-update system is enabled (default: true)
+    pub enabled: bool,
+    /// How often to check for updates (in minutes, default: 10)
+    pub interval: u32,
+    ///  Which udpate channel to use (alpha, beta, release, default: release)
+    #[serde(deserialize_with = "deserialize_update_channel")]
+    pub channel: updater::Channel,
+    /// The platform identifier to use for released packages (default: keros)
+    pub platform: String,
 }
 
 impl Settings {
@@ -76,6 +93,10 @@ impl Settings {
         c.set_default("routers", vec![HELIUM_STAGING_ROUTER])?;
         c.set_default("log.level", "info")?;
         c.set_default("log.method", "stdio")?;
+        c.set_default("update.enabled", "true")?;
+        c.set_default("update.channel", "release")?;
+        c.set_default("update.platform", "keros")?;
+        c.set_default("update.interval", "10")?;
         if let Some(p) = path {
             let path_str = p.to_str().unwrap();
             c.merge(File::with_name(&path_str))?;
@@ -189,4 +210,22 @@ where
         }
     };
     Ok(method)
+}
+
+fn deserialize_update_channel<'de, D>(d: D) -> std::result::Result<updater::Channel, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let channel = match String::deserialize(d)?.to_lowercase().as_str() {
+        "alpha" => updater::Channel::Alpha,
+        "beta" => updater::Channel::Beta,
+        "release" | "" => updater::Channel::Release,
+        unsupported => {
+            return Err(de::Error::custom(format!(
+                "unsupported update channel: \"{}\"",
+                unsupported
+            )))
+        }
+    };
+    Ok(channel)
 }
