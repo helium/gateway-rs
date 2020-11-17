@@ -7,3 +7,7 @@ routers = ["http://54.176.88.149:20443/v1/router/message"]
 method = "stdio"
 level = "info"
 
+[update]
+channel = "release"
+interval = 60
+platform = "keros"
