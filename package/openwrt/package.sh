@@ -3,16 +3,16 @@
 set -e
 
 target=$1
-package_arch=klkgw
+package_arch=ramips_24kec
 
 package_name=helium_gateway
 package_version="0.0.2"
 
 machine="$(cut -d '-' -f1 <<<"${target}")"
-package_src=package/keros
+package_src=package/openwrt
 
 # make base folder
-build_dir="target/keros/${machine}"
+build_dir="target/openwrt/${machine}"
 mkdir -p "${build_dir}"
 echo 2.0 > "${build_dir}/debian-binary"
 

@@ -7,3 +7,4 @@ pub mod server;
 pub mod settings;
 pub use openssl::base64;
 pub mod router;
+pub mod updater;

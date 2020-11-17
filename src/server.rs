@@ -1,11 +1,8 @@
-use crate::{gateway::Gateway, result::Result, settings::Settings};
-use log::info;
+use crate::{gateway::Gateway, result::Result, settings::Settings, updater::Updater};
 
 pub async fn run(shutdown: &triggered::Listener, settings: &Settings) -> Result {
     let mut gateway = Gateway::new(&settings).await?;
-    // TODO: Concurrently run the udp listener, updater, and listen for the
-    // shutdown signal.
-    gateway.run(shutdown.clone()).await?;
-    info!("Shutting down server");
-    Ok(())
+    let updater = Updater::new(&settings)?;
+
+    tokio::try_join!(gateway.run(shutdown.clone()), updater.run(shutdown.clone())).map(|_| ())
 }

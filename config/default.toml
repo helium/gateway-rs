@@ -6,4 +6,11 @@ routers = ["http://54.176.88.149:20443/v1/router/message"]
 [log]
 method = "stdio"
 level = "info"
+timestamp = false
 
+[update]
+enabled = true
+channel = "release"
+interval = 10
+platform = "keros"
+url = "https://api.github.com/repos/helium/gateway-rs/releases"
