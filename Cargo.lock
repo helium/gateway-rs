@@ -356,7 +356,7 @@ dependencies = [
 
 [[package]]
 name = "gateway-rs"
-version = "0.1.1-alpha.4"
+version = "0.1.1-alpha.5"
 dependencies = [
  "bs58",
  "config",
