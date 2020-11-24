@@ -37,7 +37,7 @@ jobs:
         id: vars
         run: |
           echo ::set-output name=tag::${GITHUB_REF#refs/*/}
-          echo ::set-output name=asset_name::helium-gateway-${GITHUB_REF#refs/*/}_${{ matrix.target}}.ipk
+          echo ::set-output name=asset_name::helium-gateway-${GITHUB_REF#refs/*/}-${{ matrix.target}}.ipk
 
       - name: create release
         id: create_release
