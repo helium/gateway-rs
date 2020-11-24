@@ -3,8 +3,6 @@ additional_profiles = ["klkgw", "ramips_24kec"]
 default_to_workspace = false
 
 [env]
-PKG_BASE_NAME = "helium_gateway"
-
 [env.klkgw]
 CROSS_TARGET = "armv7-unknown-linux-musleabihf"
 
@@ -60,7 +58,7 @@ script = '''
 	cd ${CARGO_MAKE_WORKING_DIRECTORY}
 	
 	cd ${IPK_BUILD_DIR}
-	tar --numeric-owner --group=0 --owner=0 -czf ../${PKG_BASE_NAME}-v${CARGO_MAKE_CRATE_VERSION}-${CARGO_MAKE_PROFILE}.ipk ./debian-binary ./data.tar.gz ./control.tar.gz 
+	tar --numeric-owner --group=0 --owner=0 -czf ../helium-gateway-v${CARGO_MAKE_CRATE_VERSION}-${CARGO_MAKE_PROFILE}.ipk ./debian-binary ./data.tar.gz ./control.tar.gz 
 	cd ${CARGO_MAKE_WORKING_DIRECTORY}
 '''
 
