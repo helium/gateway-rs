@@ -90,7 +90,7 @@ impl Updater {
                         r.in_channel(&self.channel) && r.version > current_version
                     }).await {
                         Ok(Some(release)) => {
-                            let package_name = format!("helium_gateway_v{}_{}.ipk",
+                            let package_name = format!("helium-gateway-v{}-{}.ipk",
                                                        release.version.to_string(),
                                                        self.platform);
                             // Check for an asset given teh assumed name for the package
