@@ -52,13 +52,13 @@ script = '''
 
     # package together
 	cd ${IPK_BUILD_DIR}/control
-	tar --numeric-owner --gid=0 --uid=0 -czf ../control.tar.gz ./*
+	tar --numeric-owner --group=0 --owner=0 -czf ../control.tar.gz ./*
 	
 	cd ${IPK_BUILD_DIR}/data
-	tar --numeric-owner --gid=0 --uid=0 -czf ../data.tar.gz ./*
+	tar --numeric-owner --group=0 --owner=0 -czf ../data.tar.gz ./*
 	
 	cd ${IPK_BUILD_DIR}
-	tar --numeric-owner --gid=0 --uid=0 -czf ../${PKG_BASE_NAME}_${CARGO_MAKE_CRATE_VERSION}_${CARGO_MAKE_PROFILE}.ipk ./debian-binary ./data.tar.gz ./control.tar.gz 
+	tar --numeric-owner --group=0 --owner=0 -czf ../${PKG_BASE_NAME}_${CARGO_MAKE_CRATE_VERSION}_${CARGO_MAKE_PROFILE}.ipk ./debian-binary ./data.tar.gz ./control.tar.gz 
 	cd ${CARGO_MAKE_WORKING_DIRECTORY}
 '''
 
