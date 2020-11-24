@@ -31,8 +31,6 @@ dependencies = ["cross"]
 condition = { env_set = ["CROSS_TARGET"] }
 env = { "IPK_BUILD_DIR" = "target/ipk/${CARGO_MAKE_PROFILE}", "IPK_SRC_DIR" = "package/${CARGO_MAKE_PROFILE}" }
 script = '''
-	#!/usr/bin/env bash
-	
 	# make base folder
 	mkdir -p ${IPK_BUILD_DIR}
 	echo 2.0 > ${IPK_BUILD_DIR}/debian-binary
@@ -53,17 +51,15 @@ script = '''
 	done
 
     # package together
-	pushd ${IPK_BUILD_DIR}/control > /dev/null
+	cd ${IPK_BUILD_DIR}/control
 	tar --numeric-owner --gid=0 --uid=0 -czf ../control.tar.gz ./*
-	popd > /dev/null
 	
-	pushd ${IPK_BUILD_DIR}/data > /dev/null
+	cd ${IPK_BUILD_DIR}/data
 	tar --numeric-owner --gid=0 --uid=0 -czf ../data.tar.gz ./*
-	popd > /dev/null
 	
-	pushd ${IPK_BUILD_DIR} > /dev/null
+	cd ${IPK_BUILD_DIR}
 	tar --numeric-owner --gid=0 --uid=0 -czf ../${PKG_BASE_NAME}_${CARGO_MAKE_CRATE_VERSION}_${CARGO_MAKE_PROFILE}.ipk ./debian-binary ./data.tar.gz ./control.tar.gz 
-	popd > /dev/null
+	cd ${CARGO_MAKE_WORKING_DIRECTORY}
 '''
 
 [tasks.ci]
