@@ -2,7 +2,7 @@
 
 [package]
 name = "gateway-rs"
-version = "0.1.1-alpha.2"
+version = "0.1.1-alpha.3"
 authors = ["Marc Nijdam <marc@helium.com>"]
 edition = "2018"
 license = "Apache-2.0"
