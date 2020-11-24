@@ -31,6 +31,8 @@ dependencies = ["cross"]
 condition = { env_set = ["CROSS_TARGET"] }
 env = { "IPK_BUILD_DIR" = "target/ipk/${CARGO_MAKE_PROFILE}", "IPK_SRC_DIR" = "package/${CARGO_MAKE_PROFILE}" }
 script = '''
+	#!/usr/bin/env bash
+	
 	# make base folder
 	mkdir -p ${IPK_BUILD_DIR}
 	echo 2.0 > ${IPK_BUILD_DIR}/debian-binary
