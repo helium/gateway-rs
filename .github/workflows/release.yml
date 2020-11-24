@@ -3,26 +3,60 @@ on:
     branches: [main]
     tags: ['v*']
 
-name: Release
+name: release
 
 jobs:
   build:
-    name: Build
+    name: build
     runs-on: ubuntu-latest
     strategy:
       matrix:
         target:
-          - armv7-unknown-linux-gnueabihf
-          - mipsel-unknown-linux-musl
+          - klkgw
+          - ramips_24kec
     steps:
-      - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-          target: ${{ matrix.target }}
           override: true
-      - uses: actions-rs/cargo@v1
+      - uses: davidB/rust-cargo-make@v1
+      - uses: actions/checkout@v2
+
+      - name: install cross
+        uses: jaxxstorm/action-install-gh-release@release/v1-alpha
+        env:
+          ## Allow cross install into PATH
+          ACTIONS_ALLOW_UNSECURE_COMMANDS: true
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+        with: 
+          repo: rust-embedded/cross
+
+      - name: build ipk
+        run: cargo make --profile ${{ matrix.target }} ipk
+
+      - name: name asset
+        id: vars
+        run: |
+          echo ::set-output name=tag::${GITHUB_REF#refs/*/}
+          echo ::set-output name=asset_name::helium_gateway_${GITHUB_REF#refs/*/}_${{ matrix.target}}.ipk
+
+      - name: create release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          use-cross: true
-          command: build
-          args: --release --target=${{ matrix.target }}
+          tag_name: ${{ steps.vars.outputs.tag }}
+          release_name: Release ${{ steps.vars.outputs.tag }}
+          draft: false
+          prerelease: false
+
+      - name: upload ipk
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }} 
+          asset_path: target/ipk/${{ matrix.target }}/${{ steps.vars.outputs.asset_name }}
+          asset_name: helium_gateway_${{ steps.vars.outputs.asset_name }}
+          asset_content_type: application/zip

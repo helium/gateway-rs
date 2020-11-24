@@ -12,4 +12,4 @@ timestamp = false
 enabled = true
 channel = "release"
 interval = 10
-platform = "openwrt"
+platform = "ramips_24kec"

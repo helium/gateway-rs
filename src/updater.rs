@@ -90,8 +90,7 @@ impl Updater {
                         r.in_channel(&self.channel) && r.version > current_version
                     }).await {
                         Ok(Some(release)) => {
-                            // TODO: Make platform specific
-                            let package_name = format!("helium-gateway-{}-{}.ipk",
+                            let package_name = format!("helium_gateway_v{}_{}.ipk",
                                                        release.version.to_string(),
                                                        self.platform);
                             // Check for an asset given teh assumed name for the package
@@ -120,8 +119,9 @@ impl Updater {
     /// restart.
     pub async fn install(&self, package: &Path) -> Result {
         match self.platform.as_ref() {
-            "keros" => {
+            "klkgw" => {
                 fs::rename(package, "/.update/")?;
+                info!("rebooting for update");
                 self.reboot()
             }
             unsupported => Err(io::Error::new(
