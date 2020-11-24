@@ -1,0 +1,77 @@
+[config]
+additional_profiles = ["klkgw", "ramips_24kec"]
+default_to_workspace = false
+
+[env]
+PKG_BASE_NAME = "helium_gateway"
+
+[env.klkgw]
+CROSS_TARGET = "armv7-unknown-linux-musleabihf"
+
+[env.ramips_24kec]
+CROSS_TARGET = "mipsel-unknown-linux-musl"
+
+[tasks.cross]
+description = "Runs the cross rust compiler."
+category = "Build"
+install_crate = false
+condition = { env_set = ["CROSS_TARGET"] }
+command = "cross"
+args = [
+  "build",
+  "--target",
+  "${CROSS_TARGET}",
+  "--release"
+]
+
+[tasks.ipk]
+description = "Builds an ipk for openwrt/opk based targets"
+category = "Package"
+dependencies = ["cross"]
+condition = { env_set = ["CROSS_TARGET"] }
+env = { "IPK_BUILD_DIR" = "target/ipk/${CARGO_MAKE_PROFILE}", "IPK_SRC_DIR" = "package/${CARGO_MAKE_PROFILE}" }
+script = '''
+	# make base folder
+	mkdir -p ${IPK_BUILD_DIR}
+	echo 2.0 > ${IPK_BUILD_DIR}/debian-binary
+	
+	# install data files
+	cp -R ${IPK_SRC_DIR}/data ${IPK_BUILD_DIR}
+	
+	# install binary
+	mkdir -p ${IPK_BUILD_DIR}/data/usr/bin
+	cp target/${CROSS_TARGET}/release/helium_gateway ${IPK_BUILD_DIR}/data/usr/bin
+	
+	# install control files
+	mkdir -p ${IPK_BUILD_DIR}/control
+	export CARGO_MAKE_PROFILE CARGO_MAKE_CRATE_VERSION
+	for control_file in control preinst postinst prerm; do
+	    envsubst < ${IPK_SRC_DIR}/control/${control_file} > ${IPK_BUILD_DIR}/control/${control_file}
+	    chmod +x ${IPK_BUILD_DIR}/control/${control_file}
+	done
+
+    # package together
+	pushd ${IPK_BUILD_DIR}/control > /dev/null
+	tar --numeric-owner --gid=0 --uid=0 -czf ../control.tar.gz ./*
+	popd > /dev/null
+	
+	pushd ${IPK_BUILD_DIR}/data > /dev/null
+	tar --numeric-owner --gid=0 --uid=0 -czf ../data.tar.gz ./*
+	popd > /dev/null
+	
+	pushd ${IPK_BUILD_DIR} > /dev/null
+	tar --numeric-owner --gid=0 --uid=0 -czf ../${PKG_BASE_NAME}_${CARGO_MAKE_CRATE_VERSION}_${CARGO_MAKE_PROFILE}.ipk ./debian-binary ./data.tar.gz ./control.tar.gz 
+	popd > /dev/null
+'''
+
+[tasks.ci]
+dependencies = ["check-format", "check-clippy"]
+
+[tasks.check-format]
+command = "cargo"
+args = ["fmt", "--", "--check"]
+
+[tasks.check-clippy]
+command = "cargo"
+args = ["clippy", "--", "--deny=clippy::all"]
+
