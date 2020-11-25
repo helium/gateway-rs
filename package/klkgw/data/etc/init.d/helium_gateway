@@ -23,9 +23,9 @@ start()
 
     # Enable firewall rules
 	OUT_RULE="OUTPUT -t filter -p tcp --dport 20443 -j ACCEPT"
-    iptables -C ${OUT_RULE} 2> /dev/null || iptables -I ${RULE}
+    iptables -C ${OUT_RULE} 2> /dev/null || iptables -I ${OUT_RULE}
 	IN_RULE="INPUT -t filter -p tcp -m state --state ESTABLISHED,RELATED -j ACCEPT"
-    iptables -C ${IN_RULE} 2> /dev/null || iptables -I ${RULE}
+    iptables -C ${IN_RULE} 2> /dev/null || iptables -I ${IN_RULE}
 
     # Start the LoRa forwarder.
     ${BINARY} -c ${CONFIGURATION_FILE} --daemon server

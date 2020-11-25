@@ -82,6 +82,9 @@ pub struct UpdateSettings {
     /// https://api.github.com/repos/helium/gateway-rs/releases)
     #[serde(deserialize_with = "deserialize_url")]
     pub url: Url,
+    /// The command to use to install an update. There will be just one
+    /// parameter which is the path to the new package to install.
+    pub command: String,
 }
 
 impl Settings {
@@ -104,7 +107,6 @@ impl Settings {
         c.set_default("log.timestamp", "false")?;
         c.set_default("update.enabled", "true")?;
         c.set_default("update.channel", "release")?;
-        c.set_default("update.platform", "keros")?;
         c.set_default("update.interval", 10)?;
         c.set_default("update.url", GITHUB_RELEASES)?;
         if let Some(p) = path {
