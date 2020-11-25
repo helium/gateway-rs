@@ -35,27 +35,13 @@ jobs:
 
       - name: name asset
         id: vars
-        run: |
-          echo ::set-output name=tag::${GITHUB_REF#refs/*/}
-          echo ::set-output name=asset_name::helium-gateway-${GITHUB_REF#refs/*/}-${{ matrix.target}}.ipk
+        run: echo ::set-output name=tag::${GITHUB_REF#refs/*/}
 
       - name: create release
-        id: create_release
-        uses: actions/create-release@v1
+        uses: softprops/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ steps.vars.outputs.tag }}
-          release_name: Release ${{ steps.vars.outputs.tag }}
-          draft: false
-          prerelease: false
-
-      - name: upload ipk
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }} 
-          asset_path: target/ipk/${{ steps.vars.outputs.asset_name }}
-          asset_name: ${{ steps.vars.outputs.asset_name }}
-          asset_content_type: application/zip
+          name: Release ${{ steps.vars.outputs.tag }}
+          files: target/ipk/helium-gateway-${{ steps.vars.output.tag }}-${{ matrix.target }}.ipk 
