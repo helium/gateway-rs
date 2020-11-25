@@ -19,7 +19,7 @@ members = ["lorawan"]
 [dependencies]
 structopt = "0.3"
 semver = "0.11"
-config = {version="0.9", default-features=false, features=["toml"]}
+config = {version="0.10", default-features=false, features=["toml"]}
 serde = "1"
 tokio = { version = "0.2", default-features=false, features=["macros", "signal", "rt-threaded", "fs"] }
 triggered = "0.1"

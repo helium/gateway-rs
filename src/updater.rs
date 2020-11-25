@@ -72,7 +72,7 @@ impl Updater {
         loop {
             tokio::select! {
                 _ = shutdown.clone() => {
-                    info!("disabled updater");
+                    info!("shutting down");
                     return Ok(())
                 },
                 _ = interval.tick() => {
