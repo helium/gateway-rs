@@ -1,0 +1,6 @@
+#!/bin/sh -e
+
+mv "${1}" /user/.updates
+sync
+kerosd -u
+reboot

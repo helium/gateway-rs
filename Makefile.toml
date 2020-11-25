@@ -3,6 +3,8 @@ additional_profiles = ["klkgw", "ramips_24kec"]
 default_to_workspace = false
 
 [env]
+TAR = { source = "${CARGO_MAKE_RUST_TARGET_OS}", default_value = "linux", mapping = {"macos" = "gtar", "linux" = "tar" } }
+
 [env.klkgw]
 CROSS_TARGET = "armv7-unknown-linux-musleabihf"
 
@@ -26,7 +28,7 @@ args = [
 description = "Builds an ipk for openwrt/opk based targets"
 category = "Package"
 dependencies = ["cross"]
-condition = { env_set = ["CROSS_TARGET"] }
+condition = { env_set = ["CROSS_TARGET", "TAR"] }
 env = { "IPK_BUILD_DIR" = "target/ipk/${CARGO_MAKE_PROFILE}", "IPK_SRC_DIR" = "package/${CARGO_MAKE_PROFILE}" }
 script = '''
 	# make base folder
@@ -50,15 +52,15 @@ script = '''
 
     # package together
 	cd ${IPK_BUILD_DIR}/control
-	tar --numeric-owner --group=0 --owner=0 -czf ../control.tar.gz ./*
+	${TAR} --numeric-owner --group=0 --owner=0 -czf ../control.tar.gz ./*
 	cd ${CARGO_MAKE_WORKING_DIRECTORY}
 	
 	cd ${IPK_BUILD_DIR}/data
-	tar --numeric-owner --group=0 --owner=0 -czf ../data.tar.gz ./*
+	${TAR} --numeric-owner --group=0 --owner=0 -czf ../data.tar.gz ./*
 	cd ${CARGO_MAKE_WORKING_DIRECTORY}
 	
 	cd ${IPK_BUILD_DIR}
-	tar --numeric-owner --group=0 --owner=0 -czf ../helium-gateway-v${CARGO_MAKE_CRATE_VERSION}-${CARGO_MAKE_PROFILE}.ipk ./debian-binary ./data.tar.gz ./control.tar.gz 
+	${TAR} --numeric-owner --group=0 --owner=0 -czf ../helium-gateway-v${CARGO_MAKE_CRATE_VERSION}-${CARGO_MAKE_PROFILE}.ipk ./debian-binary ./data.tar.gz ./control.tar.gz 
 	cd ${CARGO_MAKE_WORKING_DIRECTORY}
 '''
 

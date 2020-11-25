@@ -3,7 +3,7 @@ use log::{info, warn};
 use semver::Version;
 use serde::{de, Deserialize, Deserializer};
 use std::{
-    env, fmt, fs, io,
+    env, fmt, io,
     path::{Path, PathBuf},
     process,
 };
@@ -35,6 +35,7 @@ pub struct Updater {
     channel: Channel,
     platform: String,
     interval: time::Duration,
+    install_command: String,
 }
 
 static USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
@@ -57,14 +58,8 @@ impl Updater {
             platform: settings.update.platform.clone(),
             interval: time::Duration::from_secs(settings.update.interval as u64 * 60),
             url: settings.update.url.clone(),
+            install_command: settings.update.command.clone(),
         })
-    }
-
-    /// Returns a temporary location to download updates into. Do _not_ return a
-    /// path that will be used for an actual update since a partial download may
-    /// remain after download failures
-    pub fn download_path(&self) -> PathBuf {
-        env::temp_dir()
     }
 
     pub async fn run(&self, shutdown: triggered::Listener) -> Result {
@@ -77,7 +72,7 @@ impl Updater {
         loop {
             tokio::select! {
                 _ = shutdown.clone() => {
-                    info!("disabled updater");
+                    info!("shutting down");
                     return Ok(())
                 },
                 _ = interval.tick() => {
@@ -97,9 +92,10 @@ impl Updater {
                             match release.asset_named(&package_name) {
                                 Some(asset) => {
                                     info!("downloading update {:?}", package_name);
-                                    let downloaded_asset = asset.download(&self.download_path()).await?;
+                                    let download_path = self.download_path(&package_name);
+                                    asset.download(&download_path).await?;
                                     info!("installing update {:?}", package_name);
-                                    self.install(&downloaded_asset).await?;
+                                    self.install(&download_path).await?;
                                     return Ok(())
                                 },
                                 None => warn!("no release asset found for {}", package_name)
@@ -113,34 +109,24 @@ impl Updater {
         }
     }
 
+    /// Returns a temporary location to download a package into. Do _not_ return a
+    /// path that will be used for an actual update since a partial download may
+    /// remain after download failures.
+    pub fn download_path(&self, package_name: &str) -> PathBuf {
+        env::temp_dir().join(package_name)
+    }
+
     /// Does a platform specific install of the given package. Some platform
     /// will mvove the package into a staging location and reboot to trigger the
     /// install whereas others may just need a package install and service
     /// restart.
-    pub async fn install(&self, package: &Path) -> Result {
-        match self.platform.as_ref() {
-            "klkgw" => {
-                fs::rename(package, "/.update/")?;
-                info!("rebooting for update");
-                self.reboot()
-            }
-            unsupported => Err(io::Error::new(
-                io::ErrorKind::Other,
-                format!("unsupported platform {:?}", unsupported),
-            )
-            .into()),
-        }
-    }
-
-    /// Utility function to trigger a reboot command on the system. This
-    /// function will return before the reboot command takes effect. Ensure that
-    /// the caller does not try do mutate the system after this funciton
-    /// returns.
-    pub fn reboot(&self) -> Result {
-        let mut cmd = process::Command::new("reboot");
-        cmd.arg("-r").arg("now");
-        match cmd.output() {
+    pub async fn install(&self, download_path: &Path) -> Result {
+        match process::Command::new(&self.install_command)
+            .arg(download_path)
+            .output()
+        {
             Ok(output) => {
+                info!("OUTPUT {:?}", output);
                 if output.status.success() && output.stderr.is_empty() {
                     return Ok(());
                 }
@@ -225,15 +211,13 @@ pub struct ReleaseAsset {
 }
 
 impl ReleaseAsset {
-    /// Downloads the asset to a given directory. Returns the complete path to
-    /// the download if successful.
-    pub async fn download(&self, dir: &Path) -> Result<PathBuf> {
+    /// Downloads the asset to a given destination.
+    pub async fn download(&self, dest: &Path) -> Result {
         use tokio::{fs::File, io::BufWriter, prelude::*};
         let client = reqwest::Client::new();
         match client.get(&self.download_url).send().await {
             Ok(mut response) => {
-                let path = dir.join(&self.name);
-                let file = File::create(&path).await?;
+                let file = File::create(&dest).await?;
                 let mut writer = BufWriter::new(file);
                 let mut bytes_written = 0;
                 while let Some(chunk) = response.chunk().await? {
@@ -251,7 +235,7 @@ impl ReleaseAsset {
                     )
                     .into());
                 }
-                Ok(path)
+                Ok(())
             }
             Err(err) => Err(err.into()),
         }
@@ -303,7 +287,7 @@ impl ReleaseList {
             return Ok(None);
         };
         if self.current_page.is_empty() {
-            let next_page = self
+            let mut next_page = self
                 .client
                 .get(self.url.clone())
                 .query(&[("per_page", GH_PAGE_SIZE), ("page", self.next_page)])
@@ -313,6 +297,7 @@ impl ReleaseList {
                 .json::<Vec<Release>>()
                 .await?;
             self.finished = next_page.len() < GH_PAGE_SIZE as usize;
+            next_page.reverse();
             self.current_page = next_page;
             self.next_page += 1;
         };
