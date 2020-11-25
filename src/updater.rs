@@ -95,8 +95,7 @@ impl Updater {
                                     let download_path = self.download_path(&package_name);
                                     asset.download(&download_path).await?;
                                     info!("installing update {:?}", package_name);
-                                    self.install(&download_path).await?;
-                                    return Ok(())
+                                    return self.install(&download_path).await;
                                 },
                                 None => warn!("no release asset found for {}", package_name)
                             }
@@ -126,8 +125,7 @@ impl Updater {
             .output()
         {
             Ok(output) => {
-                info!("OUTPUT {:?}", output);
-                if output.status.success() && output.stderr.is_empty() {
+                if output.status.success() {
                     return Ok(());
                 }
                 Err(io::Error::new(
