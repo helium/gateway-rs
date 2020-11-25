@@ -44,4 +44,4 @@ jobs:
         with:
           tag_name: ${{ steps.vars.outputs.tag }}
           name: Release ${{ steps.vars.outputs.tag }}
-          files: target/ipk/helium-gateway-${{ steps.vars.output.tag }}-${{ matrix.target }}.ipk 
+          files: target/ipk/helium-gateway-${{ steps.vars.outputs.tag }}-${{ matrix.target }}.ipk 
