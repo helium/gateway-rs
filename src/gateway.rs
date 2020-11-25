@@ -36,11 +36,11 @@ impl Gateway {
     }
 
     pub async fn run(&mut self, shutdown: triggered::Listener) -> Result {
-        info!("Starting gateway listener {}", self.key);
+        info!("starting gateway");
         loop {
             let event = tokio::select! {
                 _ = shutdown.clone() => {
-                    info!("Shutting down gateway");
+                    info!("shutting down");
                     return Ok(())
                 },
                 res = self.udp_runtime.recv() => match res {
