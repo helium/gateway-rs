@@ -1,5 +1,4 @@
 #!/bin/sh
 
-
 /etc/init.d/helium_gateway enable
-/etc/init.d/helium_gateway start
+/etc/init.d/helium_gateway restart
