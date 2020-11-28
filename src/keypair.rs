@@ -1,6 +1,6 @@
 use crate::result::Result;
-use rand::rngs::OsRng;
 use ed25519_dalek::Signer;
+use rand::rngs::OsRng;
 use std::{fmt, fs, path, result};
 
 /// A Key for gateways. The key is used to identify the gateway with remote
@@ -15,17 +15,16 @@ pub struct PublicKey(ed25519_dalek::PublicKey);
 #[derive(Debug)]
 pub struct Signature(ed25519_dalek::Signature);
 
-pub use ed25519_dalek::{SIGNATURE_LENGTH, SECRET_KEY_LENGTH};
+pub use ed25519_dalek::{SECRET_KEY_LENGTH, SIGNATURE_LENGTH};
 pub const KEYPAIR_LENGTH: usize = ed25519_dalek::KEYPAIR_LENGTH + 1;
 pub const PUBLIC_KEY_LENGTH: usize = ed25519_dalek::PUBLIC_KEY_LENGTH + 1;
 pub const KEYTYPE_ED25519: u8 = 1;
-
 
 impl Keypair {
     /// Generate a new key. Keys are ed25519 for compatibility with other Helium
     /// systems.
     pub fn generate() -> Result<Self> {
-        let mut csprng = OsRng{};
+        let mut csprng = OsRng {};
         let keypair = ed25519_dalek::Keypair::generate(&mut csprng);
         Ok(Self(keypair))
     }
@@ -56,18 +55,18 @@ impl Keypair {
         Ok(self.0.verify(data, &signature.0)?)
     }
 
-    /// Converts a keypair to a binary form. This format is compatible with 
-    /// the helium wallet format. 
+    /// Converts a keypair to a binary form. This format is compatible with
+    /// the helium wallet format.
     pub fn to_bytes(&self) -> [u8; KEYPAIR_LENGTH] {
         let mut dest = [0u8; KEYPAIR_LENGTH];
         dest[0] = KEYTYPE_ED25519;
         dest[1..SECRET_KEY_LENGTH].copy_from_slice(self.0.secret.as_bytes());
-        dest[SECRET_KEY_LENGTH+1..].copy_from_slice(self.0.public.as_bytes());
+        dest[SECRET_KEY_LENGTH + 1..].copy_from_slice(self.0.public.as_bytes());
         dest
     }
 
-    /// Constructs a keypair from a given binary slice. 
-    pub fn from_bytes<'a>(bytes: &'a[u8]) -> Result<Self> {
+    /// Constructs a keypair from a given binary slice.
+    pub fn from_bytes<'a>(bytes: &'a [u8]) -> Result<Self> {
         Ok(Self(ed25519_dalek::Keypair::from_bytes(&bytes[1..])?))
     }
 
@@ -90,7 +89,7 @@ impl fmt::Display for PublicKey {
             "{}",
             bs58::encode(self.0.as_bytes()).with_check().into_string()
         )
-    }    
+    }
 }
 
 impl PublicKey {
@@ -105,7 +104,7 @@ impl PublicKey {
         self.to_bytes().to_vec()
     }
 
-    pub fn to_b58(&self) -> Result<String> { 
+    pub fn to_b58(&self) -> Result<String> {
         // First 0 value is the "version" number defined for addresses
         // in libp2p, 2nd byte is keytype
         let mut data = [0u8; PUBLIC_KEY_LENGTH + 1];
@@ -119,7 +118,7 @@ impl Signature {
     pub fn to_vec(&self) -> Vec<u8> {
         self.0.to_bytes().to_vec()
     }
-    
+
     pub fn to_bytes(&self) -> [u8; SIGNATURE_LENGTH] {
         self.0.to_bytes()
     }
