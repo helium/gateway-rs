@@ -66,7 +66,7 @@ impl Keypair {
     }
 
     /// Constructs a keypair from a given binary slice.
-    pub fn from_bytes<'a>(bytes: &'a [u8]) -> Result<Self> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
         Ok(Self(ed25519_dalek::Keypair::from_bytes(&bytes[1..])?))
     }
 
