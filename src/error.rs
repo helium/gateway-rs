@@ -7,14 +7,14 @@ pub enum GWError {
     ConfigError(#[from] config::ConfigError),
     #[error("server error")]
     ServerError(String),
-    #[error("ssl error")]
-    SSLError(#[from] openssl::error::ErrorStack),
     #[error("client error")]
     ClientError(#[from] reqwest::Error),
     #[error("io error")]
     IOError(#[from] std::io::Error),
     #[error("longfi error")]
     LfcError(#[from] longfi::LfcError),
+    #[error("ed25519 error")]
+    ED2519Error(#[from] ed25519_dalek::ed25519::Error),
 }
 
 impl From<net::AddrParseError> for GWError {

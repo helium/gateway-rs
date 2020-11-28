@@ -1,5 +1,5 @@
 use crate::{
-    key,
+    keypair,
     result::Result,
     router::{Certificate, Url},
     updater,
@@ -7,14 +7,14 @@ use crate::{
 use config::{Config, Environment, File};
 use helium_proto::Region;
 use serde::{de, Deserialize, Deserializer};
-use std::{net::SocketAddr, path::PathBuf};
+use std::{sync::Arc, net::SocketAddr, path::PathBuf};
 
 /// The Helium staging router URL. Used as one of the default routers.
 pub const HELIUM_STAGING_ROUTER: &str = "http://54.176.88.149:20443/v1/router/message";
 pub const GITHUB_RELEASES: &str = "https://api.github.com/repos/helium/gateway-rs/releases";
 
 /// Settings are all the configuration parameters the service needs to operate.
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize)]
 pub struct Settings {
     /// The listen address to use for listening for the semtech UDP packet forwarder.
     /// Default "127.0.0.1:1680"
@@ -23,8 +23,8 @@ pub struct Settings {
     /// The location of the key pem file for the gateway. Defaults to
     /// "/etc/gateway/gateway_key.pem". If the keyfile is not found there a new
     /// one is generated and saved in that location.
-    #[serde(deserialize_with = "deserialize_key")]
-    pub key: key::Key,
+    #[serde(deserialize_with = "deserialize_keypair")]
+    pub keypair: Arc<keypair::Keypair>,
     /// The lorawan region to use. This value should line up with the configured
     /// region of the semtech packet forwarder. Defaults to "US91%"
     #[serde(deserialize_with = "deserialize_region")]
@@ -43,7 +43,7 @@ pub struct Settings {
 }
 
 /// The method to use for logging.
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize)]
 pub enum LogMethod {
     /// Display logging information on stdout
     Stdio,
@@ -52,7 +52,7 @@ pub enum LogMethod {
 }
 
 /// Settings for log method and level to be used by the running service.
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize)]
 pub struct LogSettings {
     /// Log level to show (default info)
     #[serde(deserialize_with = "deserialize_log_level")]
@@ -67,7 +67,7 @@ pub struct LogSettings {
 }
 
 /// Settings for log method and level to be used by the running service.
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize)]
 pub struct UpdateSettings {
     /// Whether the auto-update system is enabled (default: true)
     pub enabled: bool,
@@ -120,19 +120,19 @@ impl Settings {
     }
 }
 
-fn deserialize_key<'de, D>(d: D) -> std::result::Result<key::Key, D::Error>
+fn deserialize_keypair<'de, D>(d: D) -> std::result::Result<Arc<keypair::Keypair>, D::Error>
 where
     D: Deserializer<'de>,
 {
     let s = String::deserialize(d)?;
-    match key::Key::load(&s) {
-        Ok(k) => Ok(k),
+    match keypair::Keypair::load(&s) {
+        Ok(k) => Ok(Arc::new(k)),
         Err(_) => {
-            let new_key = key::Key::generate().map_err(de::Error::custom)?;
+            let new_key = keypair::Keypair::generate().map_err(de::Error::custom)?;
             new_key.save(&s).map_err(|e| {
                 de::Error::custom(format!("unable to save key file \"{}\": {:?}", s, e))
             })?;
-            Ok(new_key)
+            Ok(Arc::new(new_key))
         }
     }
 }

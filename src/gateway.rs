@@ -1,4 +1,5 @@
-use crate::{base64, key, result::Result, router, settings::Settings};
+use crate::{keypair, result::Result, router, settings::Settings};
+use base64;
 use helium_proto::{packet::PacketType, Packet as LoraPacket, Region};
 use log::{debug, info, warn};
 use semtech_udp::{
@@ -15,7 +16,7 @@ pub const UPLINK_TIMEOUT_SECS: u64 = 6;
 #[derive(Debug)]
 pub struct Gateway {
     router: Arc<router::Client>,
-    key: Arc<key::Key>,
+    key: Arc<keypair::Keypair>,
     region: router::Region,
     router_targets: Vec<router::Url>,
     udp_runtime: UdpRuntime,
@@ -29,7 +30,7 @@ impl Gateway {
             router_targets: settings.routers.clone(),
             region: settings.region,
             router: Arc::new(router::Client::new(&settings)?),
-            key: Arc::new(settings.key.clone()),
+            key: settings.keypair.clone(),
             udp_runtime: UdpRuntime::new(settings.listen_addr).await?,
         };
         Ok(gateway)
@@ -102,10 +103,10 @@ async fn handle_push_data(
     push_data: push_data::RxPk,
     router: Arc<router::Client>,
     region: Region,
-    key: Arc<key::Key>,
+    key: Arc<keypair::Keypair>,
     push_targets: Vec<(reqwest::Url, Downlinks)>,
 ) {
-    let payload = match base64::decode_block(&push_data.get_data()) {
+    let payload = match base64::decode(&push_data.get_data()) {
         Err(err) => return debug!("ignoring bad push data: {:?}", err),
         Ok(v) => v,
     };
@@ -218,7 +219,7 @@ fn mk_pull_resp(
         // for normal lorawan packets we're not selecting different frequencies
         // like we are for PoC
         freq: frequency as f64,
-        data: base64::encode_block(data),
+        data: base64::encode(data),
         size: data.len() as u64,
         powe: 27,
         rfch: 0,
