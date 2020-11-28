@@ -1,4 +1,4 @@
-use crate::{key, result::Result, settings::Settings};
+use crate::{keypair, result::Result, settings::Settings};
 use helium_proto::{
     blockchain_state_channel_message_v1::Msg, routing_information::Data as RoutingData,
     BlockchainStateChannelMessageV1, BlockchainStateChannelPacketV1,
@@ -34,7 +34,7 @@ impl Client {
         let mut default_headers = HeaderMap::new();
         default_headers.insert(
             HeaderName::from_static(&AGENT_ID_HEADER),
-            HeaderValue::from_str(&settings.key.to_string()).expect("public key not available"),
+            HeaderValue::from_str(&settings.keypair.to_string()).expect("public key not available"),
         );
         let mut builder = reqwest::Client::builder()
             .danger_accept_invalid_hostnames(true)
@@ -42,7 +42,6 @@ impl Client {
             .user_agent(USER_AGENT)
             .connect_timeout(Duration::from_secs(CONNECT_TIMEOUT))
             .http2_prior_knowledge();
-        // .identity(Self::mk_identity(settings)?);
         for cert in &settings.root_certs {
             builder = builder.add_root_certificate(cert.clone());
         }
@@ -77,16 +76,16 @@ impl Message {
         Ok(self.0.encode(&mut buf)?)
     }
 
-    pub fn from_packet(packet: Packet, key: &key::Key, region: Region) -> Result<Self> {
+    pub fn from_packet(packet: Packet, keypair: &keypair::Keypair, region: Region) -> Result<Self> {
         let mut router_packet = BlockchainStateChannelPacketV1 {
             packet: Some(packet),
             signature: vec![],
-            hotspot: key.to_key_bin(),
+            hotspot: keypair.public().to_vec(),
             region: region.into(),
         };
         let mut encoded = vec![];
         router_packet.encode(&mut encoded)?;
-        router_packet.signature = key.sign(&encoded)?;
+        router_packet.signature = keypair.sign(&encoded)?.to_vec();
         let message = BlockchainStateChannelMessageV1 {
             msg: Some(Msg::Packet(router_packet)),
         };

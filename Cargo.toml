@@ -28,12 +28,13 @@ env_logger = {version = "0.8", default-features = false, features = ["humantime"
 syslog = {version = "5"}
 thiserror = "1.0"
 openssl = {version="0.10", features=["vendored"]}
-openssl-sys = "*"
 bs58 = {version = "0.3.0", features=["check"]}
+base64 = "0"
+rand = "*"
+ed25519-dalek = "1.0"
 prost = "*"
 daemonize = "0.4"
 reqwest = {version = "0.10", features=["native-tls", "json"]}
-foreign-types = "0.3.1"
 lorawan = { package = "lorawan", path = "lorawan" }
 semtech-udp = { git = "https://github.com/helium/semtech-udp.git", branch = "master", features=["server"] }
 helium-proto = { git = "https://github.com/helium/proto", branch="master"}
@@ -44,5 +45,6 @@ opt-level = 'z'
 lto = true
 codegen-units = 1
 panic = 'abort'
+# debug = true
 # strip = "debuginfo"
 

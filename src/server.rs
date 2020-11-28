@@ -8,7 +8,7 @@ pub async fn run(shutdown: &triggered::Listener, settings: &Settings) -> Result 
     info!(
         "starting server: {} id: {}",
         env!("CARGO_PKG_VERSION"),
-        settings.key
+        settings.keypair
     );
     tokio::try_join!(gateway.run(shutdown.clone()), updater.run(shutdown.clone())).map(|_| ())
 }
