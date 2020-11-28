@@ -7,7 +7,7 @@ use crate::{
 use config::{Config, Environment, File};
 use helium_proto::Region;
 use serde::{de, Deserialize, Deserializer};
-use std::{sync::Arc, net::SocketAddr, path::PathBuf};
+use std::{net::SocketAddr, path::PathBuf, sync::Arc};
 
 /// The Helium staging router URL. Used as one of the default routers.
 pub const HELIUM_STAGING_ROUTER: &str = "http://54.176.88.149:20443/v1/router/message";

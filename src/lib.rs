@@ -3,7 +3,7 @@ pub mod error;
 pub mod gateway;
 pub mod keypair;
 pub mod result;
+pub mod router;
 pub mod server;
 pub mod settings;
-pub mod router;
 pub mod updater;
