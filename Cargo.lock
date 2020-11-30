@@ -467,9 +467,9 @@ dependencies = [
 
 [[package]]
 name = "gateway-rs"
-version = "0.1.1-alpha.13"
+version = "0.1.1-alpha.14"
 dependencies = [
- "base64 0.13.0",
+ "base64 0.12.3",
  "bs58",
  "config",
  "daemonize",
