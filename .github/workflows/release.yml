@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: nightly
           override: true
       - uses: davidB/rust-cargo-make@v1
       - uses: actions/checkout@v2

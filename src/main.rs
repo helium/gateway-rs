@@ -1,6 +1,6 @@
 use gateway_rs::{
     cmd,
-    result::Result,
+    error::Result,
     settings::{LogMethod, Settings},
 };
 use std::path::PathBuf;
@@ -25,6 +25,7 @@ pub struct Cli {
 #[derive(Debug, StructOpt)]
 pub enum Cmd {
     Key(cmd::key::Cmd),
+    Update(cmd::update::Cmd),
     Server(cmd::server::Cmd),
 }
 
@@ -82,6 +83,7 @@ pub fn main() -> Result {
 pub async fn run(cli: Cli, settings: Settings, shutdown_listener: &triggered::Listener) -> Result {
     match cli.cmd {
         Cmd::Key(cmd) => cmd.run(settings).await,
+        Cmd::Update(cmd) => cmd.run(settings).await,
         Cmd::Server(cmd) => cmd.run(shutdown_listener, settings).await,
     }
 }

@@ -1,4 +1,4 @@
-use crate::{keypair, result::Result, router, settings::Settings};
+use crate::{error::Result, keypair, router, settings::Settings};
 use helium_proto::{packet::PacketType, Packet as LoraPacket, Region};
 use log::{debug, info, warn};
 use semtech_udp::{
