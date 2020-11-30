@@ -1,7 +1,7 @@
-use crate::result::Result;
+use crate::error::Result;
 use ed25519_dalek::Signer;
 use rand::rngs::OsRng;
-use std::{fmt, fs, path, result};
+use std::{fmt, fs, path};
 
 /// A Key for gateways. The key is used to identify the gateway with remote
 /// connections through certs used for both authentication and encryption of
@@ -60,8 +60,8 @@ impl Keypair {
     pub fn to_bytes(&self) -> [u8; KEYPAIR_LENGTH] {
         let mut dest = [0u8; KEYPAIR_LENGTH];
         dest[0] = KEYTYPE_ED25519;
-        dest[1..SECRET_KEY_LENGTH].copy_from_slice(self.0.secret.as_bytes());
-        dest[SECRET_KEY_LENGTH + 1..].copy_from_slice(self.0.public.as_bytes());
+        dest[1..ed25519_dalek::SECRET_KEY_LENGTH + 1].copy_from_slice(self.0.secret.as_bytes());
+        dest[ed25519_dalek::SECRET_KEY_LENGTH + 1..].copy_from_slice(self.0.public.as_bytes());
         dest
     }
 
@@ -77,13 +77,13 @@ impl Keypair {
 }
 
 impl fmt::Display for Keypair {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> result::Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::result::Result<(), fmt::Error> {
         self.public().fmt(f)
     }
 }
 
 impl fmt::Display for PublicKey {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> result::Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::result::Result<(), fmt::Error> {
         write!(
             f,
             "{}",
@@ -114,6 +114,14 @@ impl PublicKey {
     }
 }
 
+impl PartialEq for PublicKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.eq(&other.0)
+    }
+}
+
+impl Eq for PublicKey {}
+
 impl Signature {
     pub fn to_vec(&self) -> Vec<u8> {
         self.0.to_bytes().to_vec()
@@ -129,10 +137,10 @@ mod test {
     use super::*;
 
     #[test]
-    fn pem() {
+    fn coding() {
         let key = Keypair::generate().expect("key");
         let data = key.to_bytes();
-        assert_eq!(key, Keypair::from_bytes(&data).unwrap())
+        assert_eq!(key.public(), Keypair::from_bytes(&data).unwrap().public())
     }
 
     #[test]

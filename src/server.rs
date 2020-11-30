@@ -1,4 +1,9 @@
-use crate::{gateway::Gateway, result::Result, settings::Settings, updater::Updater};
+use crate::{
+    error::Result,
+    gateway::Gateway,
+    settings::{self, Settings},
+    updater::Updater,
+};
 use log::info;
 
 pub async fn run(shutdown: &triggered::Listener, settings: &Settings) -> Result {
@@ -7,7 +12,7 @@ pub async fn run(shutdown: &triggered::Listener, settings: &Settings) -> Result 
 
     info!(
         "starting server: {} id: {}",
-        env!("CARGO_PKG_VERSION"),
+        settings::version(),
         settings.keypair
     );
     tokio::try_join!(gateway.run(shutdown.clone()), updater.run(shutdown.clone())).map(|_| ())

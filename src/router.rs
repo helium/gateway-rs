@@ -1,4 +1,4 @@
-use crate::{keypair, result::Result, settings::Settings};
+use crate::{error::Result, keypair, settings::Settings};
 use helium_proto::{
     blockchain_state_channel_message_v1::Msg, routing_information::Data as RoutingData,
     BlockchainStateChannelMessageV1, BlockchainStateChannelPacketV1,
@@ -25,7 +25,6 @@ pub struct Response(BlockchainStateChannelMessageV1);
 pub struct Routing(RoutingInformation);
 
 pub use helium_proto::Region;
-pub use reqwest::Certificate;
 pub use reqwest::Url;
 
 impl Client {
@@ -36,15 +35,11 @@ impl Client {
             HeaderName::from_static(&AGENT_ID_HEADER),
             HeaderValue::from_str(&settings.keypair.to_string()).expect("public key not available"),
         );
-        let mut builder = reqwest::Client::builder()
-            .danger_accept_invalid_hostnames(true)
+        let builder = reqwest::Client::builder()
             .default_headers(default_headers)
             .user_agent(USER_AGENT)
             .connect_timeout(Duration::from_secs(CONNECT_TIMEOUT))
             .http2_prior_knowledge();
-        for cert in &settings.root_certs {
-            builder = builder.add_root_certificate(cert.clone());
-        }
         Ok(Self(builder.build()?))
     }
 

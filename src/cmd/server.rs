@@ -1,4 +1,4 @@
-use crate::{result::Result, server, settings::Settings};
+use crate::{error::Result, server, settings::Settings};
 use structopt::StructOpt;
 
 /// Run the gateway service
