@@ -1,4 +1,4 @@
-# cargo-features = ["strip"]
+cargo-features = ["strip"]
 
 [package]
 name = "gateway-rs"
@@ -21,30 +21,31 @@ structopt = "0.3"
 semver = "0.11"
 config = {version="0.10", default-features=false, features=["toml"]}
 serde = "1"
-tokio = { version = "0.2", default-features=false, features=["macros", "signal", "rt-threaded", "fs"] }
+serde_json = "1"
+tokio = { version = "0.2", default-features=false, features=["macros", "signal", "rt-threaded", "process"] }
+futures = "*"
 triggered = "0.1"
 log  = "0.4"
 env_logger = {version = "0.8", default-features = false, features = ["humantime"]}
 syslog = {version = "5"}
 thiserror = "1.0"
-openssl = {version="0.10", features=["vendored"]}
 bs58 = {version = "0.3.0", features=["check"]}
 base64 = "0"
 rand = "*"
 ed25519-dalek = "1.0"
 prost = "*"
 daemonize = "0.4"
-reqwest = {version = "0.10", features=["native-tls", "json"]}
+reqwest = {version = "0.10", default-features = false, features=["json"]}
 lorawan = { package = "lorawan", path = "lorawan" }
 semtech-udp = { git = "https://github.com/helium/semtech-udp.git", branch = "master", features=["server"] }
 helium-proto = { git = "https://github.com/helium/proto", branch="master"}
 longfi = { git = "https://github.com/helium/longfi-rs", branch = "main" }
 
 [profile.release]
-opt-level = 'z'
+opt-level = "z"
 lto = true
 codegen-units = 1
-panic = 'abort'
+panic = "abort"
 # debug = true
-# strip = "debuginfo"
+strip = "symbols"
 

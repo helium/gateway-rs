@@ -1,13 +1,12 @@
-use crate::{
-    keypair,
-    result::Result,
-    router::{Certificate, Url},
-    updater,
-};
+use crate::{error::Result, keypair, releases, router::Url};
 use config::{Config, Environment, File};
 use helium_proto::Region;
 use serde::{de, Deserialize, Deserializer};
 use std::{net::SocketAddr, path::PathBuf, sync::Arc};
+
+pub fn version() -> semver::Version {
+    semver::Version::parse(env!("CARGO_PKG_VERSION")).expect("unable to parse version")
+}
 
 /// The Helium staging router URL. Used as one of the default routers.
 pub const HELIUM_STAGING_ROUTER: &str = "http://54.176.88.149:20443/v1/router/message";
@@ -29,9 +28,6 @@ pub struct Settings {
     /// region of the semtech packet forwarder. Defaults to "US91%"
     #[serde(deserialize_with = "deserialize_region")]
     pub region: Region,
-    /// The root certificates to use when connecting to remote hosts
-    #[serde(deserialize_with = "deserialize_root_certs")]
-    pub root_certs: Vec<Certificate>,
     /// The router(s) to deliver packets to. Defaults to the Helium staging and
     /// production routers.
     #[serde(deserialize_with = "deserialize_routers")]
@@ -75,8 +71,8 @@ pub struct UpdateSettings {
     pub interval: u32,
     ///  Which udpate channel to use (alpha, beta, release, default: release)
     #[serde(deserialize_with = "deserialize_update_channel")]
-    pub channel: updater::Channel,
-    /// The platform identifier to use for released packages (default: keros)
+    pub channel: releases::Channel,
+    /// The platform identifier to use for released packages (default: klkgw)
     pub platform: String,
     /// The github release url to use (default
     /// https://api.github.com/repos/helium/gateway-rs/releases)
@@ -97,7 +93,7 @@ impl Settings {
     /// override the key file location.
     pub fn new(path: Option<PathBuf>) -> Result<Self> {
         let mut c = Config::new();
-        c.set_default("key", "/etc/helium_gateway/key.pem")?;
+        c.set_default("keypair", "/etc/helium_gateway/keypair.bin")?;
         c.set_default("listen_addr", "127.0.0.1:1680")?;
         c.set_default("region", "US915")?;
         c.set_default("root_certs", Vec::<String>::new())?;
@@ -109,6 +105,8 @@ impl Settings {
         c.set_default("update.channel", "release")?;
         c.set_default("update.interval", 10)?;
         c.set_default("update.url", GITHUB_RELEASES)?;
+        c.set_default("update.platform", "klkgw")?;
+        c.set_default("update.command", "/etc/helium_gateway/install_update")?;
         if let Some(p) = path {
             let path_str = p.to_str().unwrap();
             c.merge(File::with_name(&path_str))?;
@@ -170,20 +168,6 @@ where
     Ok(region)
 }
 
-fn deserialize_root_certs<'de, D>(d: D) -> std::result::Result<Vec<Certificate>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let cert_files = Vec::<String>::deserialize(d)?;
-    let mut result = Vec::with_capacity(cert_files.len());
-    for cert_file in cert_files {
-        let cert = Certificate::from_pem(cert_file.as_bytes())
-            .map_err(|e| de::Error::custom(format!("Could not load pem: {}: {}", cert_file, e)))?;
-        result.push(cert);
-    }
-    Ok(result)
-}
-
 fn deserialize_routers<'de, D>(d: D) -> std::result::Result<Vec<Url>, D::Error>
 where
     D: Deserializer<'de>,
@@ -224,14 +208,14 @@ where
     Ok(method)
 }
 
-fn deserialize_update_channel<'de, D>(d: D) -> std::result::Result<updater::Channel, D::Error>
+fn deserialize_update_channel<'de, D>(d: D) -> std::result::Result<releases::Channel, D::Error>
 where
     D: Deserializer<'de>,
 {
     let channel = match String::deserialize(d)?.to_lowercase().as_str() {
-        "alpha" => updater::Channel::Alpha,
-        "beta" => updater::Channel::Beta,
-        "release" | "" => updater::Channel::Release,
+        "alpha" => releases::Channel::Alpha,
+        "beta" => releases::Channel::Beta,
+        "release" | "" => releases::Channel::Release,
         unsupported => {
             return Err(de::Error::custom(format!(
                 "unsupported update channel: \"{}\"",

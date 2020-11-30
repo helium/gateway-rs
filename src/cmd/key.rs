@@ -1,4 +1,4 @@
-use crate::{result::Result, settings::Settings};
+use crate::{error::Result, settings::Settings};
 use structopt::StructOpt;
 
 /// Commands on gateway keys
