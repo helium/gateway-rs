@@ -65,24 +65,20 @@ impl Updater {
                     // package version.
                     let current_version = version();
                     let channel = self.channel.clone();
+                    let platform = self.platform.clone();
                     match releases::filtered(releases::all(self.url.to_string()), move | r | {
-                        r.in_channel(&channel) && r.version > current_version
+                        r.in_channel(&channel) && r.version > current_version && r.asset_for_platform(&platform).is_some()
                     }).try_next().await {
                         Ok(Some(release)) => {
-                            // Check for an asset given teh assumed name for the package
-                            match release.asset_for_platform(&self.platform) {
-                                Some(asset) => {
-                                    info!("downloading update {:?}", asset.name);
-                                    let download_path = self.download_path(&asset.name);
-                                    asset.download(&download_path).await?;
-                                    info!("installing update {:?}", asset.name);
-                                    return self.install(&download_path).await;
-                                },
-                                None => warn!("no release asset found for {} in release {}", self.platform, release.version),
-                            }
+                            let asset = release.asset_for_platform(&self.platform).expect("asset for platform");
+                            info!("downloading update {:?}", asset.name);
+                            let download_path = self.download_path(&asset.name);
+                            asset.download(&download_path).await?;
+                            info!("installing update {:?}", asset.name);
+                            return self.install(&download_path).await;
                         },
                         Ok(None) => info!("no update found"),
-                        Err(err) => warn!("failed to fetch releases: {:?}", err)
+                        Err(err) => warn!("failed to fetch releases: {:?}", err),
                     }
                 }
             }
