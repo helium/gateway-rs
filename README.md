@@ -35,13 +35,13 @@ If this command succeeds the logs on the gateway will show the service starting 
 
 ## Supported Platforms
 
-| Platform       | Target                        | Products                                                   |
-| -------------- | ----------------------------- | ---------------------------------------------------------- |
-| [ramips_24kec] | mipsel-unknown-linux-musl     | * :white_check_mark: [RAK833] EVB Kit                      |
-|                |                               | * :question: [RAK7258] (WisGate Edge Lite)                 |
-|                |                               | * :question: [RAK7249] (WisGate Edge Max)                  |
-|                |                               | * :question: [RAK7240] (WisGate Edge Prime)                |
-| klkgw          | armv7-unknown-linux-musleabih | * :white_check_mark: Kerlink [Wirnet iFemtoCell Evolution] |
+| Platform       | Target                        | Products                                                 |
+| -------------- | ----------------------------- | -------------------------------------------------------- |
+| [ramips_24kec] | mipsel-unknown-linux-musl     | :white_check_mark: [RAK833] EVB Kit                      |
+|                |                               | :grey_question: [RAK7258] (WisGate Edge Lite)            |
+|                |                               | :grey_question: [RAK7249] (WisGate Edge Max)             |
+|                |                               | :grey_question: [RAK7240] (WisGate Edge Prime)           |
+| klkgw          | armv7-unknown-linux-musleabih | :white_check_mark: Kerlink [Wirnet iFemtoCell Evolution] |
 
 
 [ramips_24kec]: https://downloads.rakwireless.com/WIFI/RAK634/Hardware%20Specification/RAK634_Module_Specification_V1.0.pdf
