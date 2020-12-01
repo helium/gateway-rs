@@ -35,12 +35,21 @@ If this command succeeds the logs on the gateway will show the service starting 
 
 ## Supported Platforms
 
-| Platform       | Target                        |
-| -------------- | ----------------------------- |
-| klkgw          | armv7-unknown-linux-musleabih |
-| [ramips_24kec] | mipsel-unknown-linux-musl     |
+| Platform       | Target                        | Products                                                   |
+| -------------- | ----------------------------- | ---------------------------------------------------------- |
+| [ramips_24kec] | mipsel-unknown-linux-musl     | * :white_check_mark: [RAK833] EVB Kit                      |
+|                |                               | * :question: [RAK7258] (WisGate Edge Lite)                 |
+|                |                               | * :question: [RAK7249] (WisGate Edge Max)                  |
+|                |                               | * :question: [RAK7240] (WisGate Edge Prime)                |
+| klkgw          | armv7-unknown-linux-musleabih | * :white_check_mark: Kerlink [Wirnet iFemtoCell Evolution] |
+
 
 [ramips_24kec]: https://downloads.rakwireless.com/WIFI/RAK634/Hardware%20Specification/RAK634_Module_Specification_V1.0.pdf
+[RAK833]: https://github.com/RAKWireless/RAK2247-RAK833-LoRaGateway-OpenWRT-MT7628
+[RAK7258]: https://store.rakwireless.com/products/rak7258-micro-gateway
+[RAK7249]: https://store.rakwireless.com/products/rak7249-diy-outdoor-gateway
+[RAK7240]: https://store.rakwireless.com/products/rak7240-outdoor-lpwan-gateway?variant=36068284465310
+[Wirnet iFemtoCell Evolution] https://www.kerlink.com/product/wirnet-ifemtocell-evolution/
 
 ## Building
 
