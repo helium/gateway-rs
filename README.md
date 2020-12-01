@@ -1,24 +1,79 @@
-# gateway-rs
+# helium-gateway
+
+![check](https://github.com/helium/gateway-rs/workflows/check/badge.svg)
+![release](https://github.com/helium/gateway-rs/workflows/release/badge.svg)
+
+helium-gateway is a gateway service between a linux based LoRa gateways using the a GWMP1/2 based packet forwarder, and the Helium router. 
+
+The current gateway project forwards packets to the router but does **not** yet use state channels which means forwarded packets are not rewarded by the blockchain yet. 
+
+The project builds `ipk` [packaged releases](https://github.com/helium/gateway-rs/releases) for linux based LoRa gateways. These packages attempt to be self-updating to be able to track improvements to the service. Updates are delivered through the following _channels_ which a gateway can subscribe to by a `channel` setting in the `update` section of the settings file:
+
+* **alpha** - Early development releases. These will happen frequently as functionality is developed and may be unstable. Expect to need to log into your gateway to restart or manually fix your light gateway.
+* **beta** - Preelease candidates which are considered to be stable enough for early access. Breaking issues can still happen but should be rare. 
+* **release** - The main (and default) release channel. Updates are considered to be stable for all platforms.
 
 
-## Cross-compiling for OpenWRT 15.05, targeting [RAK634] (aka MT7628N) hardware
+**NOTE**: Gateways should have at least **16Mb** of available application file space to handle gateway installation and updates.
 
-1. Install cargo `cross`
+## Installing
 
+If your [supported LoRa gateway](#supported-platforms) did not come with helium-gateway pre-installed, manually installation rqeuires you to:
+
+1. Configure the packet forwarder on the gatewaay to forward to the helium-gateway application. This varies per gateway but the goal is to set the packet forwarder to forward to the (default) configured helium-gateway `1680` on `127.0.0.1` udp port 
+2. Set up ssh acccess to the gateway. Depending on the gateway that may require going through a web interface, while others already have ssh configured. 
+3. `scp` a downloaded `ipk` release package for the supported platform to the gateway. e.g. 
+   ```shell
+   scp helium-gateway-<version>-<platform>.ipk <gateway>:/tmp/</code>
+   ```
+4. `ssh` into the device and install the service using a command like:
+   ```shell
+   opkg install /tmp/helium-gateway-<version>-<platform>.ipk
+   ```
+
+If this command succeeds the logs on the gateway will show the service starting and the local packet forwarder client connecting to the gateway service. 
+
+## Supported Platforms
+
+| Platform       | Target                        |
+| -------------- | ----------------------------- |
+| klkgw          | armv7-unknown-linux-musleabih |
+| [ramips_24kec] | mipsel-unknown-linux-musl     |
+
+[ramips_24kec]: https://downloads.rakwireless.com/WIFI/RAK634/Hardware%20Specification/RAK634_Module_Specification_V1.0.pdf
+
+## Building
+
+Use one of the existing [releases](https://github.com/helium/gateway-rs/releases) if you can, or build your own by hand using the instructions below.
+
+If you want to support a new platform, please consider submitting a PR to get the package as part of the supported matrix of gateway platforms!
+
+1. Install `rust`
     ```shell
-    ; cargo install cross
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
     ```
+2. Install cargo `cross` and `make`. The `cross` command allows for cross compiling to hardware targets using docker images, while the `make` command is used to package up 
+   ```shell
+   cargo install cross
+   cargo install make
+   ```
+3. Build the application or package using one of the following:
+   1. Build the application binary using the target triplet from the supported targets. Note the use of the `--release` flag to optimize the target binary for size. Debug builds may be too large to run on some targets. 
+        ```shell
+        cross build --target <target> --release
+        ```
+        The resulting application binary is located in
+        ```
+        target/<target>/release/helium_gateway
+        ```
 
-1. Build
+    2. Build an application `ipk` package using one of the target system profile names
+        ```shell
+        cargo make --profile <platform> ipk
+        ```
+        The resulting `ipk` will be located in
+         ```
+         target/ipk/helium-gateway-<version>-<platform>.ipk
+         ```
+    
 
-    ```shell
-    ; cross build --release --target mipsel-unknown-linux-musl
-    ```
-
-1. Copy `gateway` to the target machine
-
-    ```
-    ; scp target/mipsel-unknown-linux-musl/release/gateway user@target-machine:.
-    ```
-
-[RAK634]: https://downloads.rakwireless.com/WIFI/RAK634/Hardware%20Specification/RAK634_Module_Specification_V1.0.pdf

@@ -69,7 +69,7 @@ pub struct UpdateSettings {
     pub enabled: bool,
     /// How often to check for updates (in minutes, default: 10)
     pub interval: u32,
-    ///  Which udpate channel to use (alpha, beta, release, default: release)
+    ///  Which udpate channel to use (alpha, beta, release, default: the channel specified in the running app)
     #[serde(deserialize_with = "deserialize_update_channel")]
     pub channel: releases::Channel,
     /// The platform identifier to use for released packages (default: klkgw)
@@ -102,7 +102,10 @@ impl Settings {
         c.set_default("log.method", "stdio")?;
         c.set_default("log.timestamp", "false")?;
         c.set_default("update.enabled", "true")?;
-        c.set_default("update.channel", "release")?;
+        c.set_default(
+            "update.channel",
+            releases::Channel::from_version(&version()).to_string(),
+        )?;
         c.set_default("update.interval", 10)?;
         c.set_default("update.url", GITHUB_RELEASES)?;
         c.set_default("update.platform", "klkgw")?;
