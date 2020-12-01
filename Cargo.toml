@@ -29,10 +29,10 @@ log  = "0.4"
 env_logger = {version = "0.8", default-features = false, features = ["humantime"]}
 syslog = {version = "5"}
 thiserror = "1.0"
-bs58 = {version = "0.3.0", features=["check"]}
+bs58 = {version = "0.4", features=["check"]}
 base64 = "0"
-rand = "*"
 ed25519-dalek = "1.0"
+rand = {version = "*", default-features=false, features=["getrandom"]}
 prost = "*"
 daemonize = "0.4"
 reqwest = {version = "0.10", default-features = false, features=["json"]}
