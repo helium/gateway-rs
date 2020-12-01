@@ -3,7 +3,7 @@ use crate::{
     Future, Stream,
 };
 use futures::{future, stream, FutureExt, StreamExt, TryFutureExt};
-use semver::Version;
+use semver::{Identifier, Version};
 use serde::{de, Deserialize, Deserializer};
 use std::{fmt, path::Path, str::FromStr};
 use tokio::process;
@@ -103,6 +103,21 @@ impl FromStr for Channel {
     }
 }
 
+impl Channel {
+    pub fn from_version(version: &Version) -> Self {
+        for identifier in &version.pre {
+            if let Identifier::AlphaNumeric(v) = identifier {
+                match v.as_str() {
+                    "alpha" => return Channel::Alpha,
+                    "beta" => return Channel::Beta,
+                    _ => continue,
+                }
+            }
+        }
+        Channel::Release
+    }
+}
+
 /// Represeents a versioned release  with one or more assets
 #[derive(Debug, Deserialize)]
 pub struct Release {
@@ -136,7 +151,6 @@ impl Release {
         match channel {
             Channel::Release => !self.version.is_prerelease(),
             Channel::Alpha | Channel::Beta => {
-                use semver::Identifier;
                 let tag = channel.to_string();
                 for identifier in &self.version.pre {
                     if let Identifier::AlphaNumeric(v) = identifier {

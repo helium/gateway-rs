@@ -10,7 +10,7 @@ timestamp = false
 
 [update]
 enabled = true
-channel = "release"
+# channel = "release"
 interval = 10
 platform = "klkgw"
 command = "/etc/helium_gateway/install_update" 
