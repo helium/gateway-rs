@@ -5,12 +5,12 @@
 
 helium-gateway is a gateway service between a linux based LoRa gateways using the a GWMP1/2 based packet forwarder, and the Helium router. 
 
-The current gateway project forwards packets to the router but does **not** yet use state channels which means forwarded packets are not rewarded by the blockchain yet. 
+The current gateway project forwards packets to the router but does **not** yet use state channels which means forwarded packets are not yet rewarded by the blockchain. 
 
 The project builds `ipk` [packaged releases](https://github.com/helium/gateway-rs/releases) for linux based LoRa gateways. These packages attempt to be self-updating to be able to track improvements to the service. Updates are delivered through the following _channels_ which a gateway can subscribe to by a `channel` setting in the `update` section of the settings file:
 
 * **alpha** - Early development releases. These will happen frequently as functionality is developed and may be unstable. Expect to need to log into your gateway to restart or manually fix your light gateway.
-* **beta** - Preelease candidates which are considered to be stable enough for early access. Breaking issues can still happen but should be rare. 
+* **beta** - Pre-release candidates which are considered to be stable enough for early access. Breaking issues can still happen but should be rare. 
 * **release** - The main (and default) release channel. Updates are considered to be stable for all platforms.
 
 
@@ -18,9 +18,9 @@ The project builds `ipk` [packaged releases](https://github.com/helium/gateway-r
 
 ## Installing
 
-If your [supported LoRa gateway](#supported-platforms) did not come with helium-gateway pre-installed, manually installation rqeuires you to:
+If your [supported LoRa gateway](#supported-platforms) did not come with helium-gateway pre-installed, manual installation requires you to:
 
-1. Configure the packet forwarder on the gatewaay to forward to the helium-gateway application. This varies per gateway but the goal is to set the packet forwarder to forward to the (default) configured helium-gateway `1680` on `127.0.0.1` udp port 
+1. Configure the packet forwarder on the gateway to forward to the helium-gateway application. This varies per gateway but the goal is to set the packet forwarder to forward to the (default) configured helium-gateway on `127.0.0.1` at udp port `1680`
 2. Set up ssh acccess to the gateway. Depending on the gateway that may require going through a web interface, while others already have ssh configured. 
 3. `scp` a downloaded `ipk` release package for the supported platform to the gateway. e.g. 
    ```shell
