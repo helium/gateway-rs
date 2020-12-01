@@ -49,7 +49,7 @@ If this command succeeds the logs on the gateway will show the service starting 
 [RAK7258]: https://store.rakwireless.com/products/rak7258-micro-gateway
 [RAK7249]: https://store.rakwireless.com/products/rak7249-diy-outdoor-gateway
 [RAK7240]: https://store.rakwireless.com/products/rak7240-outdoor-lpwan-gateway?variant=36068284465310
-[Wirnet iFemtoCell Evolution] https://www.kerlink.com/product/wirnet-ifemtocell-evolution/
+[Wirnet iFemtoCell Evolution]: https://www.kerlink.com/product/wirnet-ifemtocell-evolution/
 
 ## Building
 
