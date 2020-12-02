@@ -75,7 +75,9 @@ impl Gateway {
                                 let mut push_targets = vec![];
                                 for target in &self.router_targets {
                                     let downlinks = (
+                                        // first downlink
                                         self.udp_runtime.prepare_empty_downlink(packet.gateway_mac),
+                                        // 2nd downlink window if requested by the router response
                                         self.udp_runtime.prepare_empty_downlink(packet.gateway_mac),
                                     );
 

@@ -22,7 +22,7 @@ start()
     if alive $(pid) ; then return 0; fi
 
     # Enable firewall rules
-	OUT_RULE="OUTPUT -t filter -p tcp --dport 20443 -j ACCEPT"
+	OUT_RULE="OUTPUT -t filter -p tcp --dport 8080 -j ACCEPT"
     iptables -C ${OUT_RULE} 2> /dev/null || iptables -I ${OUT_RULE}
 	IN_RULE="INPUT -t filter -p tcp -m state --state ESTABLISHED,RELATED -j ACCEPT"
     iptables -C ${IN_RULE} 2> /dev/null || iptables -I ${IN_RULE}
