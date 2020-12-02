@@ -9,7 +9,8 @@ pub fn version() -> semver::Version {
 }
 
 /// The Helium staging router URL. Used as one of the default routers.
-pub const HELIUM_STAGING_ROUTER: &str = "http://54.176.88.149:20443/v1/router/message";
+pub const HELIUM_STAGING_ROUTER: &str = "http://54.176.88.149:8080/v1/router/message";
+pub const HELIUM_PRODUCTION_ROUTER: &str = "http://52.8.80.146:8080/v1/router/message";
 pub const GITHUB_RELEASES: &str = "https://api.github.com/repos/helium/gateway-rs/releases";
 
 /// Settings are all the configuration parameters the service needs to operate.
@@ -97,7 +98,10 @@ impl Settings {
         c.set_default("listen_addr", "127.0.0.1:1680")?;
         c.set_default("region", "US915")?;
         c.set_default("root_certs", Vec::<String>::new())?;
-        c.set_default("routers", vec![HELIUM_STAGING_ROUTER])?;
+        c.set_default(
+            "routers",
+            vec![HELIUM_STAGING_ROUTER, HELIUM_PRODUCTION_ROUTER],
+        )?;
         c.set_default("log.level", "info")?;
         c.set_default("log.method", "stdio")?;
         c.set_default("log.timestamp", "false")?;
