@@ -16,8 +16,13 @@ pub struct PublicKey(ed25519_dalek::PublicKey);
 pub struct Signature(ed25519_dalek::Signature);
 
 pub use ed25519_dalek::{SECRET_KEY_LENGTH, SIGNATURE_LENGTH};
-pub const KEYPAIR_LENGTH: usize = ed25519_dalek::KEYPAIR_LENGTH + 1;
+/// The binary keypair length is the ed25519 keypair length with a public key appended to
+/// the end and with one additional type byte.
+pub const KEYPAIR_LENGTH: usize =
+    ed25519_dalek::KEYPAIR_LENGTH + ed25519_dalek::PUBLIC_KEY_LENGTH + 1;
+/// A public key binary length is the ed25519 binary public key with an additional type byte
 pub const PUBLIC_KEY_LENGTH: usize = ed25519_dalek::PUBLIC_KEY_LENGTH + 1;
+/// The type byte for ed25519 keys
 pub const KEYTYPE_ED25519: u8 = 1;
 
 impl Keypair {
@@ -58,16 +63,21 @@ impl Keypair {
     /// Converts a keypair to a binary form. This format is compatible with
     /// the helium wallet format.
     pub fn to_bytes(&self) -> [u8; KEYPAIR_LENGTH] {
+        use std::io::{Cursor, Write};
         let mut dest = [0u8; KEYPAIR_LENGTH];
         dest[0] = KEYTYPE_ED25519;
-        dest[1..ed25519_dalek::SECRET_KEY_LENGTH + 1].copy_from_slice(self.0.secret.as_bytes());
-        dest[ed25519_dalek::SECRET_KEY_LENGTH + 1..].copy_from_slice(self.0.public.as_bytes());
+        let mut cursor = Cursor::new(&mut dest[1..]);
+        cursor.write_all(self.0.secret.as_bytes()).expect("space");
+        cursor.write_all(self.0.public.as_bytes()).expect("space");
+        cursor.write_all(self.0.public.as_bytes()).expect("space");
         dest
     }
 
     /// Constructs a keypair from a given binary slice.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        Ok(Self(ed25519_dalek::Keypair::from_bytes(&bytes[1..])?))
+        Ok(Self(ed25519_dalek::Keypair::from_bytes(
+            &bytes[1..ed25519_dalek::KEYPAIR_LENGTH + 1],
+        )?))
     }
 
     /// Returns the public key of this keypair
@@ -84,15 +94,12 @@ impl fmt::Display for Keypair {
 
 impl fmt::Display for PublicKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::result::Result<(), fmt::Error> {
-        write!(
-            f,
-            "{}",
-            bs58::encode(self.0.as_bytes()).with_check().into_string()
-        )
+        write!(f, "{}: {:?}", self.to_b58(), self.0.as_bytes())
     }
 }
 
 impl PublicKey {
+    /// Converts a public keys to it's binary form
     pub fn to_bytes(&self) -> [u8; PUBLIC_KEY_LENGTH] {
         let mut data = [0u8; PUBLIC_KEY_LENGTH];
         data[0] = KEYTYPE_ED25519;
@@ -100,17 +107,19 @@ impl PublicKey {
         data
     }
 
+    /// Returns a vector of the public key bytes
     pub fn to_vec(&self) -> Vec<u8> {
         self.to_bytes().to_vec()
     }
 
-    pub fn to_b58(&self) -> Result<String> {
+    /// Construct the b58 version of this public key.
+    pub fn to_b58(&self) -> String {
         // First 0 value is the "version" number defined for addresses
         // in libp2p, 2nd byte is keytype
         let mut data = [0u8; PUBLIC_KEY_LENGTH + 1];
         data[1] = KEYTYPE_ED25519;
         data[2..].copy_from_slice(self.0.as_bytes());
-        Ok(bs58::encode(data.as_ref()).with_check().into_string())
+        bs58::encode(data.as_ref()).with_check().into_string()
     }
 }
 
@@ -123,10 +132,12 @@ impl PartialEq for PublicKey {
 impl Eq for PublicKey {}
 
 impl Signature {
+    /// Convert this signature to a vector of bytes
     pub fn to_vec(&self) -> Vec<u8> {
         self.0.to_bytes().to_vec()
     }
 
+    /// Get the bytes of this signature
     pub fn to_bytes(&self) -> [u8; SIGNATURE_LENGTH] {
         self.0.to_bytes()
     }

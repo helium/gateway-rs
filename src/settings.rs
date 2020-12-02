@@ -1,4 +1,8 @@
-use crate::{error::Result, keypair, releases, router::Url};
+use crate::{
+    error::{Error, Result},
+    keypair, releases,
+    router::Url,
+};
 use config::{Config, Environment, File};
 use helium_proto::Region;
 use serde::{de, Deserialize, Deserializer};
@@ -132,13 +136,17 @@ where
     let s = String::deserialize(d)?;
     match keypair::Keypair::load(&s) {
         Ok(k) => Ok(Arc::new(k)),
-        Err(_) => {
+        Err(Error::IOError(io_error)) if io_error.kind() == std::io::ErrorKind::NotFound => {
             let new_key = keypair::Keypair::generate().map_err(de::Error::custom)?;
             new_key.save(&s).map_err(|e| {
                 de::Error::custom(format!("unable to save key file \"{}\": {:?}", s, e))
             })?;
             Ok(Arc::new(new_key))
         }
+        Err(err) => Err(de::Error::custom(format!(
+            "unable to load key file \"{}\": {:?}",
+            s, err
+        ))),
     }
 }
 
