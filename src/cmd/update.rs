@@ -17,15 +17,13 @@ pub enum Cmd {
 /// List available updates.
 #[derive(Debug, StructOpt)]
 pub struct List {
-    /// Channel to list updates for (defaults to 'update.channel' config file setting)
+    /// Channel to list updates for (defaults to 'update.channel' setting)
     #[structopt(long)]
     channel: Option<Channel>,
-
     /// Number of entries to list (default 10)
     #[structopt(short = "n")]
     count: Option<usize>,
-
-    /// Platform to list entries for (defaults to 'update.platform' config file setting)
+    /// Platform to list entries for (defaults to 'update.platform' setting)
     #[structopt(long)]
     platform: Option<String>,
 }
@@ -35,10 +33,6 @@ pub struct List {
 pub struct Download {
     // Version of the app to download
     version: semver::Version,
-    /// Channel to download updates from (defaults to 'update.channel' config file setting)
-    #[structopt(long)]
-    channel: Option<Channel>,
-
     /// Path to download update to (defaults to current directory)
     #[structopt(long)]
     path: Option<PathBuf>,
@@ -75,9 +69,9 @@ impl List {
 
 impl Download {
     pub async fn run(&self, settings: Settings) -> Result {
-        let channel = self.channel.clone().unwrap_or(settings.update.channel);
         let platform = settings.update.platform.clone();
         let version = self.version.clone();
+        let channel = Channel::from_version(&version);
         let mut releases =
             releases::filtered(releases::all(settings.update.url.to_string()), move |r| {
                 r.version == version
