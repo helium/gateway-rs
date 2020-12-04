@@ -3,9 +3,15 @@ use gateway_rs::{
     error::Result,
     settings::{LogMethod, Settings},
 };
+use slog::{self, o, Drain, Logger};
+use slog_async;
+use slog_scope;
+use slog_stdlog;
+use slog_syslog;
+use slog_term;
 use std::path::PathBuf;
+use std::sync::Arc;
 use structopt::StructOpt;
-use syslog::{BasicLogger, Facility, Formatter3164};
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = env!("CARGO_BIN_NAME"), version = env!("CARGO_PKG_VERSION"), about = "Helium Light Gateway")]
@@ -29,30 +35,21 @@ pub enum Cmd {
     Server(cmd::server::Cmd),
 }
 
-fn install_logger(settings: &Settings) {
-    match settings.log.method {
+fn mk_logger(settings: &Settings) -> Logger {
+    let async_drain = match settings.log.method {
         LogMethod::Syslog => {
-            let formatter = Formatter3164 {
-                facility: Facility::LOG_USER,
-                hostname: None,
-                process: env!("CARGO_BIN_NAME").into(),
-                pid: std::process::id() as i32,
-            };
-            let logger = syslog::unix(formatter).expect("could not connect to syslog");
-            log::set_boxed_logger(Box::new(BasicLogger::new(logger)))
-                .map(|()| log::set_max_level(settings.log.level))
-                .expect("coult not set log level")
+            let drain = slog_syslog::unix_3164(slog_syslog::Facility::LOG_USER)
+                .unwrap()
+                .fuse();
+            slog_async::Async::new(drain).build().fuse()
         }
         LogMethod::Stdio => {
-            let mut builder = env_logger::Builder::new();
-            if !settings.log.timestamp {
-                builder.format_timestamp(None);
-            };
-            builder.filter_level(settings.log.level);
-            builder.parse_default_env();
-            builder.init();
+            let decorator = slog_term::TermDecorator::new().build();
+            let drain = slog_term::FullFormat::new(decorator).build().fuse();
+            slog_async::Async::new(drain).build().fuse()
         }
-    }
+    };
+    slog::Logger::root(async_drain, o!("version" => env!("CARGO_PKG_VERSION")))
 }
 
 pub fn main() -> Result {
@@ -64,7 +61,9 @@ pub fn main() -> Result {
     }
 
     let settings = Settings::new(cli.config.clone())?;
-    install_logger(&settings);
+    let logger = mk_logger(&settings);
+    let scope_guard = slog_scope::set_global_logger(logger);
+    let _log_guard = slog_stdlog::init().unwrap();
     // Start the runtime after the daemon fork
     tokio::runtime::Builder::new()
         .threaded_scheduler()
@@ -75,6 +74,7 @@ pub fn main() -> Result {
             tokio::spawn(async move {
                 let _ = tokio::signal::ctrl_c().await;
                 shutdown_trigger.trigger();
+                drop(scope_guard);
             });
             run(cli, settings, &shutdown_listener).await
         })
