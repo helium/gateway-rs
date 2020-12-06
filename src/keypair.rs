@@ -94,7 +94,7 @@ impl fmt::Display for Keypair {
 
 impl fmt::Display for PublicKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::result::Result<(), fmt::Error> {
-        write!(f, "{}: {:?}", self.to_b58(), self.0.as_bytes())
+        f.write_str(&self.to_b58())
     }
 }
 
