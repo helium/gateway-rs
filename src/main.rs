@@ -6,11 +6,10 @@ use gateway_rs::{
 use slog::{self, o, Drain, Logger};
 use slog_async;
 use slog_scope;
-use slog_stdlog;
+//use slog_stdlog;
 use slog_syslog;
 use slog_term;
 use std::path::PathBuf;
-use std::sync::Arc;
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
@@ -41,15 +40,21 @@ fn mk_logger(settings: &Settings) -> Logger {
             let drain = slog_syslog::unix_3164(slog_syslog::Facility::LOG_USER)
                 .unwrap()
                 .fuse();
-            slog_async::Async::new(drain).build().fuse()
+            slog_async::Async::new(drain)
+                .build()
+                .filter_level(settings.log.level)
+                .fuse()
         }
         LogMethod::Stdio => {
             let decorator = slog_term::TermDecorator::new().build();
             let drain = slog_term::FullFormat::new(decorator).build().fuse();
-            slog_async::Async::new(drain).build().fuse()
+            slog_async::Async::new(drain)
+                .build()
+                .filter_level(settings.log.level)
+                .fuse()
         }
     };
-    slog::Logger::root(async_drain, o!("version" => env!("CARGO_PKG_VERSION")))
+    slog::Logger::root(async_drain, o!())
 }
 
 pub fn main() -> Result {
@@ -62,10 +67,11 @@ pub fn main() -> Result {
 
     let settings = Settings::new(cli.config.clone())?;
     let logger = mk_logger(&settings);
+    let run_logger = logger.clone();
     let scope_guard = slog_scope::set_global_logger(logger);
-    let _log_guard = slog_stdlog::init().unwrap();
+    //    let _log_guard = slog_stdlog::init().unwrap();
     // Start the runtime after the daemon fork
-    tokio::runtime::Builder::new()
+    let res = tokio::runtime::Builder::new()
         .threaded_scheduler()
         .enable_all()
         .build()?
@@ -74,16 +80,22 @@ pub fn main() -> Result {
             tokio::spawn(async move {
                 let _ = tokio::signal::ctrl_c().await;
                 shutdown_trigger.trigger();
-                drop(scope_guard);
             });
-            run(cli, settings, &shutdown_listener).await
-        })
+            run(cli, settings, &shutdown_listener, run_logger).await
+        });
+    drop(scope_guard);
+    res
 }
 
-pub async fn run(cli: Cli, settings: Settings, shutdown_listener: &triggered::Listener) -> Result {
+pub async fn run(
+    cli: Cli,
+    settings: Settings,
+    shutdown_listener: &triggered::Listener,
+    logger: Logger,
+) -> Result {
     match cli.cmd {
         Cmd::Key(cmd) => cmd.run(settings).await,
         Cmd::Update(cmd) => cmd.run(settings).await,
-        Cmd::Server(cmd) => cmd.run(shutdown_listener, settings).await,
+        Cmd::Server(cmd) => cmd.run(shutdown_listener, settings, &logger).await,
     }
 }

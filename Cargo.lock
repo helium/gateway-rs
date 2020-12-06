@@ -504,7 +504,6 @@ dependencies = [
  "ed25519-dalek",
  "futures",
  "helium-proto",
- "log 0.4.11",
  "longfi",
  "lorawan",
  "prost",
@@ -517,7 +516,6 @@ dependencies = [
  "slog",
  "slog-async",
  "slog-scope",
- "slog-stdlog",
  "slog-syslog",
  "slog-term",
  "structopt",
@@ -1461,17 +1459,6 @@ dependencies = [
  "arc-swap",
  "lazy_static",
  "slog",
-]
-
-[[package]]
-name = "slog-stdlog"
-version = "4.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8228ab7302adbf4fcb37e66f3cda78003feb521e7fd9e3847ec117a7784d0f5a"
-dependencies = [
- "log 0.4.11",
- "slog",
- "slog-scope",
 ]
 
 [[package]]

@@ -25,10 +25,10 @@ serde_json = "1"
 tokio = { version = "0.2", default-features=false, features=["macros", "signal", "rt-threaded", "process"] }
 futures = "*"
 triggered = "0.1"
-log  = "0.4"
 slog = "2.7"
 slog-async = "2.5"
-slog-stdlog = "4.1"
+## log  = "0.4"
+## slog-stdlog = "4.1"
 slog-term = "2.6"
 slog-syslog = "0.12"
 slog-scope = "4.3"
@@ -50,6 +50,7 @@ opt-level = "z"
 lto = true
 codegen-units = 1
 panic = "abort"
-# debug = true
+#debug = true
+#strip = "debuginfo"
 strip = "symbols"
 

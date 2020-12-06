@@ -4,7 +4,7 @@ use crate::{
     settings::{version, Settings},
 };
 use futures::TryStreamExt;
-use log::{info, warn};
+use slog::{info, o, warn, Logger};
 use std::{
     env, io,
     path::{Path, PathBuf},
@@ -46,17 +46,18 @@ impl Updater {
         })
     }
 
-    pub async fn run(&self, shutdown: triggered::Listener) -> Result {
+    pub async fn run(&self, shutdown: triggered::Listener, logger: &Logger) -> Result {
+        let logger = logger.new(o!("module" => "updater"));
         if !self.enabled {
-            info!("disabling updater");
+            info!(logger, "disabling");
             return Ok(());
         }
-        info!("starting updater");
+        info!(logger, "starting");
         let mut interval = time::interval(self.interval);
         loop {
             tokio::select! {
                 _ = shutdown.clone() => {
-                    info!("shutting down");
+                    info!(logger, "shutting down");
                     return Ok(())
                 },
                 _ = interval.tick() => {
@@ -71,14 +72,14 @@ impl Updater {
                     }).try_next().await {
                         Ok(Some(release)) => {
                             let asset = release.asset_for_platform(&self.platform).expect("asset for platform");
-                            info!("downloading update {:?}", asset.name);
+                            info!(logger, "downloading {asset}", asset = asset.name.clone());
                             let download_path = self.download_path(&asset.name);
                             asset.download(&download_path).await?;
-                            info!("installing update {:?}", asset.name);
+                            info!(logger, "installing {asset}", asset=asset.name.clone());
                             return self.install(&download_path).await;
                         },
-                        Ok(None) => info!("no update found"),
-                        Err(err) => warn!("failed to fetch releases: {:?}", err),
+                        Ok(None) => info!(logger,"no update found"),
+                        Err(err) => warn!(logger,"failed to fetch releases: {:?}", err),
                     }
                 }
             }
