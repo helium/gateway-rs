@@ -3,9 +3,9 @@ use gateway_rs::{
     error::Result,
     settings::{LogMethod, Settings},
 };
+use slog::{self, o, Drain, Logger};
 use std::path::PathBuf;
 use structopt::StructOpt;
-use syslog::{BasicLogger, Facility, Formatter3164};
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = env!("CARGO_BIN_NAME"), version = env!("CARGO_PKG_VERSION"), about = "Helium Light Gateway")]
@@ -29,30 +29,27 @@ pub enum Cmd {
     Server(cmd::server::Cmd),
 }
 
-fn install_logger(settings: &Settings) {
-    match settings.log.method {
+fn mk_logger(settings: &Settings) -> Logger {
+    let async_drain = match settings.log.method {
         LogMethod::Syslog => {
-            let formatter = Formatter3164 {
-                facility: Facility::LOG_USER,
-                hostname: None,
-                process: env!("CARGO_BIN_NAME").into(),
-                pid: std::process::id() as i32,
-            };
-            let logger = syslog::unix(formatter).expect("could not connect to syslog");
-            log::set_boxed_logger(Box::new(BasicLogger::new(logger)))
-                .map(|()| log::set_max_level(settings.log.level))
-                .expect("coult not set log level")
+            let drain = slog_syslog::unix_3164(slog_syslog::Facility::LOG_USER)
+                .unwrap()
+                .fuse();
+            slog_async::Async::new(drain)
+                .build()
+                .filter_level(settings.log.level)
+                .fuse()
         }
         LogMethod::Stdio => {
-            let mut builder = env_logger::Builder::new();
-            if !settings.log.timestamp {
-                builder.format_timestamp(None);
-            };
-            builder.filter_level(settings.log.level);
-            builder.parse_default_env();
-            builder.init();
+            let decorator = slog_term::TermDecorator::new().build();
+            let drain = slog_term::FullFormat::new(decorator).build().fuse();
+            slog_async::Async::new(drain)
+                .build()
+                .filter_level(settings.log.level)
+                .fuse()
         }
-    }
+    };
+    slog::Logger::root(async_drain, o!())
 }
 
 pub fn main() -> Result {
@@ -64,9 +61,12 @@ pub fn main() -> Result {
     }
 
     let settings = Settings::new(cli.config.clone())?;
-    install_logger(&settings);
+    let logger = mk_logger(&settings);
+    let run_logger = logger.clone();
+    let scope_guard = slog_scope::set_global_logger(logger);
+    //    let _log_guard = slog_stdlog::init().unwrap();
     // Start the runtime after the daemon fork
-    tokio::runtime::Builder::new()
+    let res = tokio::runtime::Builder::new()
         .threaded_scheduler()
         .enable_all()
         .build()?
@@ -76,14 +76,21 @@ pub fn main() -> Result {
                 let _ = tokio::signal::ctrl_c().await;
                 shutdown_trigger.trigger();
             });
-            run(cli, settings, &shutdown_listener).await
-        })
+            run(cli, settings, &shutdown_listener, run_logger).await
+        });
+    drop(scope_guard);
+    res
 }
 
-pub async fn run(cli: Cli, settings: Settings, shutdown_listener: &triggered::Listener) -> Result {
+pub async fn run(
+    cli: Cli,
+    settings: Settings,
+    shutdown_listener: &triggered::Listener,
+    logger: Logger,
+) -> Result {
     match cli.cmd {
         Cmd::Key(cmd) => cmd.run(settings).await,
         Cmd::Update(cmd) => cmd.run(settings).await,
-        Cmd::Server(cmd) => cmd.run(shutdown_listener, settings).await,
+        Cmd::Server(cmd) => cmd.run(shutdown_listener, settings, &logger).await,
     }
 }
