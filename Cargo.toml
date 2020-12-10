@@ -25,9 +25,13 @@ serde_json = "1"
 tokio = { version = "0.2", default-features=false, features=["macros", "signal", "rt-threaded", "process"] }
 futures = "*"
 triggered = "0.1"
-log  = "0.4"
-env_logger = {version = "0.8", default-features = false, features = ["humantime"]}
-syslog = {version = "5"}
+slog = "2.7"
+slog-async = "2.5"
+## log  = "0.4"
+## slog-stdlog = "4.1"
+slog-term = "2.6"
+slog-syslog = "0.12"
+slog-scope = "4.3"
 thiserror = "1.0"
 bs58 = {version = "0.4", features=["check"]}
 base64 = "0"
@@ -46,6 +50,7 @@ opt-level = "z"
 lto = true
 codegen-units = 1
 panic = "abort"
-# debug = true
+#debug = true
+#strip = "debuginfo"
 strip = "symbols"
 

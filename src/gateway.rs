@@ -1,11 +1,11 @@
 use crate::{error::Result, keypair, router, settings::Settings};
 use helium_proto::{packet::PacketType, Packet as LoraPacket, Region};
-use log::{debug, info, warn};
 use semtech_udp::{
     pull_resp, push_data,
     server_runtime::{Downlink, Error as SemtechError, Event, UdpRuntime},
     tx_ack, StringOrNum, Up as UdpPacket,
 };
+use slog::{debug, info, o, warn, Logger};
 use std::{sync::Arc, time::Duration};
 use tokio::sync::broadcast;
 
@@ -35,18 +35,20 @@ impl Gateway {
         Ok(gateway)
     }
 
-    pub async fn run(&mut self, shutdown: triggered::Listener) -> Result {
-        info!("starting gateway");
+    pub async fn run(&mut self, shutdown: triggered::Listener, logger: &Logger) -> Result {
+        let logger = logger.new(o!("module" => "gateway"));
+        info!(logger, "starting gateway");
         loop {
+            let logger = logger.clone();
             let event = tokio::select! {
                 _ = shutdown.clone() => {
-                    info!("shutting down");
+                    info!(logger, "shutting down");
                     return Ok(())
                 },
                 res = self.udp_runtime.recv() => match res {
                     Err(broadcast::RecvError::Closed) => return Err(broadcast::RecvError::Closed.into()),
                     Err(broadcast::RecvError::Lagged(skipped)) => {
-                        warn!("skipped {} udp events", skipped);
+                        warn!(logger.clone(), "skipped {} udp events", skipped);
                         continue;
                     },
                     Ok(v) => v,
@@ -54,13 +56,13 @@ impl Gateway {
             };
             match event {
                 Event::UnableToParseUdpFrame(buf) => {
-                    info!("ignoring semtech udp parsing error for {:?}", buf);
+                    info!(logger, "ignoring semtech udp parsing error for {:?}", buf);
                 }
                 Event::NewClient((mac, addr)) => {
-                    info!("new packet forwarder client: {}, {}", mac, addr);
+                    info!(logger, "new packet forwarder client: {}, {}", mac, addr);
                 }
                 Event::UpdateClient((mac, addr)) => {
-                    info!("mac existed, but IP updated: {}, {}", mac, addr);
+                    info!(logger, "mac existed, but IP updated: {}, {}", mac, addr);
                 }
                 Event::Packet(packet) => match packet {
                     UdpPacket::PushData(mut packet) => {
@@ -73,6 +75,7 @@ impl Gateway {
                                 let region = self.region;
                                 let key = self.key.clone();
                                 let mut push_targets = vec![];
+                                let logger = logger.clone();
                                 for target in &self.router_targets {
                                     let downlinks = (
                                         // first downlink
@@ -84,16 +87,23 @@ impl Gateway {
                                     push_targets.push((target.clone(), downlinks))
                                 }
                                 tokio::spawn(async move {
-                                    handle_push_data(push_data, router, region, key, push_targets)
-                                        .await
+                                    handle_push_data(
+                                        push_data,
+                                        router,
+                                        region,
+                                        key,
+                                        push_targets,
+                                        logger,
+                                    )
+                                    .await
                                 });
                             }
                         }
                     }
-                    _ => debug!("ignoring {:?}", packet),
+                    _ => debug!(logger, "ignoring {:?}", packet),
                 },
                 Event::NoClientWithMac(_packet, mac) => {
-                    warn!("send to client with unknown MAC: {:?}", mac)
+                    warn!(logger, "send to client with unknown MAC: {:?}", mac)
                 }
             }
         }
@@ -106,29 +116,31 @@ async fn handle_push_data(
     region: Region,
     key: Arc<keypair::Keypair>,
     push_targets: Vec<(reqwest::Url, Downlinks)>,
+    logger: Logger,
 ) {
     let payload = match base64::decode(&push_data.get_data()) {
-        Err(err) => return debug!("ignoring bad push data: {:?}", err),
+        Err(err) => return debug!(logger, "ignoring bad push data: {:?}", err),
         Ok(v) => v,
     };
     if is_lonfi_packet(&payload) {
-        info!("ignoring longfi packet")
+        info!(logger, "ignoring longfi packet")
     }
     // Handle lorawan packet, check if there is routing data
     match router::Routing::from_data(&payload) {
-        Err(err) => return debug!("ignoring, bad routing data {:?}", err),
-        Ok(None) => return debug!("ignoring, no routing data"),
+        Err(err) => return debug!(logger, "ignoring, bad routing data {:?}", err),
+        Ok(None) => return debug!(logger, "ignoring, no routing data"),
         Ok(Some(routing)) => {
             // There's some routing data available. Construct the packet for the
             // router and make it into the signed message to post
             let router_packet = to_router_packet(&push_data, routing, &payload);
             let router_message = match router::Message::from_packet(router_packet, &key, region) {
-                Err(err) => return warn!("unable to create router message: {:?}", err),
+                Err(err) => return warn!(logger, "unable to create router message: {:?}", err),
                 Ok(m) => m,
             };
             for (router_address, downlinks) in push_targets {
                 let inner_router = router.clone();
                 let inner_message = router_message.clone();
+                let logger = logger.clone();
                 // Spawn of each target router target into its own thread.
                 tokio::spawn(async move {
                     // Send the message
@@ -145,13 +157,13 @@ async fn handle_push_data(
                         // A response, dispatch to the device if there's a downlink
                         Ok(Some(response)) => {
                             if let Some(packet) = response.downlink() {
-                                match send_downlink(packet, downlinks).await {
-                                    Ok(()) => debug!("downlink sent"),
-                                    Err(err) => warn!("failed to send downlink: {:?}", err),
+                                match send_downlink(packet, downlinks, logger.clone()).await {
+                                    Ok(()) => debug!(logger, "downlink sent"),
+                                    Err(err) => warn!(logger, "failed to send downlink: {:?}", err),
                                 }
                             }
                         }
-                        Err(err) => warn!("failed to route message: {:?}", err),
+                        Err(err) => warn!(logger, "failed to route message: {:?}", err),
                     }
                 });
             }
@@ -162,6 +174,7 @@ async fn handle_push_data(
 async fn send_downlink(
     packet: &LoraPacket,
     downlinks: Downlinks,
+    logger: Logger,
 ) -> std::result::Result<(), SemtechError> {
     let (mut downlink, mut downlink_rx2) = downlinks;
     let pull_resp = mk_pull_resp(
@@ -171,7 +184,7 @@ async fn send_downlink(
         Some(packet.timestamp),
     );
     downlink.set_packet(pull_resp);
-    debug!("sending downlink {:?}", packet);
+    debug!(logger, "sending downlink {:?}", packet);
     match downlink
         .dispatch(Some(Duration::from_secs(DOWNLINK_TIMEOUT_SECS)))
         .await
@@ -187,7 +200,7 @@ async fn send_downlink(
                     Some(rx2.timestamp),
                 );
                 downlink_rx2.set_packet(pull_resp);
-                debug!("sending rx2 downlink {:?}", packet);
+                debug!(logger, "sending rx2 downlink {:?}", packet);
                 downlink_rx2
                     .dispatch(Some(Duration::from_secs(DOWNLINK_TIMEOUT_SECS)))
                     .await

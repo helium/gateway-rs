@@ -57,7 +57,7 @@ pub enum LogMethod {
 pub struct LogSettings {
     /// Log level to show (default info)
     #[serde(deserialize_with = "deserialize_log_level")]
-    pub level: log::LevelFilter,
+    pub level: slog::Level,
 
     ///  Which log method to use (stdio or syslog, default stdio)
     #[serde(deserialize_with = "deserialize_log_method")]
@@ -197,13 +197,13 @@ where
     Ok(result)
 }
 
-fn deserialize_log_level<'de, D>(d: D) -> std::result::Result<log::LevelFilter, D::Error>
+fn deserialize_log_level<'de, D>(d: D) -> std::result::Result<slog::Level, D::Error>
 where
     D: Deserializer<'de>,
 {
     let s = String::deserialize(d)?;
     s.parse()
-        .map_err(|e| de::Error::custom(format!("invalid log level \"{}\": {}", s, e)))
+        .map_err(|_| de::Error::custom(format!("invalid log level \"{}\"", s)))
 }
 
 fn deserialize_log_method<'de, D>(d: D) -> std::result::Result<LogMethod, D::Error>
