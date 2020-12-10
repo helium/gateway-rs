@@ -1,5 +1,5 @@
 [config]
-additional_profiles = ["klkgw", "ramips_24kec"]
+additional_profiles = ["klkgw", "ramips_24kec", "dragino"]
 default_to_workspace = false
 
 [env]
@@ -11,7 +11,7 @@ CROSS_TARGET = "armv7-unknown-linux-musleabihf"
 [env.ramips_24kec]
 CROSS_TARGET = "mipsel-unknown-linux-musl"
 
-[env.mips_24kc]
+[env.dragino]
 CROSS_TARGET = "mips-unknown-linux-musl"
 
 [tasks.cross]
