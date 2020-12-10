@@ -13,6 +13,8 @@ jobs:
         target:
           - klkgw
           - ramips_24kec
+          - dragino
+          - mtcdt
     steps:
       - uses: actions-rs/toolchain@v1
         with:
