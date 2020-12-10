@@ -11,6 +11,9 @@ CROSS_TARGET = "armv7-unknown-linux-musleabihf"
 [env.ramips_24kec]
 CROSS_TARGET = "mipsel-unknown-linux-musl"
 
+[env.mips_24kc]
+CROSS_TARGET = "mips-unknown-linux-musl"
+
 [tasks.cross]
 description = "Runs the cross rust compiler."
 category = "Build"
