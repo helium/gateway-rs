@@ -1,22 +1,48 @@
-#!/bin/sh /etc/rc.common
+#!/bin/sh
 
-START=99
-STOP=99
-USE_PROCD=1
+### BEGIN INIT INFO
+# Provides: helium_gateway
+# Required-Start: $network $local_fs
+# Required-Stop: $network $local_fs
+# Should-Start: $syslog $named
+# Should-Stop: $syslog $named
+# Short-Description: start and stop helium_gateway
+# Description: Helium Gateway
+### END INIT INFO
 
-PROG="/usr/bin/helium_gateway"
+NAME="helium_gateway"
+ENABLED="yes"
+
+PID_FILE=/var/run/helium_gateway.pid
 CONFIGURATION_FILE="/etc/helium_gateway/settings.toml"
+BINARY=/usr/bin/helium_gateway
+OPTS="--daemon -c $CONFIGURATION_FILE server"
 
-start_service() {
-    include /lib/functions
+[ -f /etc/default/$NAME ] && source /etc/default/$NAME
 
-    procd_open_instance
-    
-    procd_set_param command $PROG -c $CONFIGURATION_FILE server
-    procd_set_param file $CONFIGURATION_FILE
-    procd_set_param stdout 1 
-    procd_set_param stderr 1 
-    procd_set_param respawn
+case "$1" in
+  start)
+	echo -n "Starting $NAME: "
+	start-stop-daemon --start -x "$BINARY" -- $OPTS
+	echo "$NAME."
+	;;
+  stop)
+	echo -n "Stopping $NAME: "
+	start-stop-daemon --stop -x "$BINARY"
+	echo "$NAME."
+	;;
+  restart|force-reload)
+	echo -n "Restarting $NAME: "
+	start-stop-daemon --stop -x "$BINARY"
+	sleep 1
+	start-stop-daemon --start -x "$BINARY" -- $OPTS
+	echo "$NAME."
+	;;
+  *)
+	N=/etc/init.d/$NAME
+	echo "Usage: $N {start|stop|restart|force-reload}" >&2
+	exit 1
+	;;
+esac
 
-    procd_close_instance
-}
+exit 0

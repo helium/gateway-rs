@@ -2,5 +2,5 @@
 
 chmod +x /etc/helium_gateway/install_update
 
-/etc/init.d/helium_gateway enable
+/usr/sbin/update-rc.d helium_gateway defaults
 /etc/init.d/helium_gateway restart
