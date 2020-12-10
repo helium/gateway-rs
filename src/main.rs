@@ -4,11 +4,6 @@ use gateway_rs::{
     settings::{LogMethod, Settings},
 };
 use slog::{self, o, Drain, Logger};
-use slog_async;
-use slog_scope;
-//use slog_stdlog;
-use slog_syslog;
-use slog_term;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
