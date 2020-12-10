@@ -61,6 +61,7 @@ Note that platforms will be tested much faster if you join the development proce
 [RAK7240]: https://store.rakwireless.com/products/rak7240-outdoor-lpwan-gateway?variant=36068284465310
 [Wirnet iFemtoCell Evolution]: https://www.kerlink.com/product/wirnet-ifemtocell-evolution/
 [LPS8]: https://www.dragino.com/products/lora-lorawan-gateway/item/148-lps8.html
+[DLOS8]: https://www.dragino.com/products/lora-lorawan-gateway/item/160-dlos8.html
 
 ## Building
 
