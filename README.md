@@ -50,7 +50,9 @@ Note that platforms will be tested much faster if you join the development proce
 |                |                               | :grey_question: [RAK7249] (WisGate Edge Max)             |
 |                |                               | :grey_question: [RAK7240] (WisGate Edge Prime)           |
 | klkgw          | armv7-unknown-linux-musleabih | :white_check_mark: Kerlink [Wirnet iFemtoCell Evolution] |
-| mips_24kc      | mips-unknown-linux-musl       | :white_check_mark: Dragino [LPS8]                        |
+| dragino        | mips-unknown-linux-musl       | :white_check_mark: Dragino [LPS8]                        |
+|                |                               | :grey_question: Dragino [DLOS8]                          |
+
 
 [ramips_24kec]: https://downloads.rakwireless.com/WIFI/RAK634/Hardware%20Specification/RAK634_Module_Specification_V1.0.pdf
 [RAK833]: https://github.com/RAKWireless/RAK2247-RAK833-LoRaGateway-OpenWRT-MT7628
