@@ -1,7 +1,6 @@
 # helium-gateway
 
-![check](https://github.com/helium/gateway-rs/workflows/check/badge.svg)
-![release](https://github.com/helium/gateway-rs/workflows/release/badge.svg)
+[![ci](https://github.com/helium/gateway-rs/workflows/ci/badge.svg)](https://github.com/helium/gateway-rs/actions)
 
 helium-gateway is a gateway service between a linux based LoRa gateways using the a GWMP1/2 based packet forwarder, and the Helium router. 
 
