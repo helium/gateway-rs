@@ -1,0 +1,16 @@
+[target.mipsel-unknown-linux-musl]
+rustflags = [
+    "-C", "target-feature=+crt-static",
+    "-C", "link-args=-static",
+]
+
+[target.armv7-unknown-linux-gnueabihf]
+linker = "arm-linux-gnueabihf-gcc"
+strip = { path = "arm-linux-gnueabihf-strip" }
+objcopy = { path = "arm-linux-gnueabihf-objcopy" }
+
+[target.arm-unknown-linux-gnueabihf]
+linker = "arm-linux-gnueabihf-gcc"
+strip = { path = "arm-linux-gnueabihf-strip" }
+objcopy = { path = "arm-linux-gnueabihf-objcopy" }
+
