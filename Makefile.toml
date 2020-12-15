@@ -1,5 +1,5 @@
 [config]
-additional_profiles = ["klkgw", "ramips_24kec", "dragino", "mtcdt"]
+additional_profiles = ["klkgw", "ramips_24kec", "dragino", "mtcdt", "raspi01", "raspi234"]
 default_to_workspace = false
 
 [env]
@@ -18,6 +18,12 @@ CROSS_TARGET = "mips-unknown-linux-musl"
 [env.mtcdt]
 CROSS_TARGET = "armv5te-unknown-linux-musleabi"
 IPK_USE_AR = "true"
+
+[env.raspi01]
+CROSS_TARGET = "arm-unknown-linux-gnueabihf"
+
+[env.raspi234]
+CROSS_TARGET = "armv7-unknown-linux-gnueabihf"
 
 [tasks.cross]
 description = "Runs the cross rust compiler."
@@ -76,6 +82,9 @@ script = '''
 	fi
 	cd ${CARGO_MAKE_WORKING_DIRECTORY}
 '''
+
+[tasks.deb]
+
 
 [tasks.ci]
 dependencies = ["check-format", "check-clippy"]

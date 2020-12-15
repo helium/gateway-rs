@@ -38,11 +38,17 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        target:
+        target-ipk:
           - klkgw
           - ramips_24kec
           - dragino
           - mtcdt
+        target-deb:
+          - raspi01
+          - raspi234
+        target-arch:
+          - arm-unknown-linux-gnueabihf
+          - armv7-unknown-linux-gnueabihf
     steps:
       - uses: actions-rs/toolchain@v1
         with:
@@ -61,7 +67,10 @@ jobs:
           repo: rust-embedded/cross
 
       - name: build ipk
-        run: cargo make --profile ${{ matrix.target }} ipk
+        run: cargo make --profile ${{ matrix.target-ipk }} ipk
+
+      - name: build deb
+        run: cargo deb --target=${{ matrix.target-arch }} --variant=${{ matrix.target-deb }}
 
       - name: name release
         if: ${{ startsWith(github.ref, 'refs/tags') }}
@@ -76,4 +85,5 @@ jobs:
         with:
           tag_name: ${{ steps.vars.outputs.tag }}
           name: Release ${{ steps.vars.outputs.tag }}
-          files: target/ipk/helium-gateway-${{ steps.vars.outputs.tag }}-${{ matrix.target }}.ipk 
+          files: target/ipk/helium-gateway-${{ steps.vars.outputs.tag }}-${{ matrix.target-ipk }}.ipk 
+          files: target/deb/helium-gateway-${{ steps.vars.outputs.tag }}-${{ matrix.target-deb }}.deb

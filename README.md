@@ -6,7 +6,7 @@ helium-gateway is a gateway service between a linux based LoRa gateways using th
 
 The current gateway project forwards packets to the router but does **not** yet use state channels which means forwarded packets are not yet rewarded by the blockchain. 
 
-The project builds `ipk` [packaged releases](https://github.com/helium/gateway-rs/releases) for linux based LoRa gateways. These packages attempt to be self-updating to be able to track improvements to the service. Updates are delivered through the following _channels_ which a gateway can subscribe to by a `channel` setting in the `update` section of the settings file:
+The project builds `ipk` and `deb` [packaged releases](https://github.com/helium/gateway-rs/releases) for linux based LoRa gateways. These packages attempt to be self-updating to be able to track improvements to the service. Updates are delivered through the following _channels_ which a gateway can subscribe to by a `channel` setting in the `update` section of the settings file:
 
 * **alpha** - Early development releases. These will happen frequently as functionality is developed and may be unstable. Expect to need to log into your gateway to restart or manually fix your light gateway.
 * **beta** - Pre-release candidates which are considered to be stable enough for early access. Breaking issues can still happen but should be rare. 
@@ -52,7 +52,8 @@ Note that platforms will be tested much faster if you join the development proce
 | dragino        | mips-unknown-linux-musl        | :white_check_mark: Dragino [LPS8]                        |
 |                |                                | :grey_question: Dragino [DLOS8]                          |
 | mtcdt          | armv5te-unknown-linux-musleabi | :white_check_mark: Multitech Conduit [MTCDT] (mLinux)    |
-
+| raspi01        | arm-unknown-linux-gnueabihf    | :grey_question: Raspberry Pi 0/1 [Raspberry Pi 0/1]      |
+| raspi234       | armv7-unknown-linux-gnueabihf  | :grey_question: Raspberry Pi 2/3/4 [Raspberry Pi 2/3/4]  |
 
 [ramips_24kec]: https://downloads.rakwireless.com/WIFI/RAK634/Hardware%20Specification/RAK634_Module_Specification_V1.0.pdf
 [RAK833]: https://github.com/RAKWireless/RAK2247-RAK833-LoRaGateway-OpenWRT-MT7628
@@ -63,6 +64,8 @@ Note that platforms will be tested much faster if you join the development proce
 [LPS8]: https://www.dragino.com/products/lora-lorawan-gateway/item/148-lps8.html
 [DLOS8]: https://www.dragino.com/products/lora-lorawan-gateway/item/160-dlos8.html
 [MTCDT]: https://www.multitech.com/brands/multiconnect-conduit
+[Raspberry Pi 0/1]: https://www.raspberrypi.org/products/
+[Raspberry Pi 2/3/4]: https://www.raspberrypi.org/products/
 
 ## Building
 
@@ -77,7 +80,7 @@ If you want to support a new platform, please consider submitting a PR to get th
 2. Install cargo `cross` and `make`. The `cross` command allows for cross compiling to hardware targets using docker images, while the `make` command is used to package up 
    ```shell
    cargo install cross
-   cargo install make
+   cargo install cargo-make
    ```
 3. Build the application or package using one of the following:
    1. Build the application binary using the target triplet from the supported targets. Note the use of the `--release` flag to optimize the target binary for size. Debug builds may be too large to run on some targets. 
@@ -98,4 +101,11 @@ If you want to support a new platform, please consider submitting a PR to get th
          target/ipk/helium-gateway-<version>-<platform>.ipk
          ```
     
-
+    3. Build an application `deb` package using one of the taget sytem profile names
+        ```shell
+        cargo deb
+        ```
+        The resulting application binary is located in
+        ```
+        target/debian/helium-gateway-<version>-<platform>.deb
+        ```

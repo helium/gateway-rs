@@ -54,3 +54,24 @@ panic = "abort"
 #strip = "debuginfo"
 strip = "symbols"
 
+[package.metadata.deb.variants.raspi01]
+license-file = ["LICENSE", "0"]
+extended-description = """\
+The Helium Gateway to attach your Raspberry Pi Based \
+LoRa gateway to the Helium Blockchain."""
+depends = "$auto"
+section = "utility"
+priority = "optional"
+maintainer-scripts = "package/raspi01/control/"
+conf-files = ["package/raspi01/data/etc/helium_gateway/settings.toml"]
+
+[package.metadata.deb.variants.raspi234]
+license-file = ["LICENSE", "0"]
+extended-description = """\
+The Helium Gateway to attach your Raspberry Pi Based \
+LoRa gateway to the Helium Blockchain."""
+depends = "$auto"
+section = "utility"
+priority = "optional"
+maintainer-scripts = "package/raspi234/control/"
+conf-files = ["package/raspi234/data/etc/helium_gateway/settings.toml"]
