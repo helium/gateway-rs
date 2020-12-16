@@ -1,10 +1,10 @@
 use crate::{
     error::{Error, Result},
     keypair, releases,
-    router::Url,
 };
 use config::{Config, Environment, File};
 use helium_proto::Region;
+use http::uri::Uri;
 use serde::{de, Deserialize, Deserializer};
 use std::{net::SocketAddr, path::PathBuf, sync::Arc};
 
@@ -36,7 +36,7 @@ pub struct Settings {
     /// The router(s) to deliver packets to. Defaults to the Helium staging and
     /// production routers.
     #[serde(deserialize_with = "deserialize_routers")]
-    pub routers: Vec<Url>,
+    pub routers: Vec<Uri>,
     /// Log settings
     pub log: LogSettings,
     /// Update settings
@@ -81,8 +81,8 @@ pub struct UpdateSettings {
     pub platform: String,
     /// The github release url to use (default
     /// https://api.github.com/repos/helium/gateway-rs/releases)
-    #[serde(deserialize_with = "deserialize_url")]
-    pub url: Url,
+    #[serde(deserialize_with = "deserialize_uri")]
+    pub url: Uri,
     /// The command to use to install an update. There will be just one
     /// parameter which is the path to the new package to install.
     pub command: String,
@@ -183,14 +183,15 @@ where
     Ok(region)
 }
 
-fn deserialize_routers<'de, D>(d: D) -> std::result::Result<Vec<Url>, D::Error>
+fn deserialize_routers<'de, D>(d: D) -> std::result::Result<Vec<Uri>, D::Error>
 where
     D: Deserializer<'de>,
 {
     let entries = Vec::<String>::deserialize(d)?;
     let mut result = Vec::with_capacity(entries.len());
     for entry in entries {
-        let router = Url::parse(&entry)
+        let router = entry
+            .parse()
             .map_err(|e| de::Error::custom(format!("Could not parse router url: {}", e)))?;
         result.push(router);
     }
@@ -241,13 +242,13 @@ where
     Ok(channel)
 }
 
-fn deserialize_url<'de, D>(d: D) -> std::result::Result<reqwest::Url, D::Error>
+fn deserialize_uri<'de, D>(d: D) -> std::result::Result<Uri, D::Error>
 where
     D: Deserializer<'de>,
 {
-    let url_string = String::deserialize(d)?;
-    match reqwest::Url::parse(&url_string) {
-        Ok(url) => Ok(url),
+    let uri_string = String::deserialize(d)?;
+    match uri_string.parse() {
+        Ok(uri) => Ok(uri),
         Err(err) => Err(de::Error::custom(format!(
             "invalid url format: \"{}\"",
             err

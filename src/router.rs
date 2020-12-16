@@ -6,6 +6,7 @@ use helium_proto::{
 };
 use prost::bytes::{Buf, BufMut};
 use std::time::Duration;
+use http::Uri;
 
 #[derive(Debug)]
 pub struct Client(reqwest::Client);
@@ -25,7 +26,6 @@ pub struct Response(BlockchainStateChannelMessageV1);
 pub struct Routing(RoutingInformation);
 
 pub use helium_proto::Region;
-pub use reqwest::Url;
 
 impl Client {
     pub fn new(settings: &Settings) -> Result<Self> {
@@ -45,13 +45,13 @@ impl Client {
 
     pub async fn send(
         &self,
-        router: &reqwest::Url,
+        router: &Uri,
         message: &Message,
         timeout: Duration,
     ) -> Result<Option<Response>> {
         let mut encoded = vec![];
         message.encode(&mut encoded)?;
-        let mut request = self.0.post(router.clone()).body(encoded).timeout(timeout);
+        let mut request = self.0.post(&router.to_string()).body(encoded).timeout(timeout);
 
         if let Some(dev_addr) = message.dev_addr() {
             request = request.header(DEV_ADDR_HEADER, format!("{:#04x}", dev_addr));
