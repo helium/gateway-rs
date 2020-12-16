@@ -11,6 +11,8 @@ pub enum Error {
     ServerError(String),
     #[error("client error")]
     ClientError(#[from] reqwest::Error),
+    #[error("http error")]
+    HttpError(#[from] http::Error),
     #[error("io error")]
     IOError(#[from] std::io::Error),
     #[error("longfi error")]

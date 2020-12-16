@@ -5,6 +5,7 @@ use crate::{
 };
 use futures::TryStreamExt;
 use slog::{info, o, warn, Logger};
+use http::Uri;
 use std::{
     env, io,
     path::{Path, PathBuf},
@@ -14,34 +15,21 @@ use tokio::{process, time};
 #[derive(Debug)]
 pub struct Updater {
     enabled: bool,
-    client: reqwest::Client,
-    url: reqwest::Url,
+    uri: Uri,
     channel: Channel,
     platform: String,
     interval: time::Duration,
     install_command: String,
 }
 
-static USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
-
 impl Updater {
     pub fn new(settings: &Settings) -> Result<Self> {
-        use reqwest::header;
-        let mut headers = header::HeaderMap::new();
-        headers.insert(
-            header::ACCEPT,
-            header::HeaderValue::from_static("application/vnd.github.v3+json"),
-        );
-        let builder = reqwest::Client::builder()
-            .user_agent(USER_AGENT)
-            .default_headers(headers);
         Ok(Self {
             enabled: settings.update.enabled,
-            client: builder.build()?,
             channel: settings.update.channel.clone(),
             platform: settings.update.platform.clone(),
             interval: time::Duration::from_secs(settings.update.interval as u64 * 60),
-            url: settings.update.url.clone(),
+            uri: settings.update.url.clone(),
             install_command: settings.update.command.clone(),
         })
     }
@@ -67,7 +55,7 @@ impl Updater {
                     let current_version = version();
                     let channel = self.channel.clone();
                     let platform = self.platform.clone();
-                    match releases::filtered(releases::all(self.url.to_string()), move | r | {
+                    match releases::filtered(releases::all(self.uri.to_string()), move | r | {
                         r.in_channel(&channel) && r.version > current_version && r.asset_for_platform(&platform).is_some()
                     }).try_next().await {
                         Ok(Some(release)) => {

@@ -1,5 +1,6 @@
 use crate::{error::Result, keypair, router, settings::Settings};
 use helium_proto::{packet::PacketType, Packet as LoraPacket, Region};
+use http::Uri;
 use semtech_udp::{
     pull_resp, push_data,
     server_runtime::{Downlink, Error as SemtechError, Event, UdpRuntime},
@@ -17,7 +18,7 @@ pub struct Gateway {
     router: Arc<router::Client>,
     key: Arc<keypair::Keypair>,
     region: router::Region,
-    router_targets: Vec<router::Url>,
+    router_targets: Vec<Uri>,
     udp_runtime: UdpRuntime,
 }
 
@@ -115,7 +116,7 @@ async fn handle_push_data(
     router: Arc<router::Client>,
     region: Region,
     key: Arc<keypair::Keypair>,
-    push_targets: Vec<(reqwest::Url, Downlinks)>,
+    push_targets: Vec<(Uri, Downlinks)>,
     logger: Logger,
 ) {
     let payload = match base64::decode(&push_data.get_data()) {
