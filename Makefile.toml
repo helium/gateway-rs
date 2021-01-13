@@ -42,14 +42,17 @@ script = '''
 	# make base folder
 	mkdir -p ${IPK_BUILD_DIR}
 	echo 2.0 > ${IPK_BUILD_DIR}/debian-binary
-	
+
 	# install data files
 	cp -R ${IPK_SRC_DIR}/data ${IPK_BUILD_DIR}
-	
+
+	# inject default.toml
+	cp -R config/default.toml ${IPK_BUILD_DIR}/data/etc/helium_gateway
+
 	# install binary
 	mkdir -p ${IPK_BUILD_DIR}/data/usr/bin
 	cp target/${CROSS_TARGET}/release/helium_gateway ${IPK_BUILD_DIR}/data/usr/bin
-	
+
 	# install control files
 	mkdir -p ${IPK_BUILD_DIR}/control
 	export CARGO_MAKE_PROFILE CARGO_MAKE_CRATE_VERSION
@@ -62,16 +65,16 @@ script = '''
 	cd ${IPK_BUILD_DIR}/control
 	${TAR} --numeric-owner --group=0 --owner=0 -czf ../control.tar.gz ./*
 	cd ${CARGO_MAKE_WORKING_DIRECTORY}
-	
+
 	cd ${IPK_BUILD_DIR}/data
 	${TAR} --numeric-owner --group=0 --owner=0 -czf ../data.tar.gz ./*
 	cd ${CARGO_MAKE_WORKING_DIRECTORY}
-	
+
 	cd ${IPK_BUILD_DIR}
-	if [ "true" = "${IPK_USE_AR}-unset}" ]; then 
-		rm ../helium-gateway-v${CARGO_MAKE_CRATE_VERSION}-${CARGO_MAKE_PROFILE}.ipk 
+	if [ "true" = "${IPK_USE_AR}-unset}" ]; then
+		rm ../helium-gateway-v${CARGO_MAKE_CRATE_VERSION}-${CARGO_MAKE_PROFILE}.ipk
 		${AR} r ../helium-gateway-v${CARGO_MAKE_CRATE_VERSION}-${CARGO_MAKE_PROFILE}.ipk ./debian-binary ./data.tar.gz ./control.tar.gz
-	else 
+	else
 		${TAR} --numeric-owner --group=0 --owner=0 -czf ../helium-gateway-v${CARGO_MAKE_CRATE_VERSION}-${CARGO_MAKE_PROFILE}.ipk ./debian-binary ./data.tar.gz ./control.tar.gz
 	fi
 	cd ${CARGO_MAKE_WORKING_DIRECTORY}
