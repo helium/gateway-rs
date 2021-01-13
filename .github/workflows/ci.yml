@@ -48,6 +48,7 @@ jobs:
         with:
           toolchain: nightly
           override: true
+          components: rustfmt
       - uses: davidB/rust-cargo-make@v1
       - uses: actions/checkout@v2
 
@@ -56,8 +57,8 @@ jobs:
         env:
           ## Allow cross install into PATH
           ACTIONS_ALLOW_UNSECURE_COMMANDS: true
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
-        with: 
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
           repo: rust-embedded/cross
 
       - name: build ipk
@@ -76,4 +77,4 @@ jobs:
         with:
           tag_name: ${{ steps.vars.outputs.tag }}
           name: Release ${{ steps.vars.outputs.tag }}
-          files: target/ipk/helium-gateway-${{ steps.vars.outputs.tag }}-${{ matrix.target }}.ipk 
+          files: target/ipk/helium-gateway-${{ steps.vars.outputs.tag }}-${{ matrix.target }}.ipk

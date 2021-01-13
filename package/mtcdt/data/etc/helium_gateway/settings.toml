@@ -1,16 +1,7 @@
-key = "/etc/helium_gateway/key.bin"
-listen_addr = "127.0.0.1:1680"
-region = "US915"
-routers = ["http://54.176.88.149:8080/v1/router/message", "http://52.8.80.146:8080/v1/router/message"]
-
 [log]
 method = "syslog"
 level = "info"
 timestamp = false
 
 [update]
-enabled = true
-# channel = "release"
-interval = 10
 platform = "mtcdt"
-command = "/etc/helium_gateway/install_update" 
