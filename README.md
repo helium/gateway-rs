@@ -74,10 +74,10 @@ If you want to support a new platform, please consider submitting a PR to get th
     ```shell
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
     ```
-2. Install cargo `cross` and `make`. The `cross` command allows for cross compiling to hardware targets using docker images, while the `make` command is used to package up 
+2. Install cargo `cross` and `cargo-make`. The `cross` command allows for cross compiling to hardware targets using docker images, while the `cargo-make` command is used to package up 
    ```shell
    cargo install cross
-   cargo install make
+   cargo install cargo-make
    ```
 3. Build the application or package using one of the following:
    1. Build the application binary using the target triplet from the supported targets. Note the use of the `--release` flag to optimize the target binary for size. Debug builds may be too large to run on some targets. 
