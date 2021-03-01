@@ -2,7 +2,18 @@
 
 [![ci](https://github.com/helium/gateway-rs/workflows/ci/badge.svg)](https://github.com/helium/gateway-rs/actions)
 
-helium-gateway is a gateway service between a Linux-based LoRa gateways using the a GWMP1/2 based packet forwarder, and the Helium router. 
+helium-gateway is a gateway service designed to run on Linux-based LoRaWAN gateways. 
+
+It's intended to run alongside a typical LoRa packet forwarder and to connect via Semtech's Gateway Messaging Protocol (GWMP, using JSON v1 or v2). In turn, it's role is to connect the packet forwarder to the Helium Network; it does this by connecting to Helium Router via gRPC.
+
+```
++-----------+                       +------------+               +-----------+
+|           |                       |            |               |           |
+|  packet   |<--- Semtech GWMP ---->|   Helium   |<--- gRPC ---->|  Helium   |
+| forwarder |       over UDP        |   Gateway  |               |  Router   |
+|           |                       |            |               |           |
++-----------+                       +------------+               +-----------+
+``` 
 
 The current gateway project forwards packets to the router but does **not** yet use state channels which means forwarded packets are not yet rewarded by the blockchain. 
 
@@ -18,8 +29,7 @@ The project builds `ipk` [packaged releases](https://github.com/helium/gateway-r
 ## Linux Dependencies
 
 This application requires a Linux-based environment for two big reasons:
-* `tokio`: the `gateway-rs` application, written in Rust, depends on [Tokio](https://docs.rs/tokio) for its runtime. Tokio binds to Linux interfaces such as `epoll` and `kqeueue`. It is technically possible
-to port Tokio to another OS or RTOS (this has been done for Windows), but it would be no simple undertaking.
+* `tokio`: the `gateway-rs` application, written in Rust, depends on [Tokio](https://docs.rs/tokio) for its runtime. Tokio binds to Linux interfaces such as `epoll` and `kqeueue`. It is technically possible to port Tokio to another OS or RTOS (this has been done for Windows), but it would be no simple undertaking.
 * `curl`: for fetching releases over SSL, `curl` is used. This was a simple way to use SSL without bloating the `gateway-rs` binary with additional libraries.
 
 ## Installing
