@@ -36,7 +36,7 @@ The project builds `ipk` [packaged releases](https://github.com/helium/gateway-r
 
 This application requires a Linux-based environment for two big reasons:
 * `tokio`: the `gateway-rs` application, written in Rust, depends on [Tokio](https://docs.rs/tokio) for its runtime. Tokio binds to Linux interfaces such as `epoll` and `kqeueue`. It is technically possible to port Tokio to another OS or RTOS (this has been done for Windows), but it would be no simple undertaking.
-* `curl`: for fetching releases over SSL, `curl` is used. This was a simple way to use SSL without bloating the `gateway-rs` binary with additional libraries.
+* `curl`: for fetching releases over SSL, `curl` is used. This was a simple way to use SSL without bloating the `helium_gateway` binary with additional libraries. Note that the updater may be disabled and thus this dependency may be removed.
 
 ## Installing
 
