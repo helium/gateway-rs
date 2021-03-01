@@ -1,12 +1,29 @@
-# helium-gateway
+# Helium Gateway
 
 [![ci](https://github.com/helium/gateway-rs/workflows/ci/badge.svg)](https://github.com/helium/gateway-rs/actions)
 
-helium-gateway is a gateway service between a linux based LoRa gateways using the a GWMP1/2 based packet forwarder, and the Helium router. 
+The Helium Gateway application is a service designed to run on Linux-based LoRaWAN gateways. 
+
+It's intended to run alongside a typical LoRa packet forwarder and to connect via Semtech's Gateway Messaging Protocol (GWMP, using JSON v1 or v2). 
+
+In turn, the Helium Gateway application does two things:
+ * fetches blockchain context, such as routing tables and OUI endpoints, from a `Gateway Service`; this means the application does not need to maintain a full ledger of copy of the blockchain 
+ * connects and routes packets to the appropriates OUI endpoints (ie: `Helium Routers`)
+ 
+```
+                                                                 +-----------+
++-----------+                       +------------+               |  Gateway  |
+|           |                       |            |<--- gRPC ---->|  Service  |         
+|  packet   |<--- Semtech GWMP ---->|   Helium   |               +-----------+
+| forwarder |       over UDP        |   Gateway  |               +-----------+
+|           |                       |            |<--- gRPC ---->|  Helium   |
++-----------+                       +------------+               |  Routers  |
+                                                                 +-----------+
+``` 
 
 The current gateway project forwards packets to the router but does **not** yet use state channels which means forwarded packets are not yet rewarded by the blockchain. 
 
-The project builds `ipk` [packaged releases](https://github.com/helium/gateway-rs/releases) for linux based LoRa gateways. These packages attempt to be self-updating to be able to track improvements to the service. Updates are delivered through the following _channels_ which a gateway can subscribe to by a `channel` setting in the `update` section of the settings file:
+The project builds `ipk` [packaged releases](https://github.com/helium/gateway-rs/releases) for Linux-based LoRa gateways. These packages attempt to be self-updating to be able to track improvements to the service. Updates are delivered through the following _channels_ which a gateway can subscribe to by a `channel` setting in the `update` section of the settings file:
 
 * **alpha** - Early development releases. These will happen frequently as functionality is developed and may be unstable. Expect to need to log into your gateway to restart or manually fix your light gateway.
 * **beta** - Pre-release candidates which are considered to be stable enough for early access. Breaking issues can still happen but should be rare. 
@@ -14,6 +31,12 @@ The project builds `ipk` [packaged releases](https://github.com/helium/gateway-r
 
 
 **NOTE**: Gateways should have at least **16Mb** of available application file space to handle gateway installation and updates.
+
+## Linux Dependencies
+
+This application requires a Linux-based environment for two big reasons:
+* `tokio`: the `gateway-rs` application, written in Rust, depends on [Tokio](https://docs.rs/tokio) for its runtime. Tokio binds to Linux interfaces such as `epoll` and `kqeueue`. It is technically possible to port Tokio to another OS or RTOS (this has been done for Windows), but it would be no simple undertaking.
+* `curl`: for fetching releases over SSL, `curl` is used. This was a simple way to use SSL without bloating the `helium_gateway` binary with additional libraries. Note that the updater may be disabled and thus this dependency may be removed.
 
 ## Installing
 
