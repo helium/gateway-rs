@@ -4,7 +4,7 @@
 
 helium-gateway is a gateway service designed to run on Linux-based LoRaWAN gateways. 
 
-It's intended to run alongside a typical LoRa packet forwarder and to connect via Semtech's Gateway Messaging Protocol (GWMP, using JSON v1 or v2). In turn, it's role is to connect the packet forwarder to the Helium Network; it does this by connecting to Helium Router via gRPC.
+It's intended to run alongside a typical LoRa packet forwarder and to connect via Semtech's Gateway Messaging Protocol (GWMP, using JSON v1 or v2). In turn, it's role is to connect the packet forwarder to the Helium Network; it does this by connecting to Helium Routers via gRPC.
 
 ```
 +-----------+                       +------------+               +-----------+
