@@ -1,18 +1,24 @@
-# helium-gateway
+# Helium Gateway
 
 [![ci](https://github.com/helium/gateway-rs/workflows/ci/badge.svg)](https://github.com/helium/gateway-rs/actions)
 
-helium-gateway is a gateway service designed to run on Linux-based LoRaWAN gateways. 
+The Helium Gateway application is a service designed to run on Linux-based LoRaWAN gateways. 
 
-It's intended to run alongside a typical LoRa packet forwarder and to connect via Semtech's Gateway Messaging Protocol (GWMP, using JSON v1 or v2). In turn, it's role is to connect the packet forwarder to the Helium Network; it does this by connecting to Helium Routers via gRPC.
+It's intended to run alongside a typical LoRa packet forwarder and to connect via Semtech's Gateway Messaging Protocol (GWMP, using JSON v1 or v2). 
 
+In turn, the Helium Gateway application does two things:
+ * fetches blockchain context, such as routing tables and OUI endpoints, from a `Gateway Service`; this means the application does not need to maintain a full ledger of copy of the blockchain 
+ * connects and routes packets to the appropriates OUI endpoints (ie: `Helium Routers`)
+ 
 ```
-+-----------+                       +------------+               +-----------+
-|           |                       |            |               |           |
-|  packet   |<--- Semtech GWMP ---->|   Helium   |<--- gRPC ---->|  Helium   |
-| forwarder |       over UDP        |   Gateway  |               |  Router   |
-|           |                       |            |               |           |
-+-----------+                       +------------+               +-----------+
+                                                                 +-----------+
++-----------+                       +------------+               |  Gateway  |
+|           |                       |            |<--- gRPC ---->|  Service  |         
+|  packet   |<--- Semtech GWMP ---->|   Helium   |               +-----------+
+| forwarder |       over UDP        |   Gateway  |               +-----------+
+|           |                       |            |<--- gRPC ---->|  Helium   |
++-----------+                       +------------+               |  Routers  |
+                                                                 +-----------+
 ``` 
 
 The current gateway project forwards packets to the router but does **not** yet use state channels which means forwarded packets are not yet rewarded by the blockchain. 
