@@ -1,9 +1,6 @@
-use crate::{
-    error::Result,
-    releases::{self, Channel},
-    settings::{version, Settings},
-};
+use crate::*;
 use futures::{StreamExt, TryStreamExt};
+use releases::{self, Channel};
 use std::{env, path::PathBuf};
 use structopt::StructOpt;
 
@@ -57,7 +54,7 @@ impl List {
             })
             .take(self.count.unwrap_or(10));
         while let Some(Ok(release)) = releases.next().await {
-            if version() == release.version {
+            if settings::version() == release.version {
                 println!("{} (*)", release.version);
             } else {
                 println!("{}", release.version);

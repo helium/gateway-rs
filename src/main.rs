@@ -10,9 +10,10 @@ use structopt::StructOpt;
 #[derive(Debug, StructOpt)]
 #[structopt(name = env!("CARGO_BIN_NAME"), version = env!("CARGO_PKG_VERSION"), about = "Helium Light Gateway")]
 pub struct Cli {
-    /// Config file to load. Defaults to "config/default"
-    #[structopt(short = "c")]
-    config: Option<PathBuf>,
+    /// Configuration folder to use. default.toml will be loaded first and any
+    /// custom settings in settings.toml merged in.
+    #[structopt(short = "c", default_value = "config")]
+    config: PathBuf,
 
     /// Daemonize the application
     #[structopt(long)]
@@ -57,17 +58,16 @@ pub fn main() -> Result {
     if cli.daemon {
         daemonize::Daemonize::new()
             .pid_file(format!("/var/run/{}.pid", env!("CARGO_BIN_NAME")))
-            .start()?;
+            .start()
+            .expect("daemon start");
     }
 
-    let settings = Settings::new(cli.config.clone())?;
+    let settings = Settings::new(&cli.config)?;
     let logger = mk_logger(&settings);
-    let run_logger = logger.clone();
     let scope_guard = slog_scope::set_global_logger(logger);
-    //    let _log_guard = slog_stdlog::init().unwrap();
+    let run_logger = slog_scope::logger().new(o!());
     // Start the runtime after the daemon fork
-    let res = tokio::runtime::Builder::new()
-        .threaded_scheduler()
+    let res = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()?
         .block_on(async {

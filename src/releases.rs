@@ -1,7 +1,4 @@
-use crate::{
-    error::{Error, Result},
-    Future, Stream,
-};
+use crate::*;
 use futures::{future, stream, FutureExt, StreamExt, TryFutureExt};
 use semver::{Identifier, Version};
 use serde::{de, Deserialize, Deserializer};
@@ -207,7 +204,7 @@ impl ReleaseAsset {
             .status()
             .map(|status| match status {
                 Ok(exit_status) if exit_status.success() => Ok(()),
-                Ok(exit_status) => Err(Error::ServerError(format!(
+                Ok(exit_status) => Err(Error::custom(format!(
                     "failed to download asset {}: {:?}",
                     self.download_url,
                     exit_status.code()

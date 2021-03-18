@@ -1,11 +1,8 @@
-use crate::{
-    error::Result,
-    releases::{self, Channel},
-    settings::{version, Settings},
-};
+use crate::*;
 use futures::TryStreamExt;
-use slog::{info, o, warn, Logger};
 use http::Uri;
+use releases::{self, Channel};
+use slog::{info, o, warn, Logger};
 use std::{
     env, io,
     path::{Path, PathBuf},
@@ -52,7 +49,7 @@ impl Updater {
                     // Get teh current cersion and find teh first replease
                     // version in the settings channel that is newer than the
                     // package version.
-                    let current_version = version();
+                    let current_version = settings::version();
                     let channel = self.channel.clone();
                     let platform = self.platform.clone();
                     match releases::filtered(releases::all(self.uri.to_string()), move | r | {

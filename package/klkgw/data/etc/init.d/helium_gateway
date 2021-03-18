@@ -2,7 +2,7 @@
 
 ### BEGIN INIT INFO
 # Provides:        helium_gateway
-# Required-Start:  $syslog 
+# Required-Start:  $syslog
 # Required-Stop:   $syslog
 # Default-Start:   5
 # Default-Stop:    0 6
@@ -11,7 +11,7 @@
 
 BINARY="/usr/bin/helium_gateway"
 PIDFILE="/var/run/helium_gateway.pid"
-CONFIGURATION_FILE="/etc/helium_gateway/settings.toml"
+CONFIG_DIR="/etc/helium_gateway"
 
 alive() { [ "${1}" ] && kill -0 ${1} 2> /dev/null ; }
 pid() { ([ -f ${PIDFILE} ] && cat ${PIDFILE}) || pidof helium_gateway ; }
@@ -28,7 +28,7 @@ start()
     iptables -C ${IN_RULE} 2> /dev/null || iptables -I ${IN_RULE}
 
     # Start the LoRa forwarder.
-    ${BINARY} -c ${CONFIGURATION_FILE} --daemon server
+    ${BINARY} -c ${CONFIG_DIR} --daemon server
 
     # Start monitoring.
     monit monitor helium_gateway

@@ -22,7 +22,7 @@ semver = "0.11"
 config = {version="0.10", default-features=false, features=["toml"]}
 serde = "1"
 serde_json = "1"
-tokio = { version = "0.2", default-features=false, features=["macros", "signal", "rt-threaded", "process"] }
+tokio = { version = "1", default-features=false, features=["macros", "signal", "rt", "process"] }
 futures = "*"
 triggered = "0.1"
 slog = "2.7"
@@ -31,17 +31,20 @@ slog-term = "2.6"
 slog-syslog = "0.12"
 slog-scope = "4.3"
 thiserror = "1.0"
-bs58 = {version = "0.4", features=["check"]}
 base64 = "0"
-ed25519-dalek = "1.0"
-rand = {version = "*", default-features=false, features=["getrandom"]}
-prost = "*"
+rand = "0.8"
+prost = "0.7"
 daemonize = "0.4"
-reqwest = {version = "0.10", default-features = false, features=["json"]}
-lorawan = { package = "lorawan", path = "lorawan" }
-semtech-udp = { git = "https://github.com/helium/semtech-udp.git", branch = "master", features=["server"] }
-helium-proto = { git = "https://github.com/helium/proto", branch="master"}
+tonic = "0.4"
 http = "*"
+log = "0.4"
+bytes = "*"
+xxhash-c = "0.8"
+lorawan = { package = "lorawan", path = "lorawan" }
+semtech-udp = { git = "https://github.com/helium/semtech-udp", branch = "master", features=["server"] }
+helium-proto = { git = "https://github.com/helium/proto", branch="master", features=["services"]}
+helium-crypto = { git = "https://github.com/helium/helium-crypto-rs", tag = "v0.0.7"}
+xorf = { git = "https://github.com/helium/xorf", branch = "master" }
 longfi = { git = "https://github.com/helium/longfi-rs", branch = "main" }
 
 [profile.release]
@@ -53,3 +56,5 @@ panic = "abort"
 #strip = "debuginfo"
 strip = "symbols"
 
+[patch.crates-io]
+elliptic-curve = { git = "https://github.com/helium/traits.git", branch = "rg/compact" }
