@@ -512,7 +512,7 @@ dependencies = [
 name = "gateway-rs"
 version = "1.0.0-alpha.4"
 dependencies = [
- "base64 0.12.3",
+ "base64 0.13.0",
  "bytes",
  "config",
  "daemonize",
@@ -1258,9 +1258,9 @@ version = "0.5.1-alpha.0"
 source = "git+https://github.com/helium/semtech-udp?branch=master#039f161529b9223a6bf7c9e3f55b3b9343bcb88d"
 dependencies = [
  "arrayref",
- "base64 0.12.3",
+ "base64 0.13.0",
  "num_enum",
- "rand 0.7.3",
+ "rand 0.8.3",
  "serde",
  "serde_json",
  "serde_repr",
