@@ -61,7 +61,7 @@ If this command succeeds the logs on the gateway will show the service starting 
 The following platforms have already been tested by Helium and our community. Our plan is to test this on all relevant hardware platforms used by the Helium Network. If your preferred platform isn't listed yet, here's how to get it added.
 
 * Review [the open issues](https://github.com/helium/gateway-rs/issues) to see if it's already in progress. If not, file an issue.
-* Join the `#gateway-dev` channel on [Helium Discord](https://discord.gg/helium) and let us know what platform we're missing.
+* Join the `#gateway` channel on [Helium Discord](https://discord.gg/helium) and let us know what platform we're missing.
 
 Note that platforms will be tested much faster if you join the development process!
 
