@@ -2,33 +2,33 @@
 
 [![ci](https://github.com/helium/gateway-rs/workflows/ci/badge.svg)](https://github.com/helium/gateway-rs/actions)
 
-The Helium Gateway application is a service designed to run on Linux-based LoRaWAN gateways. 
+The Helium Gateway application is a service designed to run on Linux-based LoRaWAN gateways.
 
-It's intended to run alongside a typical LoRa packet forwarder and to connect via Semtech's Gateway Messaging Protocol (GWMP, using JSON v1 or v2). 
+It's intended to run alongside a typical LoRa packet forwarder and to connect via Semtech's Gateway Messaging Protocol (GWMP, using JSON v1 or v2).
 
 In turn, the Helium Gateway application does two things:
- * fetches blockchain context, such as routing tables and OUI endpoints, from a `Gateway Service`; this means the application does not need to maintain a full ledger of copy of the blockchain 
+ * fetches blockchain context, such as routing tables and OUI endpoints, from a `Gateway Service`; this means the application does not need to maintain a full ledger of copy of the blockchain
  * connects and routes packets to the appropriates OUI endpoints (ie: `Helium Routers`)
- 
+
 ```
                                                                  +-----------+
 +-----------+                       +------------+               |  Gateway  |
-|           |                       |            |<--- gRPC ---->|  Service  |         
+|           |                       |            |<--- gRPC ---->|  Service  |
 |  packet   |<--- Semtech GWMP ---->|   Helium   |               +-----------+
 | forwarder |       over UDP        |   Gateway  |               +-----------+
 |           |                       |            |<--- gRPC ---->|  Helium   |
 +-----------+                       +------------+               |  Routers  |
                                                                  +-----------+
-``` 
+```
 
-The current gateway project forwards packets to the router but does **not** yet use state channels which means forwarded packets are not yet rewarded by the blockchain. 
+The current gateway project forwards packets to the router but does **not** yet use state channels which means forwarded packets are not yet rewarded by the blockchain.
 
 The project builds `ipk` [packaged releases](https://github.com/helium/gateway-rs/releases) for Linux-based LoRa gateways. These packages attempt to be self-updating to be able to track improvements to the service. Updates are delivered through the following _channels_ which a gateway can subscribe to by a `channel` setting in the `update` section of the settings file:
 
 * **alpha** - Early development releases. These will happen frequently as functionality is developed and may be unstable. Expect to need to log into your gateway to restart or manually fix your light gateway.
-* **beta** - Pre-release candidates which are considered to be stable enough for early access. Breaking issues can still happen but should be rare. 
-* **release** - The main (and default) release channel. Updates are considered to be stable for all platforms.
-
+* **beta** - Pre-release candidates which are considered to be stable enough for early access. Breaking issues can still happen but should be rare.
+* **release** - The main release channel. Updates are considered to be stable for all platforms.
+* **semver** - This is the default channel and selects the channel based on the installed package version identifier.
 
 **NOTE**: Gateways should have at least **16Mb** of available application file space to handle gateway installation and updates.
 
@@ -43,24 +43,25 @@ This application requires a Linux-based environment for two big reasons:
 If your [supported LoRa gateway](#supported-platforms) did not come with helium-gateway pre-installed, manual installation requires you to:
 
 1. Configure the packet forwarder on the gateway to forward to the helium-gateway application. This varies per gateway but the goal is to set the packet forwarder to forward to the (default) configured helium-gateway on `127.0.0.1` at udp port `1680`
-2. Set up ssh acccess to the gateway. Depending on the gateway that may require going through a web interface, while others already have ssh configured. 
-3. `scp` a downloaded `ipk` release package for the supported platform to the gateway. e.g. 
+2. Set up ssh acccess to the gateway. Depending on the gateway that may require going through a web interface, while others already have ssh configured.
+3. `scp` a downloaded `ipk` release package for the supported platform to the gateway. e.g.
    ```shell
-   scp helium-gateway-<version>-<platform>.ipk <gateway>:/tmp/</code>
+   scp helium-gateway-<version>-<platform>.ipk <gateway>:/tmp/
    ```
 4. `ssh` into the device and install the service using a command like:
    ```shell
    opkg install /tmp/helium-gateway-<version>-<platform>.ipk
    ```
+   **NOTE**: Some platform have custom package installation requirements. Refer to the developer instructions for that platform on how to install a package.
 
-If this command succeeds the logs on the gateway will show the service starting and the local packet forwarder client connecting to the gateway service. 
+If this command succeeds the logs on the gateway will show the service starting and the local packet forwarder client connecting to the gateway service.
 
 ## Supported Platforms
 
-The following platforms have already been tested by Helium and our community. Our plan is to test this on all relevant hardware platforms used by the Helium Network. If your preferred platform isn't listed yet, here's how to get it added. 
+The following platforms have already been tested by Helium and our community. Our plan is to test this on all relevant hardware platforms used by the Helium Network. If your preferred platform isn't listed yet, here's how to get it added.
 
-* Review [the open issues](https://github.com/helium/gateway-rs/issues) to see if it's already in progress. If not, file an issue. 
-* Join the `#gateway-dev` channel on [Helium Discord](https://discord.gg/helium) and let us know what platform we're missing. 
+* Review [the open issues](https://github.com/helium/gateway-rs/issues) to see if it's already in progress. If not, file an issue.
+* Join the `#gateway-dev` channel on [Helium Discord](https://discord.gg/helium) and let us know what platform we're missing.
 
 Note that platforms will be tested much faster if you join the development process!
 
@@ -97,13 +98,13 @@ If you want to support a new platform, please consider submitting a PR to get th
     ```shell
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
     ```
-2. Install cargo `cross` and `cargo-make`. The `cross` command allows for cross compiling to hardware targets using docker images, while the `cargo-make` command is used to package up 
+2. Install cargo `cross` and `cargo-make`. The `cross` command allows for cross compiling to hardware targets using docker images, while the `cargo-make` command is used to package up
    ```shell
    cargo install cross
    cargo install cargo-make
    ```
 3. Build the application or package using one of the following:
-   1. Build the application binary using the target triplet from the supported targets. Note the use of the `--release` flag to optimize the target binary for size. Debug builds may be too large to run on some targets. 
+   1. Build the application binary using the target triplet from the supported targets. Note the use of the `--release` flag to optimize the target binary for size. Debug builds may be to large to run on some targets.
         ```shell
         cross build --target <target> --release
         ```
@@ -120,5 +121,5 @@ If you want to support a new platform, please consider submitting a PR to get th
          ```
          target/ipk/helium-gateway-<version>-<platform>.ipk
          ```
-    
+
 
