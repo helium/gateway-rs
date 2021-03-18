@@ -6,61 +6,88 @@ pub type Result<T = ()> = std::result::Result<T, Error>;
 #[derive(Error, Debug)]
 pub enum Error {
     #[error("config error")]
-    ConfigError(#[from] config::ConfigError),
-    #[error("server error")]
-    ServerError(String),
-    #[error("client error")]
-    ClientError(#[from] reqwest::Error),
-    #[error("http error")]
-    HttpError(#[from] http::Error),
+    Config(#[from] config::ConfigError),
+    #[error("custom error")]
+    Custom(String),
     #[error("io error")]
-    IOError(#[from] std::io::Error),
+    IO(#[from] std::io::Error),
+    #[error("crypto error")]
+    CryptoError(#[from] helium_crypto::Error),
+    #[error("encode error")]
+    Encode(#[from] EncodeError),
+    #[error("decode error")]
+    Decode(#[from] DecodeError),
+    #[error("service error")]
+    Service(#[from] ServiceError),
+    #[error("semtech udp error")]
+    Semtech(#[from] semtech_udp::server_runtime::Error),
+}
+
+#[derive(Error, Debug)]
+pub enum EncodeError {
+    #[error("protobuf encode")]
+    ProstError(#[from] prost::EncodeError),
+}
+
+#[derive(Error, Debug)]
+pub enum DecodeError {
+    #[error("uri decode")]
+    Uri(#[from] http::uri::InvalidUri),
+    #[error("json decode")]
+    Json(#[from] serde_json::Error),
+    #[error("base64 decode")]
+    Base64(#[from] base64::DecodeError),
+    #[error("network address decode")]
+    Addr(#[from] net::AddrParseError),
+    #[error("protobuf decode")]
+    Prost(#[from] prost::DecodeError),
+    #[error("lorawan decode")]
+    LoraWan(#[from] lorawan::LoraWanError),
     #[error("longfi error")]
     LfcError(#[from] longfi::LfcError),
-    #[error("ed25519 error")]
-    ED2519Error(#[from] ed25519_dalek::ed25519::Error),
-    #[error("json error")]
-    JSONError(#[from] serde_json::Error),
+    #[error("semtech decode")]
+    Semtech(#[from] semtech_udp::data_rate::ParseError),
 }
 
-impl From<net::AddrParseError> for Error {
-    fn from(v: net::AddrParseError) -> Self {
-        Self::ServerError(v.to_string())
-    }
+#[derive(Error, Debug)]
+pub enum ServiceError {
+    #[error("services error")]
+    Service(#[from] helium_proto::services::Error),
+    #[error("rpc error")]
+    Rpc(#[from] tonic::Status),
 }
 
-impl From<tokio::sync::broadcast::RecvError> for Error {
-    fn from(v: tokio::sync::broadcast::RecvError) -> Self {
-        Self::ServerError(v.to_string())
-    }
+macro_rules! from_err {
+    ($to_type:ty, $from_type:ty) => {
+        impl From<$from_type> for Error {
+            fn from(v: $from_type) -> Self {
+                Self::from(<$to_type>::from(v))
+            }
+        }
+    };
 }
 
-impl From<lorawan::LoraWanError> for Error {
-    fn from(v: lorawan::LoraWanError) -> Self {
-        Self::ServerError(v.to_string())
-    }
-}
+// Service Errors
+from_err!(ServiceError, helium_proto::services::Error);
+from_err!(ServiceError, tonic::Status);
 
-impl From<semtech_udp::server_runtime::Error> for Error {
-    fn from(v: semtech_udp::server_runtime::Error) -> Self {
-        Self::ServerError(v.to_string())
-    }
-}
+// Encode Errors
+from_err!(EncodeError, prost::EncodeError);
 
-impl From<prost::EncodeError> for Error {
-    fn from(v: prost::EncodeError) -> Self {
-        Self::ServerError(v.to_string())
-    }
-}
+// Decode Errors
+from_err!(DecodeError, http::uri::InvalidUri);
+from_err!(DecodeError, base64::DecodeError);
+from_err!(DecodeError, serde_json::Error);
+from_err!(DecodeError, net::AddrParseError);
+from_err!(DecodeError, prost::DecodeError);
+from_err!(DecodeError, lorawan::LoraWanError);
+from_err!(DecodeError, longfi::LfcError);
+from_err!(DecodeError, semtech_udp::data_rate::ParseError);
 
-impl From<prost::DecodeError> for Error {
-    fn from(v: prost::DecodeError) -> Self {
-        Self::ServerError(v.to_string())
-    }
-}
-
-impl From<daemonize::DaemonizeError> for Error {
-    fn from(v: daemonize::DaemonizeError) -> Self {
-        Self::ServerError(v.to_string())
+impl Error {
+    /// Use as for custom or rare errors that don't quite deserve their own
+    /// error
+    pub fn custom<T: ToString>(msg: T) -> Error {
+        Error::Custom(msg.to_string())
     }
 }

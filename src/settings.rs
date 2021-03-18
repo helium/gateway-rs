@@ -1,21 +1,24 @@
-use crate::{
-    error::{Error, Result},
-    keypair, releases,
-};
+use crate::*;
 use config::{Config, Environment, File};
+use helium_crypto::{ecc_compact, Network};
 use helium_proto::Region;
 use http::uri::Uri;
+use rand::rngs::OsRng;
 use serde::{de, Deserialize, Deserializer};
-use std::{net::SocketAddr, path::PathBuf, sync::Arc};
+use std::{net::SocketAddr, path::Path, sync::Arc};
 
 pub fn version() -> semver::Version {
     semver::Version::parse(env!("CARGO_PKG_VERSION")).expect("unable to parse version")
 }
 
-/// The Helium staging router URL. Used as one of the default routers.
-pub const HELIUM_STAGING_ROUTER: &str = "http://54.176.88.149:8080/v1/router/message";
-pub const HELIUM_PRODUCTION_ROUTER: &str = "http://52.8.80.146:8080/v1/router/message";
-pub const GITHUB_RELEASES: &str = "https://api.github.com/repos/helium/gateway-rs/releases";
+/// A URI that has an associated public key
+#[derive(Debug, Clone, Deserialize)]
+pub struct KeyedUri {
+    #[serde(deserialize_with = "deserialize_uri")]
+    pub uri: Uri,
+    #[serde(deserialize_with = "deserialize_pubkey")]
+    pub public_key: PublicKey,
+}
 
 /// Settings are all the configuration parameters the service needs to operate.
 #[derive(Debug, Deserialize)]
@@ -24,23 +27,25 @@ pub struct Settings {
     /// Default "127.0.0.1:1680"
     #[serde(deserialize_with = "deserialize_listen_addr")]
     pub listen_addr: SocketAddr,
-    /// The location of the key pem file for the gateway. Defaults to
-    /// "/etc/gateway/gateway_key.pem". If the keyfile is not found there a new
+    /// The location of the keypair binary file for the gateway. Defaults to
+    /// "/etc/helium_gateway/keypair.bin". If the keyfile is not found there a new
     /// one is generated and saved in that location.
     #[serde(deserialize_with = "deserialize_keypair")]
-    pub keypair: Arc<keypair::Keypair>,
+    pub keypair: Arc<Keypair>,
     /// The lorawan region to use. This value should line up with the configured
     /// region of the semtech packet forwarder. Defaults to "US91%"
     #[serde(deserialize_with = "deserialize_region")]
     pub region: Region,
-    /// The router(s) to deliver packets to. Defaults to the Helium staging and
-    /// production routers.
-    #[serde(deserialize_with = "deserialize_routers")]
-    pub routers: Vec<Uri>,
     /// Log settings
     pub log: LogSettings,
     /// Update settings
     pub update: UpdateSettings,
+    /// The router to deliver packets to when no routers are found while
+    /// processing a packet.
+    pub router: KeyedUri,
+    /// The validator(s) to query for chain related state. Defaults to a Helium
+    /// validator.
+    pub gateways: Vec<KeyedUri>,
 }
 
 /// The method to use for logging.
@@ -89,38 +94,21 @@ pub struct UpdateSettings {
 }
 
 impl Settings {
-    /// Load Settings from a given path. Settings are loaded by constructing
-    /// default settings, and then merging in a given path, followed by merging
-    /// in any environment overrides.
+    /// Load Settings from a given path. Settings are loaded from a default.toml
+    /// file in the given path, followed by merging in an optional settings.toml
+    /// in the same folder.
     ///
     /// Environemnt overrides have the same name as the entries in the settings
     /// file in uppercase and prefixed with "GW_". For example "GW_KEY" will
     /// override the key file location.
-    pub fn new(path: Option<PathBuf>) -> Result<Self> {
+    pub fn new(path: &Path) -> Result<Self> {
         let mut c = Config::new();
-        c.set_default("keypair", "/etc/helium_gateway/keypair.bin")?;
-        c.set_default("listen_addr", "127.0.0.1:1680")?;
-        c.set_default("region", "US915")?;
-        c.set_default("root_certs", Vec::<String>::new())?;
-        c.set_default(
-            "routers",
-            vec![HELIUM_STAGING_ROUTER, HELIUM_PRODUCTION_ROUTER],
-        )?;
-        c.set_default("log.level", "info")?;
-        c.set_default("log.method", "stdio")?;
-        c.set_default("log.timestamp", "false")?;
-        c.set_default("update.enabled", "true")?;
-        c.set_default(
-            "update.channel",
-            releases::Channel::from_version(&version()).to_string(),
-        )?;
-        c.set_default("update.interval", 10)?;
-        c.set_default("update.url", GITHUB_RELEASES)?;
-        c.set_default("update.platform", "klkgw")?;
-        c.set_default("update.command", "/etc/helium_gateway/install_update")?;
-        if let Some(p) = path {
-            let path_str = p.to_str().unwrap();
-            c.merge(File::with_name(&path_str))?;
+        let default_file = path.join("default.toml");
+        // Load default config and merge in overrides
+        c.merge(File::with_name(&default_file.to_str().expect("file name")))?;
+        let settings_file = path.join("settings.toml");
+        if settings_file.exists() {
+            c.merge(File::with_name(&settings_file.to_str().expect("file name")))?;
         }
         // Add in settings from the environment (with a prefix of APP)
         // Eg.. `GW_DEBUG=1 ./target/app` would set the `debug` key
@@ -129,16 +117,16 @@ impl Settings {
     }
 }
 
-fn deserialize_keypair<'de, D>(d: D) -> std::result::Result<Arc<keypair::Keypair>, D::Error>
+fn deserialize_keypair<'de, D>(d: D) -> std::result::Result<Arc<Keypair>, D::Error>
 where
     D: Deserializer<'de>,
 {
     let s = String::deserialize(d)?;
-    match keypair::Keypair::load(&s) {
+    match keypair::load_from_file(&s) {
         Ok(k) => Ok(Arc::new(k)),
-        Err(Error::IOError(io_error)) if io_error.kind() == std::io::ErrorKind::NotFound => {
-            let new_key = keypair::Keypair::generate().map_err(de::Error::custom)?;
-            new_key.save(&s).map_err(|e| {
+        Err(Error::IO(io_error)) if io_error.kind() == std::io::ErrorKind::NotFound => {
+            let new_key = ecc_compact::Keypair::generate(Network::MainNet, &mut OsRng);
+            keypair::save_to_file(&new_key, &s).map_err(|e| {
                 de::Error::custom(format!("unable to save key file \"{}\": {:?}", s, e))
             })?;
             Ok(Arc::new(new_key))
@@ -183,21 +171,6 @@ where
     Ok(region)
 }
 
-fn deserialize_routers<'de, D>(d: D) -> std::result::Result<Vec<Uri>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let entries = Vec::<String>::deserialize(d)?;
-    let mut result = Vec::with_capacity(entries.len());
-    for entry in entries {
-        let router = entry
-            .parse()
-            .map_err(|e| de::Error::custom(format!("Could not parse router url: {}", e)))?;
-        result.push(router);
-    }
-    Ok(result)
-}
-
 fn deserialize_log_level<'de, D>(d: D) -> std::result::Result<slog::Level, D::Error>
 where
     D: Deserializer<'de>,
@@ -229,6 +202,7 @@ where
     D: Deserializer<'de>,
 {
     let channel = match String::deserialize(d)?.to_lowercase().as_str() {
+        "semver" => releases::Channel::from_version(&version()),
         "alpha" => releases::Channel::Alpha,
         "beta" => releases::Channel::Beta,
         "release" | "" => releases::Channel::Release,
@@ -249,8 +223,19 @@ where
     let uri_string = String::deserialize(d)?;
     match uri_string.parse() {
         Ok(uri) => Ok(uri),
+        Err(err) => Err(de::Error::custom(format!("invalid uri: \"{}\"", err))),
+    }
+}
+
+fn deserialize_pubkey<'de, D>(d: D) -> std::result::Result<PublicKey, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let key_string = String::deserialize(d)?;
+    match key_string.parse() {
+        Ok(key) => Ok(key),
         Err(err) => Err(de::Error::custom(format!(
-            "invalid url format: \"{}\"",
+            "invalid public key: \"{}\"",
             err
         ))),
     }

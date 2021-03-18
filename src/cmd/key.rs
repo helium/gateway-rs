@@ -1,4 +1,4 @@
-use crate::{error::Result, settings::Settings};
+use crate::*;
 use structopt::StructOpt;
 
 /// Commands on gateway keys
@@ -21,7 +21,7 @@ impl Cmd {
 
 impl Info {
     pub async fn run(&self, settings: Settings) -> Result {
-        println!("{}", settings.keypair.to_string());
+        println!("{}", settings.keypair.public_key.to_string());
         Ok(())
     }
 }

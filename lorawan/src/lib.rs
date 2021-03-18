@@ -101,16 +101,16 @@ impl PHYPayloadFrame {
     }
 }
 
-pub struct FHDR {
+pub struct Fhdr {
     pub dev_addr: u32,
     pub fctrl: FCtrl,
     pub fcnt: u16,
     pub fopts: Vec<u8>,
 }
 
-impl fmt::Debug for FHDR {
+impl fmt::Debug for Fhdr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> result::Result<(), fmt::Error> {
-        f.debug_struct("FHDR")
+        f.debug_struct("Fhdr")
             .field("dev_addr", &format_args!("{:#04x}", self.dev_addr))
             .field("fctrl", &self.fctrl)
             .field("fcnt", &self.fcnt)
@@ -119,7 +119,7 @@ impl fmt::Debug for FHDR {
     }
 }
 
-impl FHDR {
+impl Fhdr {
     pub fn read(direction: Direction, reader: &mut dyn io::Read) -> Result<Self, LoraWanError> {
         let dev_addr = reader.read_u32::<LittleEndian>()?;
         let fctrl = FCtrl::read(direction, reader)?;
@@ -193,7 +193,7 @@ impl FCtrl {
 
 #[derive(Debug)]
 pub struct MACPayload {
-    pub fhdr: FHDR,
+    pub fhdr: Fhdr,
     pub fport: Option<u8>,
     pub payload: Option<FRMPayload>,
 }
@@ -204,7 +204,7 @@ impl MACPayload {
         direction: Direction,
         reader: &mut dyn io::Read,
     ) -> Result<Self, LoraWanError> {
-        let fhdr = FHDR::read(direction, reader)?;
+        let fhdr = Fhdr::read(direction, reader)?;
         let mut data = vec![];
         reader.read_to_end(&mut data)?;
         let (fport, payload) = match data.split_first() {

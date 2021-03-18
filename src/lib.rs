@@ -2,13 +2,18 @@ pub mod cmd;
 pub mod error;
 pub mod gateway;
 pub mod keypair;
+pub mod link_packet;
 pub mod releases;
 pub mod router;
 pub mod server;
+pub mod service;
 pub mod settings;
 pub mod updater;
 
-use crate::error::Result;
+pub use error::{Error, Result};
+pub use keypair::{Keypair, PublicKey};
+pub use settings::{KeyedUri, Settings};
+
 use futures::{Future as StdFuture, Stream as StdStream};
 use std::pin::Pin;
 

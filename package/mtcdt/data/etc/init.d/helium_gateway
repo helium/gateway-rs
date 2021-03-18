@@ -14,9 +14,9 @@ NAME="helium_gateway"
 ENABLED="yes"
 
 PID_FILE=/var/run/helium_gateway.pid
-CONFIGURATION_FILE="/etc/helium_gateway/settings.toml"
+CONFIG_DIR="/etc/helium_gateway"
 BINARY=/usr/bin/helium_gateway
-OPTS="--daemon -c $CONFIGURATION_FILE server"
+OPTS="--daemon -c $CONFIG_DIR server"
 
 [ -f /etc/default/$NAME ] && source /etc/default/$NAME
 
