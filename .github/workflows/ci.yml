@@ -3,8 +3,7 @@ on:
     branches: [main]
   push:
     branches: [main]
-  push:
-    tags: ['v*']
+    tags: ["v*"]
 
 name: ci
 
