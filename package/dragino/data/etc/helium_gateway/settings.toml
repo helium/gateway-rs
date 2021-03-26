@@ -4,4 +4,4 @@ level = "info"
 timestamp = false
 
 [update]
-platform = "mips_24kc"
+platform = "dragino"
