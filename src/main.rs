@@ -4,7 +4,7 @@ use gateway_rs::{
     settings::{LogMethod, Settings},
 };
 use slog::{self, o, Drain, Logger};
-use std::path::PathBuf;
+use std::{io, path::PathBuf};
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
@@ -30,6 +30,13 @@ pub enum Cmd {
     Server(cmd::server::Cmd),
 }
 
+/// An emptye timestamp function for when timestamp should not be included in
+/// the output. This is commonly used with logd on OpenWRT which adds its own
+/// timestamp informatin after capturing stdout.
+fn timestamp_none(_io: &mut dyn io::Write) -> io::Result<()> {
+    Ok(())
+}
+
 fn mk_logger(settings: &Settings) -> Logger {
     let async_drain = match settings.log.method {
         LogMethod::Syslog => {
@@ -42,8 +49,16 @@ fn mk_logger(settings: &Settings) -> Logger {
                 .fuse()
         }
         LogMethod::Stdio => {
-            let decorator = slog_term::PlainDecorator::new(std::io::stdout());
-            let drain = slog_term::FullFormat::new(decorator).build().fuse();
+            let decorator = slog_term::PlainDecorator::new(io::stdout());
+            let timestamp = if settings.log.timestamp {
+                slog_term::timestamp_local
+            } else {
+                timestamp_none
+            };
+            let drain = slog_term::FullFormat::new(decorator)
+                .use_custom_timestamp(timestamp)
+                .build()
+                .fuse();
             slog_async::Async::new(drain)
                 .build()
                 .filter_level(settings.log.level)
