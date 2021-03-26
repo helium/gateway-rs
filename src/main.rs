@@ -42,7 +42,7 @@ fn mk_logger(settings: &Settings) -> Logger {
                 .fuse()
         }
         LogMethod::Stdio => {
-            let decorator = slog_term::TermDecorator::new().build();
+            let decorator = slog_term::PlainDecorator::new(std::io::stdout());
             let drain = slog_term::FullFormat::new(decorator).build().fuse();
             slog_async::Async::new(drain)
                 .build()
