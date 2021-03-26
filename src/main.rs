@@ -12,7 +12,7 @@ use structopt::StructOpt;
 pub struct Cli {
     /// Configuration folder to use. default.toml will be loaded first and any
     /// custom settings in settings.toml merged in.
-    #[structopt(short = "c", default_value = "config")]
+    #[structopt(short = "c", default_value = "/etc/helium_gateway")]
     config: PathBuf,
 
     /// Daemonize the application
