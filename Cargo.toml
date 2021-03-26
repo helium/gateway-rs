@@ -40,6 +40,7 @@ http = "*"
 log = "0.4"
 bytes = "*"
 xxhash-c = "0.8"
+angry-purple-tiger = "0"
 lorawan = { package = "lorawan", path = "lorawan" }
 semtech-udp = { git = "https://github.com/helium/semtech-udp", branch = "master", features=["server"] }
 helium-proto = { git = "https://github.com/helium/proto", branch="master", features=["services"]}
