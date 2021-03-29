@@ -95,6 +95,7 @@ impl FromStr for Channel {
             "alpha" => Ok(Channel::Alpha),
             "beta" => Ok(Channel::Beta),
             "release" => Ok(Channel::Release),
+            "semver" => Ok(Self::from_version(&settings::version())),
             invalid => Err(ChannelParseError(invalid.to_string())),
         }
     }

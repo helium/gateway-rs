@@ -97,9 +97,9 @@ impl Router {
                 uplink = self.uplinks.recv() => match uplink {
                     Some(packet) => match self.handle_uplink(&logger, packet).await {
                         Ok(()) =>  (),
-                        Err(err) => debug!(logger, "ignoring failed uplink {:?}", err)
+                        Err(err) => warn!(logger, "ignoring failed uplink {:?}", err)
                     },
-                    None => debug!(logger, "ignoring closed downlinks channel"),
+                    None => warn!(logger, "ignoring closed downlinks channel"),
                 },
             }
         }
@@ -131,7 +131,7 @@ impl Router {
 
     async fn handle_uplink(&mut self, logger: &Logger, uplink: LinkPacket) -> Result {
         if uplink.packet.routing.is_none() {
-            debug!(logger, "ignoring, no routing data");
+            info!(logger, "ignoring, no routing data");
             return Ok(());
         };
         let gateway_mac = uplink.gateway_mac;
@@ -140,7 +140,7 @@ impl Router {
             let downlinks = self.downlinks.clone();
             let message = message.clone();
             let logger = logger.clone();
-            debug!(logger, "routing packet to: {:?}", client);
+            info!(logger, "routing packet to: {}", client.uri);
             tokio::spawn(async move {
                 match client.route(message).await {
                     Ok(response) => {
@@ -151,12 +151,12 @@ impl Router {
                             match downlinks.send(downlink).await {
                                 Ok(()) => (),
                                 Err(_) => {
-                                    debug!(logger, "failed to push downlink")
+                                    warn!(logger, "failed to push downlink")
                                 }
                             }
                         }
                     }
-                    Err(err) => debug!(logger, "ignoring uplink error: {:?}", err),
+                    Err(err) => warn!(logger, "ignoring uplink error: {:?}", err),
                 }
             });
         }
