@@ -4,7 +4,7 @@ use semtech_udp::{
     server_runtime::{Error as SemtechError, Event, UdpRuntime},
     tx_ack,
 };
-use slog::{debug, info, o, warn, Logger};
+use slog::{info, o, warn, Logger};
 use std::time::Duration;
 use tokio::sync::mpsc::{Receiver, Sender};
 
@@ -46,7 +46,7 @@ impl Gateway {
                 downlink = self.downlinks.recv() => match downlink {
                     Some(packet) => self.handle_downlink(&logger, packet).await?,
                     None => {
-                        debug!(logger, "ignoring closed downlinks channel");
+                        warn!(logger, "ignoring closed downlinks channel");
                         continue;
                     }
                 }
@@ -74,15 +74,18 @@ impl Gateway {
                         let _ = self.uplinks.send(packet).await;
                     }
                     Err(err) => {
-                        debug!(logger, "ignoring push_data: {:?}", err);
+                        warn!(logger, "ignoring push_data: {:?}", err);
                     }
                 }
             }
             Event::NoClientWithMac(_packet, mac) => {
-                warn!(logger, "send to client with unknown MAC: {:?}", mac)
+                info!(
+                    logger,
+                    "ignoring send to client with unknown MAC: {:?}", mac
+                )
             }
             Event::RawPacket(raw) => {
-                debug!(logger, "ignoring raw packet {:?}", raw)
+                info!(logger, "ignoring raw packet {:?}", raw)
             }
         };
         Ok(())
@@ -101,7 +104,7 @@ impl Gateway {
         if pull_resp.is_none() {
             return Ok(());
         }
-        debug!(logger, "sending rx1 downlink {:?}", pull_resp);
+        info!(logger, "sending rx1 downlink {:?}", pull_resp);
         downlink_rx1.set_packet(pull_resp.unwrap());
         match downlink_rx1
             .dispatch(Some(Duration::from_secs(DOWNLINK_TIMEOUT_SECS)))
@@ -111,7 +114,7 @@ impl Gateway {
             Err(SemtechError::Ack(tx_ack::Error::TOO_EARLY))
             | Err(SemtechError::Ack(tx_ack::Error::TOO_LATE)) => {
                 if let Some(pull_resp) = downlink.to_pull_resp(true)? {
-                    debug!(logger, "sending rx2 downlink {:?}", pull_resp);
+                    info!(logger, "sending rx2 downlink {:?}", pull_resp);
                     downlink_rx2.set_packet(pull_resp);
                     match downlink_rx2
                         .dispatch(Some(Duration::from_secs(DOWNLINK_TIMEOUT_SECS)))
@@ -119,7 +122,7 @@ impl Gateway {
                     {
                         Err(SemtechError::Ack(tx_ack::Error::NONE)) => Ok(()),
                         Err(err) => {
-                            debug!(logger, "ignoring rx2 downlink error: {:?}", err);
+                            warn!(logger, "ignoring rx2 downlink error: {:?}", err);
                             Ok(())
                         }
                         Ok(()) => Ok(()),
@@ -130,7 +133,7 @@ impl Gateway {
             }
             Err(SemtechError::Ack(tx_ack::Error::NONE)) => Ok(()),
             Err(err) => {
-                debug!(logger, "ignoring rx1 downlink error: {:?}", err);
+                warn!(logger, "ignoring rx1 downlink error: {:?}", err);
                 Ok(())
             }
             Ok(()) => Ok(()),

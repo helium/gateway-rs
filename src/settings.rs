@@ -79,7 +79,8 @@ pub struct UpdateSettings {
     pub enabled: bool,
     /// How often to check for updates (in minutes, default: 10)
     pub interval: u32,
-    ///  Which udpate channel to use (alpha, beta, release, default: the channel specified in the running app)
+    /// Which udpate channel to use (alpha, beta, release, semver).
+    /// Defaults to semver which is the channel specified in the running app.
     #[serde(deserialize_with = "deserialize_update_channel")]
     pub channel: releases::Channel,
     /// The platform identifier to use for released packages (default: klkgw)
@@ -201,19 +202,16 @@ fn deserialize_update_channel<'de, D>(d: D) -> std::result::Result<releases::Cha
 where
     D: Deserializer<'de>,
 {
-    let channel = match String::deserialize(d)?.to_lowercase().as_str() {
-        "semver" => releases::Channel::from_version(&version()),
-        "alpha" => releases::Channel::Alpha,
-        "beta" => releases::Channel::Beta,
-        "release" | "" => releases::Channel::Release,
-        unsupported => {
+    let channel_str = String::deserialize(d)?.to_lowercase();
+    match channel_str.parse::<releases::Channel>() {
+        Ok(channel) => Ok(channel),
+        Err(_) => {
             return Err(de::Error::custom(format!(
                 "unsupported update channel: \"{}\"",
-                unsupported
+                channel_str
             )))
         }
-    };
-    Ok(channel)
+    }
 }
 
 fn deserialize_uri<'de, D>(d: D) -> std::result::Result<Uri, D::Error>
