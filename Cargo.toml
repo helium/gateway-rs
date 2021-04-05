@@ -2,7 +2,7 @@ cargo-features = ["strip"]
 
 [package]
 name = "gateway-rs"
-version = "1.0.0-alpha.5"
+version = "1.0.0-alpha.6"
 authors = ["Marc Nijdam <marc@helium.com>"]
 edition = "2018"
 license = "Apache-2.0"
