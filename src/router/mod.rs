@@ -1,7 +1,10 @@
 use crate::*;
-use helium_proto::{RoutingInformation, RoutingResponse};
+use helium_proto::RoutingInformation;
 use link_packet::LinkPacket;
-use service::{gateway::Service as GatewayService, router::Service as RouterService, Streaming};
+use service::{
+    gateway::{Response as GatewayResponse, Service as GatewayService, Streaming},
+    router::Service as RouterService,
+};
 use slog::{debug, info, o, warn, Logger};
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::{
@@ -76,7 +79,7 @@ impl Router {
 
     async fn run_with_routing_stream(
         &mut self,
-        mut routing_stream: Streaming<RoutingResponse>,
+        mut routing_stream: Streaming,
         shutdown: triggered::Listener,
         logger: &Logger,
     ) -> Result {
@@ -87,7 +90,7 @@ impl Router {
                     return Ok(())
                 },
                 routing = routing_stream.message() => match routing {
-                    Ok(Some(routing_response)) => self.handle_routing_update(&logger, &routing_response),
+                    Ok(Some(response)) => self.handle_routing_update(&logger, &response),
                     Ok(None) => {return Ok(())},
                     Err(err) => {
                         info!(logger, "routing error: {:?}", err);
@@ -105,16 +108,25 @@ impl Router {
         }
     }
 
-    fn handle_routing_update(&mut self, logger: &Logger, routing_response: &RoutingResponse) {
-        if routing_response.height <= self.routing_height {
+    fn handle_routing_update(&mut self, logger: &Logger, response: &GatewayResponse) {
+        let update_height = response.height();
+        if update_height <= self.routing_height {
             warn!(
                 logger,
                 "router returned invalid height {:?} while at {:?}",
-                routing_response.height,
+                update_height,
                 self.routing_height
-            )
+            );
+            return;
         }
-        for routing in &routing_response.routings {
+        let routings = match response.routings() {
+            Ok(v) => v,
+            Err(err) => {
+                warn!(logger, "error decoding routing {:?}", err);
+                return;
+            }
+        };
+        for routing in routings {
             match routing::Routing::from_proto(routing) {
                 Ok(client) => {
                     self.clients.insert(routing.oui, client);
@@ -122,7 +134,7 @@ impl Router {
                 Err(err) => warn!(logger, "failed to construct router client: {:?}", err),
             }
         }
-        self.routing_height = routing_response.height;
+        self.routing_height = update_height;
         info!(
             logger,
             "updated routing to height {:?}", self.routing_height
