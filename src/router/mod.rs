@@ -106,7 +106,7 @@ impl Router {
     }
 
     fn handle_routing_update(&mut self, logger: &Logger, routing_response: &RoutingResponse) {
-        if routing_response.height <= self.routing_height {
+        if routing_response.height < self.routing_height {
             warn!(
                 logger,
                 "router returned invalid height {:?} while at {:?}",
