@@ -33,8 +33,8 @@ uri = "http://18.216.219.228:8080"
 ## Default router
 [router]
 # staging
-#   public_key = "1124CJ9yJaHq4D6ugyPCDnSBzQik61C1BqD9VMh1vsUmjwt16HNB"
-#   url = "http://54.176.88.149:8080"
+public_key = "1124CJ9yJaHq4D6ugyPCDnSBzQik61C1BqD9VMh1vsUmjwt16HNB"
+url = "http://54.176.88.149:8080"
 # production
-public_key = "112qB3YaH5bZkCnKA5uRH7tBtGNv2Y5B4smv1jsmvGUzgKT71QpE"
-uri = "http://52.8.80.146:8080"
+#public_key = "112qB3YaH5bZkCnKA5uRH7tBtGNv2Y5B4smv1jsmvGUzgKT71QpE"
+#uri = "http://52.8.80.146:8080"
