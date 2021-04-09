@@ -2,7 +2,7 @@ use crate::*;
 use futures::TryStreamExt;
 use http::Uri;
 use releases::{self, Channel};
-use slog::{info, o, warn, Logger};
+use slog::{error, info, o, warn, Logger};
 use std::{
     env, io,
     path::{Path, PathBuf},
@@ -61,7 +61,7 @@ impl Updater {
                             let download_path = self.download_path(&asset.name);
                             asset.download(&download_path).await?;
                             info!(logger, "installing {asset}", asset=asset.name.clone());
-                            return self.install(&download_path).await;
+                            return self.install(&download_path, &logger).await;
                         },
                         Ok(None) => info!(logger,"no update found"),
                         Err(err) => warn!(logger,"failed to fetch releases: {:?}", err),
@@ -82,7 +82,7 @@ impl Updater {
     /// will mvove the package into a staging location and reboot to trigger the
     /// install whereas others may just need a package install and service
     /// restart.
-    pub async fn install(&self, download_path: &Path) -> Result {
+    pub async fn install(&self, download_path: &Path, logger: &Logger) -> Result {
         match process::Command::new(&self.install_command)
             .arg(download_path)
             .output()
@@ -92,11 +92,9 @@ impl Updater {
                 if output.status.success() {
                     return Ok(());
                 }
-                Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    String::from_utf8(output.stderr).unwrap(),
-                )
-                .into())
+                let output = String::from_utf8(output.stderr).unwrap();
+                error!(logger, "failed to install update {}", output);
+                Err(io::Error::new(io::ErrorKind::Other, output).into())
             }
             Err(err) => Err(err.into()),
         }

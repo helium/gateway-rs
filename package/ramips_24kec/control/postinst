@@ -3,4 +3,4 @@
 chmod +x /etc/helium_gateway/install_update
 
 /etc/init.d/helium_gateway enable
-/etc/init.d/helium_gateway restart > /dev/null 2>&1
+/etc/init.d/helium_gateway reload

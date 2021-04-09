@@ -4,4 +4,4 @@ Architecture: mips_24kc
 Maintainer: info@helium.com
 Description: The Helium Gateway to attach your LoRa gateway to the Helium Blockchain
 Priority: optional
-Depends: curl,ca-bundle
+Depends: curl
