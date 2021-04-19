@@ -54,7 +54,11 @@ If your [supported LoRa gateway](#supported-platforms) did not come with helium-
    ```
    **NOTE**: Some platform have custom package installation requirements. Refer to the developer instructions for that platform on how to install a package.
 
-   The default region of the gateway is `US915`, if your region is different you can set the right one in `/etc/helium_gateway/default.toml`. Possible values are : `US915| EU868 | EU433 | CN470 | CN779 | AU915 | AS923 | KR920 | IN865`, after updating the value you need to restart the service
+   The default region of the gateway is `US915`, if your region is different you can set the right one in `/etc/helium_gateway/settings.toml`. Just add the following line :
+   ```shell
+   region = "<region>"
+   ```
+   Possible values are : `US915| EU868 | EU433 | CN470 | CN779 | AU915 | AS923 | KR920 | IN865`. After updating the value you need to restart the service :
    ```shell
    /etc/init.d/helium_gateway restart
    ```
