@@ -1,22 +1,36 @@
 [config]
-additional_profiles = ["klkgw", "ramips_24kec", "dragino", "mtcdt"]
+additional_profiles = ["klkgw", "ramips_24kec", "dragino", "mtcdt", "raspi01", "raspi234"]
 default_to_workspace = false
 
 [env]
 TAR = { source = "${CARGO_MAKE_RUST_TARGET_OS}", default_value = "linux", mapping = {"macos" = "gtar", "linux" = "tar" } }
 AR = "ar"
+PKG_BUILD_DIR ="target/pkg/${CARGO_MAKE_PROFILE}"
+PKG_SRC_DIR = "package/${CARGO_MAKE_PROFILE}"
+
+[env.raspi01]
+CROSS_TARGET = "arm-unknown-linux-gnueabihf"
+PKG = "deb"
+
+[env.raspi234]
+CROSS_TARGET = "armv7-unknown-linux-gnueabihf"
+PKG = "deb"
 
 [env.klkgw]
 CROSS_TARGET = "armv7-unknown-linux-musleabihf"
+PKG = "ipk"
 
 [env.ramips_24kec]
 CROSS_TARGET = "mipsel-unknown-linux-musl"
+PKG = "ipk"
 
 [env.dragino]
 CROSS_TARGET = "mips-unknown-linux-musl"
+PKG = "ipk"
 
 [env.mtcdt]
 CROSS_TARGET = "armv5te-unknown-linux-musleabi"
+PKG = "ipk"
 IPK_USE_AR = "true"
 
 [tasks.cross]
@@ -32,52 +46,97 @@ args = [
   "--release"
 ]
 
+[tasks.pkg]
+description = "Builds a package for a given packaging profile"
+category = "Package"
+condition = { env_set = ["PKG"]}
+env = { "PKG_NAME" = "helium-gateway-v${CARGO_MAKE_CRATE_VERSION}-${CARGO_MAKE_PROFILE}.${PKG"}
+run_task = [
+	{ name = "ipk", condition = { env = { "PKG" = "ipk" } } },
+	{ name = "deb", condition = { env = { "PKG" = "deb" } } }
+]
+
 [tasks.ipk]
 description = "Builds an ipk for openwrt/opk based targets"
 category = "Package"
 dependencies = ["cross"]
-condition = { env_set = ["CROSS_TARGET", "TAR", "AR"] }
-env = { "IPK_BUILD_DIR" = "target/ipk/${CARGO_MAKE_PROFILE}", "IPK_SRC_DIR" = "package/${CARGO_MAKE_PROFILE}" }
+condition = { env_set = ["CROSS_TARGET", "TAR", "AR", "PKG_NAME"] }
+env = { "PKG_BUILD_DIR" = "target/pkg/${CARGO_MAKE_PROFILE}", "PKG_SRC_DIR" = "package/${CARGO_MAKE_PROFILE}" }
 script = '''
 	# make base folder
-	mkdir -p ${IPK_BUILD_DIR}
-	echo 2.0 > ${IPK_BUILD_DIR}/debian-binary
+	mkdir -p ${PKG_BUILD_DIR}
+	echo 2.0 > ${PKG_BUILD_DIR}/debian-binary
 
 	# install data files
-	cp -R ${IPK_SRC_DIR}/data ${IPK_BUILD_DIR}
+	cp -R ${PKG_SRC_DIR}/data ${PKG_BUILD_DIR}
 
 	# inject default.toml
-	cp -R config/default.toml ${IPK_BUILD_DIR}/data/etc/helium_gateway
+	cp -R config/default.toml ${PKG_BUILD_DIR}/data/etc/helium_gateway
 
 	# install binary
-	mkdir -p ${IPK_BUILD_DIR}/data/usr/bin
-	cp target/${CROSS_TARGET}/release/helium_gateway ${IPK_BUILD_DIR}/data/usr/bin
+	mkdir -p ${PKG_BUILD_DIR}/data/usr/bin
+	cp target/${CROSS_TARGET}/release/helium_gateway ${PKG_BUILD_DIR}/data/usr/bin
 
 	# install control files
-	mkdir -p ${IPK_BUILD_DIR}/control
+	mkdir -p ${PKG_BUILD_DIR}/control
 	export CARGO_MAKE_PROFILE CARGO_MAKE_CRATE_VERSION
 	for control_file in control preinst postinst prerm; do
-	    envsubst < ${IPK_SRC_DIR}/control/${control_file} > ${IPK_BUILD_DIR}/control/${control_file}
-	    chmod +x ${IPK_BUILD_DIR}/control/${control_file}
+	    envsubst < ${PKG_SRC_DIR}/control/${control_file} > ${PKG_BUILD_DIR}/control/${control_file}
+	    chmod +x ${PKG_BUILD_DIR}/control/${control_file}
 	done
 
     # package together
-	cd ${IPK_BUILD_DIR}/control
+	cd ${PKG_BUILD_DIR}/control
 	${TAR} --numeric-owner --group=0 --owner=0 -czf ../control.tar.gz ./*
 	cd ${CARGO_MAKE_WORKING_DIRECTORY}
 
-	cd ${IPK_BUILD_DIR}/data
+	cd ${PKG_BUILD_DIR}/data
 	${TAR} --numeric-owner --group=0 --owner=0 -czf ../data.tar.gz ./*
 	cd ${CARGO_MAKE_WORKING_DIRECTORY}
 
-	cd ${IPK_BUILD_DIR}
+	cd ${PKG_BUILD_DIR}
 	if [ "true" = "${IPK_USE_AR}-unset}" ]; then
-		rm ../helium-gateway-v${CARGO_MAKE_CRATE_VERSION}-${CARGO_MAKE_PROFILE}.ipk
-		${AR} r ../helium-gateway-v${CARGO_MAKE_CRATE_VERSION}-${CARGO_MAKE_PROFILE}.ipk ./debian-binary ./data.tar.gz ./control.tar.gz
+		rm ../${PKG_NAME}
+		${AR} r ../${PKG_NAME} ./debian-binary ./data.tar.gz ./control.tar.gz
 	else
-		${TAR} --numeric-owner --group=0 --owner=0 -czf ../helium-gateway-v${CARGO_MAKE_CRATE_VERSION}-${CARGO_MAKE_PROFILE}.ipk ./debian-binary ./data.tar.gz ./control.tar.gz
+		${TAR} --numeric-owner --group=0 --owner=0 -czf ../${PKG_NAME} ./debian-binary ./data.tar.gz ./control.tar.gz
 	fi
 	cd ${CARGO_MAKE_WORKING_DIRECTORY}
+'''
+
+[tasks.deb]
+description = "Builds a deb package for debian based targets"
+category = "Package"
+dependencies = ["cross"]
+condition = { env_set = ["CROSS_TARGET", "PKG_NAME"] }
+script = '''
+	# make base folder
+	mkdir -p ${PKG_BUILD_DIR}
+
+	# install data files
+	cp -R ${PKG_SRC_DIR}/data ${PKG_BUILD_DIR}
+
+	# inject default.toml
+	cp -R config/default.toml ${PKG_BUILD_DIR}/data/etc/helium_gateway
+
+	# install binary
+	mkdir -p ${PKG_BUILD_DIR}/data/usr/bin
+	cp target/${CROSS_TARGET}/release/helium_gateway ${PKG_BUILD_DIR}/data/usr/bin
+
+	# install control files
+	mkdir -p ${PKG_BUILD_DIR}/control
+	export CARGO_MAKE_PROFILE CARGO_MAKE_CRATE_VERSION 
+	for control_file in service preinst postinst prerm; do
+	    envsubst < ${PKG_SRC_DIR}/control/${control_file} > ${PKG_BUILD_DIR}/control/${control_file}
+	    chmod +x ${PKG_BUILD_DIR}/control/${control_file}
+	done
+
+	# create manifest
+	envsubst < config/metadata.deb.toml > ${PKG_BUILD_DIR}/Cargo.toml
+
+    # package together
+	cd ${PKG_BUILD_DIR}
+	cargo deb -v --no-build --target ${CROSS_TARGET} -o ../${PKG_NAME}
 '''
 
 [tasks.ci]
