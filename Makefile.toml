@@ -50,7 +50,7 @@ args = [
 description = "Builds a package for a given packaging profile"
 category = "Package"
 condition = { env_set = ["PKG"]}
-env = { "PKG_NAME" = "helium-gateway-v${CARGO_MAKE_CRATE_VERSION}-${CARGO_MAKE_PROFILE}.${PKG"}
+env = { "PKG_NAME" = "helium-gateway-v${CARGO_MAKE_CRATE_VERSION}-${CARGO_MAKE_PROFILE}.${PKG}"}
 run_task = [
 	{ name = "ipk", condition = { env = { "PKG" = "ipk" } } },
 	{ name = "deb", condition = { env = { "PKG" = "deb" } } }
