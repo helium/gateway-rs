@@ -1,0 +1,10 @@
+[Unit]
+Description=Helium Gateway
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/helium_gateway -c /etc/helium_gateway server
+
+[Install]
+WantedBy=multi-user.target

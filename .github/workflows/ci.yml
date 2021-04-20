@@ -44,6 +44,8 @@ jobs:
           - ramips_24kec
           - dragino
           - mtcdt
+          - raspi01
+          - raspi234
     steps:
       - uses: actions-rs/toolchain@v1
         with:
@@ -61,9 +63,15 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           repo: rust-embedded/cross
+          
+      - name: install cargo-deb
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: cargo-deb
 
-      - name: build ipk
-        run: cargo make --profile ${{ matrix.target }} ipk
+      - name: build package
+        run: cargo make --profile ${{ matrix.target }} pkg
 
       - name: name release
         if: startsWith(github.ref, 'refs/tags')
@@ -78,4 +86,4 @@ jobs:
         with:
           tag_name: ${{ steps.vars.outputs.tag }}
           name: Release ${{ steps.vars.outputs.tag }}
-          files: target/ipk/helium-gateway-${{ steps.vars.outputs.tag }}-${{ matrix.target }}.ipk
+          files: target/pkg/helium-gateway-${{ steps.vars.outputs.tag }}-${{ matrix.target }}.*

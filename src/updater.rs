@@ -26,7 +26,7 @@ impl Updater {
             channel: settings.update.channel.clone(),
             platform: settings.update.platform.clone(),
             interval: time::Duration::from_secs(settings.update.interval as u64 * 60),
-            uri: settings.update.url.clone(),
+            uri: settings.update.uri.clone(),
             install_command: settings.update.command.clone(),
         })
     }
