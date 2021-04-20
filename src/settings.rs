@@ -88,7 +88,7 @@ pub struct UpdateSettings {
     /// The github release url to use (default
     /// https://api.github.com/repos/helium/gateway-rs/releases)
     #[serde(deserialize_with = "deserialize_uri")]
-    pub url: Uri,
+    pub uri: Uri,
     /// The command to use to install an update. There will be just one
     /// parameter which is the path to the new package to install.
     pub command: String,

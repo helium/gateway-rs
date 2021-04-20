@@ -49,7 +49,7 @@ impl List {
         let channel = self.channel.clone().unwrap_or(settings.update.channel);
         let platform = self.platform.clone().unwrap_or(settings.update.platform);
         let mut releases =
-            releases::filtered(releases::all(settings.update.url.to_string()), move |r| {
+            releases::filtered(releases::all(settings.update.uri.to_string()), move |r| {
                 r.in_channel(&channel) && r.asset_for_platform(&platform).is_some()
             })
             .take(self.count.unwrap_or(10));
@@ -70,7 +70,7 @@ impl Download {
         let version = self.version.clone();
         let channel = Channel::from_version(&version);
         let mut releases =
-            releases::filtered(releases::all(settings.update.url.to_string()), move |r| {
+            releases::filtered(releases::all(settings.update.uri.to_string()), move |r| {
                 r.version == version
                     && r.in_channel(&channel)
                     && r.asset_for_platform(&platform).is_some()
