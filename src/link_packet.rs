@@ -109,6 +109,7 @@ impl LinkPacket {
             signature: vec![],
             hotspot: keypair.public_key.to_bytes().to_vec(),
             region: region.into(),
+            hold_time: 0,
         };
         let mut encoded = vec![];
         router_packet.encode(&mut encoded)?;
