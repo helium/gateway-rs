@@ -131,7 +131,7 @@ where
     D: Deserializer<'de>,
 {
     let s = String::deserialize(d)?;
-    let version_str = match s.strip_prefix("v") {
+    let version_str = match s.strip_prefix('v') {
         Some(v) => v,
         None => &s,
     };
