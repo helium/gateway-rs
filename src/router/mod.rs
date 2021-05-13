@@ -67,11 +67,9 @@ impl Router {
                     routing_stream = gateway.routing(self.routing_height) => {
                         match routing_stream {
                             Ok(stream) => self.run_with_routing_stream(stream, shutdown.clone(), &logger).await?,
-                            Err(err) => {
-                                warn!(logger, "routing error: {:?}", err);
-                                time::sleep(Duration::from_secs(5)).await;
-                            }
+                            Err(err) => warn!(logger, "routing error: {:?}", err)
                         }
+                        time::sleep(Duration::from_secs(5)).await;
                     }
             }
         }
