@@ -44,13 +44,17 @@ If your [supported LoRa gateway](#supported-platforms) did not come with helium-
 
 1. Configure the packet forwarder on the gateway to forward to the helium-gateway application. This varies per gateway but the goal is to set the packet forwarder to forward to the (default) configured helium-gateway on `127.0.0.1` at udp port `1680`
 2. Set up ssh acccess to the gateway. Depending on the gateway that may require going through a web interface, while others already have ssh configured.
-3. `scp` a downloaded `ipk` release package for the supported platform to the gateway. e.g.
+3. `scp` a downloaded release package for the supported platform to the gateway. e.g.
    ```shell
    scp helium-gateway-<version>-<platform>.ipk <gateway>:/tmp/
    ```
 4. `ssh` into the device and install the service using a command like:
    ```shell
    opkg install /tmp/helium-gateway-<version>-<platform>.ipk
+   ```
+   or
+   ```shell
+   dpkg --install /tmp/helium-gateway-<version>-<platform>.deb
    ```
    **NOTE**: Some platform have custom package installation requirements. Refer to the developer instructions for that platform on how to install a package.
 
