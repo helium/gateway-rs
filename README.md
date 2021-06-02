@@ -85,6 +85,8 @@ Note that platforms will be tested much faster if you join the development proce
 | dragino        | mips-unknown-linux-musl        | :white_check_mark: Dragino [LPS8]                        |
 |                |                                | :grey_question: Dragino [DLOS8]                          |
 | mtcdt          | armv5te-unknown-linux-musleabi | :white_check_mark: Multitech Conduit [MTCDT] (mLinux)    |
+| raspi01        | arm-unknown-linux-gnueabihf    | :grey_question: Raspberry Pi 0 or 1 running Raspian / Raspberry Pi OS or another Debian-based Linux distro   |
+| raspi234       | armv7-unknown-linux-gnueabihf  | grey_question: Raspberry Pi 2, 3, or 4 running Raspian / Raspberry Pi OS or another Debian-based Linux distro    |
 
 
 [ramips_24kec]: https://downloads.rakwireless.com/WIFI/RAK634/Hardware%20Specification/RAK634_Module_Specification_V1.0.pdf
@@ -107,10 +109,11 @@ If you want to support a new platform, please consider submitting a PR to get th
     ```shell
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
     ```
-2. Install cargo `cross` and `cargo-make`. The `cross` command allows for cross compiling to hardware targets using docker images, while the `cargo-make` command is used to package up
+2. Install cargo `cross`, `cargo-make`, and, if needed, `cargo-deb`. The `cross` command allows for cross compiling to hardware targets using docker images, while the `cargo-make` command is used to package up. If creating a deb package, `cargo-deb` is also needed.
    ```shell
    cargo install cross
    cargo install cargo-make
+   cargo install cargo-deb
    ```
 3. Build the application or package using one of the following:
    1. Build the application binary using the target triplet from the supported targets. Note the use of the `--release` flag to optimize the target binary for size. Debug builds may be to large to run on some targets.
@@ -122,9 +125,9 @@ If you want to support a new platform, please consider submitting a PR to get th
         target/<target>/release/helium_gateway
         ```
 
-    2. Build an application `ipk` package using one of the target system profile names
+    2. Build an application `pkg` package using one of the target system profile names
         ```shell
-        cargo make --profile <platform> ipk
+        cargo make --profile <platform> pkg
         ```
         The resulting `ipk` will be located in
          ```
