@@ -129,9 +129,9 @@ If you want to support a new platform, please consider submitting a PR to get th
         ```shell
         cargo make --profile <platform> pkg
         ```
-        The resulting `ipk` will be located in
+        The resulting `ipk` or `deb` will be located in
          ```
-         target/ipk/helium-gateway-<version>-<platform>.ipk
+         target/ipk/helium-gateway-<version>-<platform>.<ipk or deb>
          ```
 
 
