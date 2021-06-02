@@ -125,7 +125,7 @@ If you want to support a new platform, please consider submitting a PR to get th
         target/<target>/release/helium_gateway
         ```
 
-    2. Build an application `pkg` package using one of the target system profile names
+    2. Build an application package using one of the target system profile names
         ```shell
         cargo make --profile <platform> pkg
         ```
