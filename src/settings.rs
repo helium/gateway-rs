@@ -159,7 +159,10 @@ where
         "CN470" => Region::Cn470,
         "CN779" => Region::Cn779,
         "AU915" => Region::Au915,
-        "AS923" => Region::As923,
+        "AS923_1" => Region::As9231,
+        "AS923_2" => Region::As9232,
+        "AS923_3" => Region::As9233,
+        "AS923_4" => Region::As9234,
         "KR920" => Region::Kr920,
         "IN865" => Region::In865,
         unsupported => {
