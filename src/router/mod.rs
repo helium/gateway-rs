@@ -88,7 +88,7 @@ impl Router {
                     return Ok(())
                 },
                 routing = routing_stream.message() => match routing {
-                    Ok(Some(response)) => self.handle_routing_update(&logger, &response),
+                    Ok(Some(response)) => self.handle_routing_update(logger, &response),
                     Ok(None) => {return Ok(())},
                     Err(err) => {
                         info!(logger, "routing error: {:?}", err);
@@ -96,7 +96,7 @@ impl Router {
                     }
                 },
                 uplink = self.uplinks.recv() => match uplink {
-                    Some(packet) => match self.handle_uplink(&logger, packet).await {
+                    Some(packet) => match self.handle_uplink(logger, packet).await {
                         Ok(()) =>  (),
                         Err(err) => warn!(logger, "ignoring failed uplink {:?}", err)
                     },
@@ -181,7 +181,7 @@ impl Router {
                 let found: Vec<RouterService> = self
                     .clients
                     .values()
-                    .filter(|&routing| routing.matches_routing_data(&routing_data))
+                    .filter(|&routing| routing.matches_routing_data(routing_data))
                     .flat_map(|routing| routing.clients.clone())
                     .collect();
                 if found.is_empty() {
