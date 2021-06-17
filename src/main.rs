@@ -28,6 +28,7 @@ pub enum Cmd {
     Key(cmd::key::Cmd),
     Update(cmd::update::Cmd),
     Server(cmd::server::Cmd),
+    Add(Box<cmd::add::Cmd>),
 }
 
 /// An emptye timestamp function for when timestamp should not be included in
@@ -106,6 +107,7 @@ pub async fn run(
     match cli.cmd {
         Cmd::Key(cmd) => cmd.run(settings).await,
         Cmd::Update(cmd) => cmd.run(settings).await,
+        Cmd::Add(cmd) => cmd.run(settings).await,
         Cmd::Server(cmd) => cmd.run(shutdown_listener, settings, &logger).await,
     }
 }
