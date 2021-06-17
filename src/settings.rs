@@ -106,10 +106,10 @@ impl Settings {
         let mut c = Config::new();
         let default_file = path.join("default.toml");
         // Load default config and merge in overrides
-        c.merge(File::with_name(&default_file.to_str().expect("file name")))?;
+        c.merge(File::with_name(default_file.to_str().expect("file name")))?;
         let settings_file = path.join("settings.toml");
         if settings_file.exists() {
-            c.merge(File::with_name(&settings_file.to_str().expect("file name")))?;
+            c.merge(File::with_name(settings_file.to_str().expect("file name")))?;
         }
         // Add in settings from the environment (with a prefix of APP)
         // Eg.. `GW_DEBUG=1 ./target/app` would set the `debug` key
