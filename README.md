@@ -85,6 +85,7 @@ Note that platforms will be tested much faster if you join the development proce
 | dragino        | mips-unknown-linux-musl        | :white_check_mark: Dragino [LPS8]                        |
 |                |                                | :grey_question: Dragino [DLOS8]                          |
 | mtcdt          | armv5te-unknown-linux-musleabi | :white_check_mark: Multitech Conduit [MTCDT] (mLinux)    |
+| resiot         | armv7-unknown-linux-gnueabihf  | :white_check_mark: ResIOT X gateways [resiot]            |
 
 
 [ramips_24kec]: https://downloads.rakwireless.com/WIFI/RAK634/Hardware%20Specification/RAK634_Module_Specification_V1.0.pdf
@@ -96,6 +97,7 @@ Note that platforms will be tested much faster if you join the development proce
 [LPS8]: https://www.dragino.com/products/lora-lorawan-gateway/item/148-lps8.html
 [DLOS8]: https://www.dragino.com/products/lora-lorawan-gateway/item/160-dlos8.html
 [MTCDT]: https://www.multitech.com/brands/multiconnect-conduit
+[resiot]: https://www.resiot.io/en/resiot-gateways/
 
 ## Building
 

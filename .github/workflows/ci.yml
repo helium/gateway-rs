@@ -46,6 +46,7 @@ jobs:
           - mtcdt
           - raspi01
           - raspi234
+          - resiot
     steps:
       - uses: actions-rs/toolchain@v1
         with:
