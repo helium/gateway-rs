@@ -1,4 +1,5 @@
 pub mod cmd;
+pub mod curl;
 pub mod error;
 pub mod gateway;
 pub mod keypair;
