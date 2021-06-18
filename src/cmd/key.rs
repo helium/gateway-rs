@@ -1,4 +1,4 @@
-use crate::*;
+use crate::{cmd::*, *};
 use angry_purple_tiger::AnimalName;
 use serde_json::json;
 use structopt::StructOpt;
@@ -28,7 +28,6 @@ impl Info {
             "address": key,
             "name": key.parse::<AnimalName>().unwrap().to_string(),
         });
-        println!("{}", serde_json::to_string_pretty(&table)?);
-        Ok(())
+        print_json(&table)
     }
 }

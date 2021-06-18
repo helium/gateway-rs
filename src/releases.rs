@@ -13,7 +13,7 @@ where
     F: Fn(&Release) -> bool + Sync + 'static + std::marker::Send,
 {
     releases
-        .filter(move |release| future::ready(release.as_ref().map_or(false, |r| filter(&r))))
+        .filter(move |release| future::ready(release.as_ref().map_or(false, |r| filter(r))))
         .boxed()
 }
 
@@ -43,21 +43,16 @@ pub fn all(url: String) -> Stream<Release> {
 
 fn fetch_releases(url: String, page: u32) -> Future<((String, u32), Vec<Release>)> {
     let curl_url = format!("{}?per_page={}&page={}", url, GH_PAGE_SIZE, page);
-    process::Command::new("curl")
-        .kill_on_drop(true)
-        .args(&["-H", "Accept: application/vnd.github.v3+json"])
-        .arg("-f")
-        .arg(&curl_url)
-        .output()
-        .map(move |result| match result {
-            Ok(output) => {
-                let mut items: Vec<Release> = serde_json::from_slice(&output.stdout)?;
-                items.reverse();
-                Ok(((url, page), items))
-            }
-            Err(err) => Err(Error::from(err)),
-        })
-        .boxed()
+    curl::get(
+        curl_url,
+        &["-H", "Accept: application/vnd.github.v3+json"],
+        move |output| {
+            let mut items: Vec<Release> = serde_json::from_slice(output)?;
+            items.reverse();
+            Ok(((url, page), items))
+        },
+    )
+    .boxed()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -176,7 +171,7 @@ impl Release {
     pub fn asset_named(&self, name: &str) -> Option<&ReleaseAsset> {
         for asset in &self.assets {
             if asset.name == name {
-                return Some(&asset);
+                return Some(asset);
             }
         }
         None
