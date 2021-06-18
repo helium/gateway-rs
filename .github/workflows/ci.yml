@@ -46,6 +46,7 @@ jobs:
           - mtcdt
           - raspi01
           - raspi234
+          - x86_64
     steps:
       - uses: actions-rs/toolchain@v1
         with:
@@ -63,7 +64,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           repo: rust-embedded/cross
-          
+
       - name: install cargo-deb
         uses: actions-rs/cargo@v1
         with:
