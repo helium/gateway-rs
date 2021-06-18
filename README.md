@@ -89,8 +89,8 @@ Note that platforms will be tested much faster if you join the development proce
 | dragino        | mips-unknown-linux-musl        | :white_check_mark: Dragino [LPS8]                        |
 |                |                                | :grey_question: Dragino [DLOS8]                          |
 | mtcdt          | armv5te-unknown-linux-musleabi | :white_check_mark: Multitech Conduit [MTCDT] (mLinux)    |
-| raspi01        | arm-unknown-linux-gnueabihf    | :grey_question: Raspberry Pi 0 or 1 running Raspian / Raspberry Pi OS or another Debian-based Linux distro   |
-| raspi234       | armv7-unknown-linux-gnueabihf  | grey_question: Raspberry Pi 2, 3, or 4 running Raspian / Raspberry Pi OS or another Debian-based Linux distro    |
+| raspi01        | arm-unknown-linux-gnueabihf    | :grey_question: Raspberry Pi 0 or 1 running Raspian / Raspberry Pi OS or another Debian-based Linux distro        |
+| raspi234       | armv7-unknown-linux-gnueabihf  | :grey_question: Raspberry Pi 2, 3, or 4 running Raspian / Raspberry Pi OS or another Debian-based Linux distro    |
 
 
 [ramips_24kec]: https://downloads.rakwireless.com/WIFI/RAK634/Hardware%20Specification/RAK634_Module_Specification_V1.0.pdf
