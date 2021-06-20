@@ -5,7 +5,7 @@ use helium_proto::Region;
 use http::uri::Uri;
 use rand::rngs::OsRng;
 use serde::{de, Deserialize, Deserializer};
-use std::{net::SocketAddr, path::Path, sync::Arc};
+use std::{collections::HashMap, net::SocketAddr, path::Path, sync::Arc};
 
 pub fn version() -> semver::Version {
     semver::Version::parse(env!("CARGO_PKG_VERSION")).expect("unable to parse version")
@@ -42,7 +42,7 @@ pub struct Settings {
     pub update: UpdateSettings,
     /// The router to deliver packets to when no routers are found while
     /// processing a packet.
-    pub router: KeyedUri,
+    pub router: HashMap<String, KeyedUri>,
     /// The validator(s) to query for chain related state. Defaults to a Helium
     /// validator.
     pub gateways: Vec<KeyedUri>,
@@ -115,6 +115,10 @@ impl Settings {
         // Eg.. `GW_DEBUG=1 ./target/app` would set the `debug` key
         c.merge(Environment::with_prefix("gw"))?;
         c.try_into().map_err(|e| e.into())
+    }
+
+    pub fn default_router(&self) -> &KeyedUri {
+        &self.router[&self.update.channel.to_string()]
     }
 }
 
