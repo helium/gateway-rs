@@ -89,6 +89,7 @@ Note that platforms will be tested much faster if you join the development proce
 | dragino        | mips-unknown-linux-musl        | :white_check_mark: Dragino [LPS8]                        |
 |                |                                | :grey_question: Dragino [DLOS8]                          |
 | mtcdt          | armv5te-unknown-linux-musleabi | :white_check_mark: Multitech Conduit [MTCDT] (mLinux)    |
+| resiot         | armv7-unknown-linux-gnueabihf  | :white_check_mark: ResIOT X gateways [resiot]            |
 | x86_64         | x86_64-unknown-linux-gnu       | :white_check_mark: Debian x86_64                         |
 | raspi01        | arm-unknown-linux-gnueabihf    | :grey_question: Raspberry Pi 0 or 1 running Raspian / Raspberry Pi OS or another Debian-based Linux distro        |
 | raspi234       | armv7-unknown-linux-gnueabihf  | :grey_question: Raspberry Pi 2, 3, or 4 running Raspian / Raspberry Pi OS or another Debian-based Linux distro    |
@@ -103,6 +104,7 @@ Note that platforms will be tested much faster if you join the development proce
 [LPS8]: https://www.dragino.com/products/lora-lorawan-gateway/item/148-lps8.html
 [DLOS8]: https://www.dragino.com/products/lora-lorawan-gateway/item/160-dlos8.html
 [MTCDT]: https://www.multitech.com/brands/multiconnect-conduit
+[resiot]: https://www.resiot.io/en/resiot-gateways/
 
 ## Building
 

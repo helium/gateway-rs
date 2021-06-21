@@ -1,5 +1,5 @@
 [config]
-additional_profiles = ["klkgw", "ramips_24kec", "dragino", "mtcdt", "raspi01", "raspi234"]
+additional_profiles = ["klkgw", "ramips_24kec", "dragino", "mtcdt", "raspi01", "raspi234", "resiot"]
 default_to_workspace = false
 
 [env]
@@ -34,6 +34,11 @@ PKG = "ipk"
 
 [env.mtcdt]
 CROSS_TARGET = "armv5te-unknown-linux-musleabi"
+PKG = "ipk"
+IPK_USE_AR = "true"
+
+[env.resiot]
+CROSS_TARGET = "armv7-unknown-linux-gnueabihf"
 PKG = "ipk"
 IPK_USE_AR = "true"
 
@@ -101,8 +106,8 @@ script = '''
 	cd ${CARGO_MAKE_WORKING_DIRECTORY}
 
 	cd ${PKG_BUILD_DIR}
-	if [ "true" = "${IPK_USE_AR}-unset}" ]; then
-		rm ../${PKG_NAME}
+	if [ "true" = "${IPK_USE_AR}" ]; then
+		rm -f ../${PKG_NAME}
 		${AR} r ../${PKG_NAME} ./debian-binary ./data.tar.gz ./control.tar.gz
 	else
 		${TAR} --numeric-owner --group=0 --owner=0 -czf ../${PKG_NAME} ./debian-binary ./data.tar.gz ./control.tar.gz
@@ -155,4 +160,3 @@ args = ["fmt", "--", "--check"]
 [tasks.check-clippy]
 command = "cargo"
 args = ["clippy", "--", "--deny=clippy::all"]
-
