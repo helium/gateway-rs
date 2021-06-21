@@ -107,7 +107,7 @@ script = '''
 
 	cd ${PKG_BUILD_DIR}
 	if [ "true" = "${IPK_USE_AR}" ]; then
-		rm ../${PKG_NAME}
+		rm -f ../${PKG_NAME}
 		${AR} r ../${PKG_NAME} ./debian-binary ./data.tar.gz ./control.tar.gz
 	else
 		${TAR} --numeric-owner --group=0 --owner=0 -czf ../${PKG_NAME} ./debian-binary ./data.tar.gz ./control.tar.gz
@@ -160,4 +160,3 @@ args = ["fmt", "--", "--check"]
 [tasks.check-clippy]
 command = "cargo"
 args = ["clippy", "--", "--deny=clippy::all"]
-
