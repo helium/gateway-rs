@@ -16,6 +16,10 @@ PKG = "deb"
 CROSS_TARGET = "armv7-unknown-linux-gnueabihf"
 PKG = "deb"
 
+[env.x86_64]
+CROSS_TARGET = "x86_64-unknown-linux-gnu"
+PKG = "deb"
+
 [env.klkgw]
 CROSS_TARGET = "armv7-unknown-linux-musleabihf"
 PKG = "ipk"

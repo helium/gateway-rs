@@ -36,7 +36,7 @@ impl Router {
         settings: &Settings,
     ) -> Result<Self> {
         let gateways = settings.gateways.clone();
-        let router_settings = settings.router.clone();
+        let router_settings = settings.default_router().clone();
         let default_client =
             RouterService::new(router_settings.uri, Some(router_settings.public_key))?;
         Ok(Self {
@@ -54,6 +54,13 @@ impl Router {
     pub async fn run(&mut self, shutdown: triggered::Listener, logger: &Logger) -> Result {
         let logger = logger.new(o!("module" => "router"));
         info!(logger, "starting");
+        info!(logger, "default router";
+            "public_key" => self.default_client
+                                .verifier
+                                .as_ref()
+                                .map_or("none".to_string(), | v| v.to_string()),
+            "uri" => self.default_client.uri.to_string());
+
         loop {
             let mut gateway = GatewayService::random_new(&self.gateways)?;
             info!(logger, "selected gateway";
@@ -69,7 +76,13 @@ impl Router {
                             Ok(stream) => self.run_with_routing_stream(stream, shutdown.clone(), &logger).await?,
                             Err(err) => warn!(logger, "routing error: {:?}", err)
                         }
-                        time::sleep(Duration::from_secs(5)).await;
+                        // Check if trigger happened in run_with_routing_stream
+                        if shutdown.is_triggered() {
+                            return Ok(())
+                        } else {
+                            // Wait a bit before trying another gateway service
+                            time::sleep(Duration::from_secs(5)).await;
+                        }
                     }
             }
         }
@@ -88,7 +101,7 @@ impl Router {
                     return Ok(())
                 },
                 routing = routing_stream.message() => match routing {
-                    Ok(Some(response)) => self.handle_routing_update(&logger, &response),
+                    Ok(Some(response)) => self.handle_routing_update(logger, &response),
                     Ok(None) => {return Ok(())},
                     Err(err) => {
                         info!(logger, "routing error: {:?}", err);
@@ -96,7 +109,7 @@ impl Router {
                     }
                 },
                 uplink = self.uplinks.recv() => match uplink {
-                    Some(packet) => match self.handle_uplink(&logger, packet).await {
+                    Some(packet) => match self.handle_uplink(logger, packet).await {
                         Ok(()) =>  (),
                         Err(err) => warn!(logger, "ignoring failed uplink {:?}", err)
                     },
@@ -181,7 +194,7 @@ impl Router {
                 let found: Vec<RouterService> = self
                     .clients
                     .values()
-                    .filter(|&routing| routing.matches_routing_data(&routing_data))
+                    .filter(|&routing| routing.matches_routing_data(routing_data))
                     .flat_map(|routing| routing.clients.clone())
                     .collect();
                 if found.is_empty() {

@@ -5,7 +5,7 @@ use helium_proto::Region;
 use http::uri::Uri;
 use rand::rngs::OsRng;
 use serde::{de, Deserialize, Deserializer};
-use std::{net::SocketAddr, path::Path, sync::Arc};
+use std::{collections::HashMap, net::SocketAddr, path::Path, sync::Arc};
 
 pub fn version() -> semver::Version {
     semver::Version::parse(env!("CARGO_PKG_VERSION")).expect("unable to parse version")
@@ -42,7 +42,7 @@ pub struct Settings {
     pub update: UpdateSettings,
     /// The router to deliver packets to when no routers are found while
     /// processing a packet.
-    pub router: KeyedUri,
+    pub router: HashMap<String, KeyedUri>,
     /// The validator(s) to query for chain related state. Defaults to a Helium
     /// validator.
     pub gateways: Vec<KeyedUri>,
@@ -106,15 +106,19 @@ impl Settings {
         let mut c = Config::new();
         let default_file = path.join("default.toml");
         // Load default config and merge in overrides
-        c.merge(File::with_name(&default_file.to_str().expect("file name")))?;
+        c.merge(File::with_name(default_file.to_str().expect("file name")))?;
         let settings_file = path.join("settings.toml");
         if settings_file.exists() {
-            c.merge(File::with_name(&settings_file.to_str().expect("file name")))?;
+            c.merge(File::with_name(settings_file.to_str().expect("file name")))?;
         }
         // Add in settings from the environment (with a prefix of APP)
         // Eg.. `GW_DEBUG=1 ./target/app` would set the `debug` key
         c.merge(Environment::with_prefix("gw"))?;
         c.try_into().map_err(|e| e.into())
+    }
+
+    pub fn default_router(&self) -> &KeyedUri {
+        &self.router[&self.update.channel.to_string()]
     }
 }
 
@@ -159,7 +163,10 @@ where
         "CN470" => Region::Cn470,
         "CN779" => Region::Cn779,
         "AU915" => Region::Au915,
-        "AS923" => Region::As923,
+        "AS923_1" => Region::As9231,
+        "AS923_2" => Region::As9232,
+        "AS923_3" => Region::As9233,
+        "AS923_4" => Region::As9234,
         "KR920" => Region::Kr920,
         "IN865" => Region::In865,
         unsupported => {

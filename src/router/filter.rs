@@ -16,7 +16,7 @@ impl EuiFilter {
         let seed = buf.get_u64_le();
         let block_length = buf.get_u64_le() as usize;
         let mut filters: Vec<u16> = Vec::with_capacity(block_length * 3);
-        for _ in 1..block_length * 3 {
+        for _ in 0..block_length * 3 {
             filters.push(buf.get_u16_le());
         }
         Self(Xor16 {
