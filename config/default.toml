@@ -1,3 +1,9 @@
+## gateway-rs default configuration file
+##
+## NOTE: Do _NOT_ change values in this file. 
+##   Override settings in settings.toml by putting the sections and
+##   settings that need to be changed there.  
+
 keypair = "/etc/helium_gateway/key.bin"
 listen_addr = "127.0.0.1:1680"
 region = "US915"
