@@ -4,7 +4,7 @@
 ##   Override settings in settings.toml by putting the sections and
 ##   settings that need to be changed there.  
 
-keypair = "/etc/helium_gateway/key.bin"
+keypair = "/etc/helium_gateway/gateway_key.bin"
 listen_addr = "127.0.0.1:1680"
 region = "US915"
 

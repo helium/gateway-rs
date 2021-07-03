@@ -107,7 +107,7 @@ impl LinkPacket {
         let mut router_packet = BlockchainStateChannelPacketV1 {
             packet: Some(self.packet.clone()),
             signature: vec![],
-            hotspot: keypair.public_key.to_bytes().to_vec(),
+            hotspot: keypair.public_key().to_bytes().to_vec(),
             region: region.into(),
             hold_time: 0,
         };

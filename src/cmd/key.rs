@@ -23,7 +23,7 @@ impl Cmd {
 
 impl Info {
     pub async fn run(&self, settings: Settings) -> Result {
-        let key = settings.keypair.public_key.to_string();
+        let key = settings.keypair.public_key().to_string();
         let table = json!({
             "address": key,
             "name": key.parse::<AnimalName>().unwrap().to_string(),
