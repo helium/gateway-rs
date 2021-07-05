@@ -517,7 +517,7 @@ name = "gateway-rs"
 version = "1.0.0-alpha.10"
 dependencies = [
  "angry-purple-tiger",
- "base64 0.12.3",
+ "base64 0.13.0",
  "bytes",
  "config",
  "daemonize",
@@ -628,8 +628,8 @@ dependencies = [
 
 [[package]]
 name = "helium-crypto"
-version = "0.2.0"
-source = "git+https://github.com/helium/helium-crypto-rs?tag=v0.2.0#e41042936cd09f85670c9cf9927039899e9a33e8"
+version = "0.2.1"
+source = "git+https://github.com/helium/helium-crypto-rs?tag=v0.2.1#8abf4074633f77e68a21bfc6d8d6367af1231bce"
 dependencies = [
  "bs58",
  "ed25519-dalek",
@@ -954,7 +954,7 @@ checksum = "624a8340c38c1b80fd549087862da4ba43e08858af025b236e509b6649fc13d5"
 [[package]]
 name = "p256"
 version = "0.9.0"
-source = "git+https://github.com/helium/elliptic-curves?branch=madninja/compact_point_impl#76f547b420d029cc9eab3a74723773feeb4a8864"
+source = "git+https://github.com/helium/elliptic-curves?branch=madninja/compact_point_impl#b3051010e5f3c05430ed556a0165291322ac2fa5"
 dependencies = [
  "ecdsa",
  "elliptic-curve",
@@ -1419,9 +1419,9 @@ checksum = "8ea5119cdb4c55b55d432abb513a0429384878c15dde60cc77b1c99de1a95a6a"
 
 [[package]]
 name = "structopt"
-version = "0.3.21"
+version = "0.3.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5277acd7ee46e63e5168a80734c9f6ee81b1367a7d8772a2d765df2a3705d28c"
+checksum = "69b041cdcb67226aca307e6e7be44c8806423d83e018bd662360a93dabce4d71"
 dependencies = [
  "clap",
  "lazy_static",
@@ -1430,9 +1430,9 @@ dependencies = [
 
 [[package]]
 name = "structopt-derive"
-version = "0.4.14"
+version = "0.4.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5ba9cdfda491b814720b6b06e0cac513d922fc407582032e8706e9f137976f90"
+checksum = "7813934aecf5f51a54775e00068c237de98489463968231a51746bbbc03f9c10"
 dependencies = [
  "heck",
  "proc-macro-error",
