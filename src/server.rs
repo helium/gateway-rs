@@ -14,7 +14,7 @@ pub async fn run(shutdown: &triggered::Listener, settings: &Settings, logger: &L
     info!(logger,
         "starting server";
         "version" => settings::version().to_string(),
-        "key" => settings.keypair.public_key.to_string(),
+        "key" => settings.keypair.public_key().to_string(),
     );
     tokio::try_join!(
         gateway.run(shutdown.clone(), logger),
