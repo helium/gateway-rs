@@ -1,6 +1,6 @@
 use crate::*;
 use config::{Config, Environment, File};
-use helium_crypto::{ecc_compact, Network};
+use helium_crypto::{ed25519, Network};
 use helium_proto::Region;
 use http::uri::Uri;
 use rand::rngs::OsRng;
@@ -130,7 +130,7 @@ where
     match keypair::load_from_file(&s) {
         Ok(k) => Ok(Arc::new(k)),
         Err(Error::IO(io_error)) if io_error.kind() == std::io::ErrorKind::NotFound => {
-            let new_key = ecc_compact::Keypair::generate(Network::MainNet, &mut OsRng);
+            let new_key: Keypair = ed25519::Keypair::generate(Network::MainNet, &mut OsRng).into();
             keypair::save_to_file(&new_key, &s).map_err(|e| {
                 de::Error::custom(format!("unable to save key file \"{}\": {:?}", s, e))
             })?;

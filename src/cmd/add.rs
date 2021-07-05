@@ -26,7 +26,7 @@ const TXN_FEE_SIGNATURE_SIZE: usize = 64;
 
 impl Cmd {
     pub async fn run(&self, settings: Settings) -> Result {
-        let public_key = &settings.keypair.public_key;
+        let public_key = &settings.keypair.public_key();
         let config = TxnFeeConfig::for_address(public_key).await?;
         let mut txn = BlockchainTxnAddGatewayV1 {
             gateway: public_key.to_vec(),
