@@ -2,6 +2,7 @@ use crate::*;
 use helium_proto::routing_information::Data as RoutingData;
 use router::filter::{DevAddrFilter, EuiFilter};
 use service::router::Service as RouterService;
+use slog::{warn, Logger};
 
 pub struct Routing {
     pub(crate) filters: Vec<EuiFilter>,
@@ -19,7 +20,7 @@ impl Routing {
         }
     }
 
-    pub fn from_proto(r: &helium_proto::Routing) -> Result<Self> {
+    pub fn from_proto(logger: &Logger, r: &helium_proto::Routing) -> Result<Self> {
         let filters = r.filters.iter().map(|f| EuiFilter::from_bin(f)).collect();
         let subnets = r
             .subnets
@@ -27,9 +28,16 @@ impl Routing {
             .map(|s| DevAddrFilter::from_bin(s))
             .collect();
         let mut clients = vec![];
-        for address in r.addresses.iter() {
-            let uri = String::from_utf8_lossy(&address.uri).parse()?;
-            clients.push(RouterService::new(uri, None)?);
+        for address in r.addresses.iter().filter(|a| !a.uri.is_empty()) {
+            let uri_str = String::from_utf8_lossy(&address.uri);
+            match uri_str.parse() {
+                Ok(uri) => clients.push(RouterService::new(uri, None)?),
+                Err(err) => warn!(
+                    logger,
+                    "ignoring invalid uri: \"{}\": {:?}", uri_str, err;
+                    "oui" => r.oui
+                ),
+            }
         }
         Ok(Self {
             filters,

@@ -138,7 +138,7 @@ impl Router {
             }
         };
         for routing in routings {
-            match routing::Routing::from_proto(routing) {
+            match routing::Routing::from_proto(logger, routing) {
                 Ok(client) => {
                     self.clients.insert(routing.oui, client);
                 }
