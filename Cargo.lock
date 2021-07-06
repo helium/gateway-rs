@@ -514,7 +514,7 @@ dependencies = [
 
 [[package]]
 name = "gateway-rs"
-version = "1.0.0-alpha.11"
+version = "1.0.0-alpha.12"
 dependencies = [
  "angry-purple-tiger",
  "base64 0.12.3",
