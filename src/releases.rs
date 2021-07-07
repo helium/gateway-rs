@@ -158,11 +158,7 @@ impl Release {
     }
 
     pub fn asset_for_platform(&self, platform: &str) -> Option<&ReleaseAsset> {
-        let package_name = format!(
-            "helium-gateway-v{}-{}.ipk",
-            self.version.to_string(),
-            platform
-        );
+        let package_name = format!("helium-gateway-v{}-{}", self.version.to_string(), platform);
         self.asset_named(&package_name)
     }
 
@@ -170,7 +166,7 @@ impl Release {
     /// asset was found.
     pub fn asset_named(&self, name: &str) -> Option<&ReleaseAsset> {
         for asset in &self.assets {
-            if asset.name == name {
+            if asset.name.starts_with(name) {
                 return Some(asset);
             }
         }
