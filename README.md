@@ -62,7 +62,7 @@ If your [supported LoRa gateway](#supported-platforms) did not come with helium-
    ```shell
    region = "<region>"
    ```
-   Possible values are : `US915| EU868 | EU433 | CN470 | CN779 | AU915 | AS923 | KR920 | IN865`. After updating the value you need to restart the service :
+   Possible values are : `US915| EU868 | EU433 | CN470 | CN779 | AU915 | AS923_1 | AS923_2 | AS923_3 | AS923_4 | KR920 | IN865`. After updating the value you need to restart the service :
    ```shell
    /etc/init.d/helium_gateway restart
    ```
