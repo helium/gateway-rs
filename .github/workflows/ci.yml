@@ -48,6 +48,7 @@ jobs:
           - raspi234
           - resiot
           - x86_64
+          - cotx
     steps:
       - uses: actions-rs/toolchain@v1
         with:
