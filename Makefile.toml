@@ -1,5 +1,5 @@
 [config]
-additional_profiles = ["klkgw", "ramips_24kec", "dragino", "mtcdt", "raspi01", "raspi234", "resiot"]
+additional_profiles = ["klkgw", "ramips_24kec", "dragino", "mtcdt", "raspi01", "raspi234", "resiot", "cotx"]
 default_to_workspace = false
 
 [env]
@@ -44,6 +44,10 @@ IPK_USE_AR = true
 CROSS_TARGET = "armv7-unknown-linux-gnueabihf"
 PKG = "ipk"
 IPK_USE_AR = true
+
+[env.cotx]
+CROSS_TARGET = "aarch64-unknown-linux-gnu"
+PKG = "deb"
 
 [tasks.cross]
 description = "Runs the cross rust compiler."
