@@ -1,5 +1,5 @@
 [config]
-additional_profiles = ["klkgw", "ramips_24kec", "dragino", "mtcdt", "raspi01", "raspi234", "resiot", "cotx", "raspi64"]
+additional_profiles = ["klkgw", "ramips_24kec", "dragino", "mtcdt", "raspi01", "raspi234", "resiot", "cotx", "raspi_64"]
 default_to_workspace = false
 
 [env]
@@ -16,7 +16,7 @@ PKG = "deb"
 CROSS_TARGET = "armv7-unknown-linux-gnueabihf"
 PKG = "deb"
 
-[env.raspi64]
+[env.raspi_64]
 CROSS_TARGET = "aarch64-unknown-linux-gnu"
 PKG = "deb"
 
