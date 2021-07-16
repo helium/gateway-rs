@@ -4,7 +4,7 @@ use semtech_udp::{
     server_runtime::{Error as SemtechError, Event, UdpRuntime},
     tx_ack,
 };
-use slog::{info, o, warn, Logger};
+use slog::{debug, info, o, warn, Logger};
 use std::time::Duration;
 use tokio::sync::mpsc::{Receiver, Sender};
 
@@ -84,9 +84,30 @@ impl Gateway {
                     "ignoring send to client with unknown MAC: {:?}", mac
                 )
             }
-            Event::RawPacket(raw) => {
-                info!(logger, "ignoring raw packet {:?}", raw)
-            }
+            Event::RawPacket(raw) => match raw {
+                semtech_udp::Up::PushData(packet) => {
+                    if let Some(rxpks) = packet.data.rxpk {
+                        let mac = packet.gateway_mac;
+                        for rxpk in rxpks {
+                            info!(
+                                logger,
+                                "uplink from {}, {} MHz, {:?}, {}, snr = {},len = {}",
+                                mac,
+                                rxpk.get_frequency(),
+                                rxpk.get_datarate(),
+                                if let Some(rssis) = rxpk.get_signal_rssi() {
+                                    format!("rssis = {}", rssis)
+                                } else {
+                                    format!("rssic = {}", rxpk.get_channel_rssi())
+                                },
+                                rxpk.get_snr(),
+                                rxpk.get_data().len()
+                            )
+                        }
+                    }
+                }
+                _ => debug!(logger, "GWMP frame received {:?}", raw),
+            },
         };
         Ok(())
     }
