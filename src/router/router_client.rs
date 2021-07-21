@@ -1,6 +1,5 @@
 use super::{RouterBroadcast, Routing};
-use crate::{service::router, KeyedUri, Keypair, LinkPacket, Result};
-use helium_proto::Region;
+use crate::{service::router, KeyedUri, Keypair, LinkPacket, Region, Result};
 use slog::{debug, info, o, warn, Logger};
 use std::sync::Arc;
 use tokio::sync::{broadcast, mpsc};
@@ -67,6 +66,7 @@ impl RouterClient {
         if !self.routing.matches_routing_info(&uplink.packet.routing) {
             return Ok(());
         }
+        info!(logger, "SENDING UPLINK");
         let gateway_mac = uplink.gateway_mac;
         let message = uplink.to_state_channel_message(&self.keypair, self.region)?;
         match self.client.route(message).await {

@@ -1,15 +1,25 @@
 use bytes::{Buf, BufMut};
 use helium_proto::Eui;
-use std::{hash::Hasher, sync::Arc};
+use std::{fmt, hash::Hasher, sync::Arc};
 use xorf::{Filter as XorFilter, Xor16};
 use xxhash_c::XXH64;
 
 #[derive(Clone)]
 pub struct EuiFilter(Arc<Xor16>);
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct DevAddrFilter {
     base: u32,
     mask: u32,
+}
+
+impl fmt::Debug for EuiFilter {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("EuiFilter")
+            .field("seed", &self.0.seed)
+            .field("blocks", &self.0.block_length)
+            .field("fingerprints", &self.0.len())
+            .finish()
+    }
 }
 
 impl EuiFilter {

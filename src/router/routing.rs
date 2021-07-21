@@ -4,7 +4,7 @@ use helium_proto::{routing_information::Data as RoutingData, RoutingInformation}
 use slog::{warn, Logger};
 use std::{convert::TryFrom, sync::Arc};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Routing {
     pub(crate) oui: u32,
     pub(crate) filters: Vec<EuiFilter>,

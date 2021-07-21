@@ -1,10 +1,9 @@
 use super::{RouterClient, Routing};
 use crate::{
     service::{gateway, router},
-    KeyedUri, Keypair, LinkPacket, Result, Settings,
+    KeyedUri, Keypair, LinkPacket, Region, Result, Settings,
 };
 use futures::future::join_all;
-use helium_proto::Region;
 use http::uri::Uri;
 use slog::{debug, info, o, warn, Logger};
 use slog_scope;
@@ -173,6 +172,7 @@ impl Dispatcher {
     }
 
     fn handle_oui_routing_update(&mut self, logger: &Logger, routing: Routing) {
+        info!(logger, "ROUTING: {:?}", routing);
         routing.uris.iter().for_each(|uri| {
             let key = RouterKey {
                 oui: routing.oui,
