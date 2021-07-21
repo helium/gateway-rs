@@ -55,8 +55,7 @@ impl Response {
 
 #[derive(Debug, Clone)]
 pub struct Service {
-    pub uri: http::Uri,
-    pub verifier: Arc<PublicKey>,
+    pub uri: KeyedUri,
     client: ServiceClient,
 }
 
@@ -66,9 +65,8 @@ impl Service {
             .timeout(Duration::from_secs(CONNECT_TIMEOUT))
             .connect_lazy()?;
         Ok(Self {
-            uri: keyed_uri.uri,
+            uri: keyed_uri,
             client: ServiceClient::new(channel),
-            verifier: Arc::new(keyed_uri.public_key),
         })
     }
 
@@ -76,7 +74,7 @@ impl Service {
         let stream = self.client.routing(GatewayRoutingReqV1 { height }).await?;
         Ok(Streaming {
             streaming: stream.into_inner(),
-            verifier: self.verifier.clone(),
+            verifier: self.uri.public_key.clone(),
         })
     }
 

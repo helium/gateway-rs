@@ -4,26 +4,24 @@ use helium_proto::{
     BlockchainStateChannelMessageV1,
 };
 use service::CONNECT_TIMEOUT;
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 
 type ServiceClient = services::router::Client<Channel>;
 
 #[derive(Debug, Clone)]
 pub struct Service {
-    pub uri: http::Uri,
-    pub verifier: Option<Arc<PublicKey>>,
+    pub uri: KeyedUri,
     client: ServiceClient,
 }
 
 impl Service {
-    pub fn new(uri: http::Uri, verifier: Option<PublicKey>) -> Result<Self> {
-        let channel = Endpoint::from(uri.clone())
+    pub fn new(keyed_uri: KeyedUri) -> Result<Self> {
+        let channel = Endpoint::from(keyed_uri.uri.clone())
             .timeout(Duration::from_secs(CONNECT_TIMEOUT))
             .connect_lazy()?;
         Ok(Self {
-            uri,
+            uri: keyed_uri,
             client: ServiceClient::new(channel),
-            verifier: verifier.map(Arc::new),
         })
     }
 

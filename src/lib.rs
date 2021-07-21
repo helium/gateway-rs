@@ -13,6 +13,7 @@ pub mod updater;
 
 pub use error::{Error, Result};
 pub use keypair::{Keypair, PublicKey};
+pub use link_packet::LinkPacket;
 pub use settings::{KeyedUri, Settings};
 
 use futures::{Future as StdFuture, Stream as StdStream};

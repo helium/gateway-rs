@@ -12,12 +12,18 @@ pub fn version() -> semver::Version {
 }
 
 /// A URI that has an associated public key
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Eq)]
 pub struct KeyedUri {
     #[serde(deserialize_with = "deserialize_uri")]
     pub uri: Uri,
     #[serde(deserialize_with = "deserialize_pubkey")]
-    pub public_key: PublicKey,
+    pub public_key: Arc<PublicKey>,
+}
+
+impl PartialEq for KeyedUri {
+    fn eq(&self, other: &Self) -> bool {
+        self.uri.eq(&other.uri) && self.public_key.eq(&other.public_key)
+    }
 }
 
 /// Settings are all the configuration parameters the service needs to operate.
@@ -238,13 +244,13 @@ where
     }
 }
 
-fn deserialize_pubkey<'de, D>(d: D) -> std::result::Result<PublicKey, D::Error>
+fn deserialize_pubkey<'de, D>(d: D) -> std::result::Result<Arc<PublicKey>, D::Error>
 where
     D: Deserializer<'de>,
 {
     let key_string = String::deserialize(d)?;
     match key_string.parse() {
-        Ok(key) => Ok(key),
+        Ok(key) => Ok(Arc::new(key)),
         Err(err) => Err(de::Error::custom(format!(
             "invalid public key: \"{}\"",
             err
