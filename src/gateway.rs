@@ -89,12 +89,7 @@ impl Gateway {
                     if let Some(rxpks) = packet.data.rxpk {
                         let mac = packet.gateway_mac;
                         for rxpk in rxpks {
-                            info!(
-                                logger,
-                                "uplink {}, from {}",
-                                rxpk,
-                                mac
-                            )
+                            info!(logger, "uplink {}, from {}", rxpk, mac)
                         }
                     }
                 }
@@ -117,7 +112,12 @@ impl Gateway {
         match downlink.to_pull_resp(false)? {
             None => return Ok(()),
             Some(txpk) => {
-                info!(logger, "rx1 downlink {} via {}", txpk, downlink_rx1.get_destination_mac());
+                info!(
+                    logger,
+                    "rx1 downlink {} via {}",
+                    txpk,
+                    downlink_rx1.get_destination_mac()
+                );
                 downlink_rx1.set_packet(txpk);
                 match downlink_rx1
                     .dispatch(Some(Duration::from_secs(DOWNLINK_TIMEOUT_SECS)))
@@ -127,7 +127,12 @@ impl Gateway {
                     Err(SemtechError::Ack(tx_ack::Error::TOO_EARLY))
                     | Err(SemtechError::Ack(tx_ack::Error::TOO_LATE)) => {
                         if let Some(txpk) = downlink.to_pull_resp(true)? {
-                            info!(logger, "rx2 downlink {} via {}", txpk, downlink_rx2.get_destination_mac());
+                            info!(
+                                logger,
+                                "rx2 downlink {} via {}",
+                                txpk,
+                                downlink_rx2.get_destination_mac()
+                            );
                             downlink_rx2.set_packet(txpk);
                             match downlink_rx2
                                 .dispatch(Some(Duration::from_secs(DOWNLINK_TIMEOUT_SECS)))
