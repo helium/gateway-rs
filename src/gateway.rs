@@ -110,7 +110,7 @@ impl Gateway {
         );
 
         match downlink.to_pull_resp(false)? {
-            None => return Ok(()),
+            None => Ok(()),
             Some(txpk) => {
                 info!(
                     logger,
