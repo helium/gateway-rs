@@ -99,6 +99,13 @@ impl PHYPayloadFrame {
         };
         Ok(res)
     }
+
+    pub fn fcnt(&self) -> Option<u16> {
+        match self {
+            Self::MACPayload(payload) => Some(payload.fhdr.fcnt),
+            _ => None,
+        }
+    }
 }
 
 pub struct Fhdr {

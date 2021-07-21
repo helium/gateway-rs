@@ -1,50 +1,62 @@
-use bytes::{Buf, BufMut, BytesMut};
+use bytes::{Buf, BufMut};
 use helium_proto::Eui;
-use std::hash::Hasher;
+use std::{fmt, hash::Hasher, sync::Arc};
 use xorf::{Filter as XorFilter, Xor16};
 use xxhash_c::XXH64;
 
-pub struct EuiFilter(Xor16);
+#[derive(Clone)]
+pub struct EuiFilter(Arc<Xor16>);
+#[derive(Clone, Debug)]
 pub struct DevAddrFilter {
     base: u32,
     mask: u32,
 }
 
+impl fmt::Debug for EuiFilter {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("EuiFilter")
+            .field("seed", &self.0.seed)
+            .field("blocks", &self.0.block_length)
+            .field("fingerprints", &self.0.len())
+            .finish()
+    }
+}
+
 impl EuiFilter {
-    pub fn from_bin(data: &[u8]) -> Self {
-        let mut buf = data;
+    pub fn from_bin<D: AsRef<[u8]>>(data: D) -> Self {
+        let mut buf = data.as_ref();
         let seed = buf.get_u64_le();
         let block_length = buf.get_u64_le() as usize;
         let mut filters: Vec<u16> = Vec::with_capacity(block_length * 3);
         for _ in 0..block_length * 3 {
             filters.push(buf.get_u16_le());
         }
-        Self(Xor16 {
+        Self(Arc::new(Xor16 {
             seed,
             block_length,
             fingerprints: filters.into_boxed_slice(),
-        })
+        }))
     }
 
     pub fn contains(&self, eui: &Eui) -> bool {
         let Eui { deveui, appeui } = eui;
-        let mut buf = BytesMut::with_capacity(16);
+        let mut buf = &mut [0u8; 16][..];
         buf.put_u64_le(*deveui);
         buf.put_u64_le(*appeui);
         let mut hasher = XXH64::new(0);
-        hasher.write(&buf);
+        hasher.write(buf);
         let hash = hasher.finish();
         self.0.contains(&hash)
     }
 }
 
 impl DevAddrFilter {
-    pub fn from_bin(data: &[u8]) -> Self {
+    pub fn from_bin<D: AsRef<[u8]>>(data: D) -> Self {
         const BITS_23: u64 = 8388607; // biggest unsigned number in 23 bits
         const BITS_25: u64 = 33554431; // biggest unsigned number in 25 bits
 
-        let mut buf: [u8; 8] = [0; 8];
-        buf[2..].copy_from_slice(data);
+        let mut buf = [0u8; 8];
+        buf[2..].copy_from_slice(data.as_ref());
         let val: u64 = u64::from_be_bytes(buf);
         Self {
             mask: (val & BITS_23) as u32,

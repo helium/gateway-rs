@@ -19,14 +19,18 @@ pub enum Error {
     Decode(#[from] DecodeError),
     #[error("service error")]
     Service(#[from] ServiceError),
+    #[error("state channel error")]
+    StateChannel(#[from] StateChannelError),
     #[error("semtech udp error")]
     Semtech(#[from] semtech_udp::server_runtime::Error),
+    #[error("storage error")]
+    Store(#[from] rusqlite::Error),
 }
 
 #[derive(Error, Debug)]
 pub enum EncodeError {
     #[error("protobuf encode")]
-    ProstError(#[from] prost::EncodeError),
+    Prost(#[from] prost::EncodeError),
 }
 
 #[derive(Error, Debug)]
@@ -55,6 +59,30 @@ pub enum ServiceError {
     Service(#[from] helium_proto::services::Error),
     #[error("rpc error")]
     Rpc(#[from] tonic::Status),
+    #[error("stream closed error")]
+    Stream,
+}
+
+#[derive(Error, Debug)]
+pub enum StateChannelError {
+    #[error("no state channel")]
+    NotFound,
+    #[error("inactive state channel")]
+    Inactive,
+    #[error("invalid owner for state channel")]
+    InvalidOwner,
+    #[error("state channel summary error")]
+    Summary(#[from] StateChannelSummaryError),
+}
+
+#[derive(Error, Debug)]
+pub enum StateChannelSummaryError {
+    #[error("zero state channel packet summary")]
+    ZeroPacket,
+    #[error("zero state channel packet over dc count")]
+    PacketDCMismatch,
+    #[error("invalid address")]
+    InvalidAddress,
 }
 
 macro_rules! from_err {
@@ -71,6 +99,12 @@ macro_rules! from_err {
 from_err!(ServiceError, helium_proto::services::Error);
 from_err!(ServiceError, tonic::Status);
 
+impl<T> From<tokio::sync::mpsc::error::SendError<T>> for Error {
+    fn from(_err: tokio::sync::mpsc::error::SendError<T>) -> Self {
+        Self::Service(ServiceError::Stream)
+    }
+}
+
 // Encode Errors
 from_err!(EncodeError, prost::EncodeError);
 
@@ -83,6 +117,25 @@ from_err!(DecodeError, prost::DecodeError);
 from_err!(DecodeError, lorawan::LoraWanError);
 from_err!(DecodeError, longfi::LfcError);
 from_err!(DecodeError, semtech_udp::data_rate::ParseError);
+
+// State Channel Errors
+impl StateChannelError {
+    pub fn invalid_owner() -> Error {
+        Error::StateChannel(Self::InvalidOwner)
+    }
+
+    pub fn invalid_summary(err: StateChannelSummaryError) -> Error {
+        Error::StateChannel(Self::Summary(err))
+    }
+
+    pub fn inactive() -> Error {
+        Error::StateChannel(Self::Inactive)
+    }
+
+    pub fn not_found() -> Error {
+        Error::StateChannel(Self::NotFound)
+    }
+}
 
 impl Error {
     /// Use as for custom or rare errors that don't quite deserve their own
