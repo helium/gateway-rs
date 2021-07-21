@@ -517,7 +517,7 @@ name = "gateway-rs"
 version = "1.0.0-alpha.13"
 dependencies = [
  "angry-purple-tiger",
- "base64 0.12.3",
+ "base64 0.13.0",
  "bytes",
  "config",
  "daemonize",
@@ -1229,9 +1229,9 @@ checksum = "71d301d4193d031abdd79ff7e3dd721168a9572ef3fe51a1517aba235bd8f86e"
 
 [[package]]
 name = "semtech-udp"
-version = "0.5.1"
+version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "48064c08a4c802d70c7958ce764c9ca611e541b2f1e59cbe14399880dc6cfc71"
+checksum = "f4f57e39fb9043cdb9938500dfaec1909cce88e22d2dad0e4dd0b73035c6d97a"
 dependencies = [
  "arrayref",
  "base64 0.13.0",
