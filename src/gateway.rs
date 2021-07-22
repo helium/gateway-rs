@@ -124,8 +124,8 @@ impl Gateway {
                     .await
                 {
                     // On a too early or too late error retry on the rx2 slot if available.
-                    Err(SemtechError::Ack(tx_ack::Error::TOO_EARLY))
-                    | Err(SemtechError::Ack(tx_ack::Error::TOO_LATE)) => {
+                    Err(SemtechError::Ack(tx_ack::Error::TooEarly))
+                    | Err(SemtechError::Ack(tx_ack::Error::TooLate)) => {
                         if let Some(txpk) = downlink.to_pull_resp(true)? {
                             info!(
                                 logger,
@@ -138,7 +138,6 @@ impl Gateway {
                                 .dispatch(Some(Duration::from_secs(DOWNLINK_TIMEOUT_SECS)))
                                 .await
                             {
-                                Err(SemtechError::Ack(tx_ack::Error::NONE)) => Ok(()),
                                 Err(err) => {
                                     warn!(logger, "ignoring rx2 downlink error: {:?}", err);
                                     Ok(())
@@ -149,7 +148,6 @@ impl Gateway {
                             Ok(())
                         }
                     }
-                    Err(SemtechError::Ack(tx_ack::Error::NONE)) => Ok(()),
                     Err(err) => {
                         warn!(logger, "ignoring rx1 downlink error: {:?}", err);
                         Ok(())
