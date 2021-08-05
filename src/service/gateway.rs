@@ -49,7 +49,7 @@ impl Response {
             Some(gateway_resp_v1::Msg::RoutingStreamedResp(routings)) => {
                 debug!("Received routings");
                 Ok(&routings.routings)
-            },
+            }
             msg => Err(Error::custom(format!(
                 "Unexpected gateway message {:?}",
                 msg
