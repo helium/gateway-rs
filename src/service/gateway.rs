@@ -17,6 +17,8 @@ pub struct Streaming {
 #[derive(Debug, Clone)]
 pub struct Response(GatewayRespV1);
 
+use log::debug;
+
 impl Streaming {
     pub async fn message(&mut self) -> Result<Option<Response>> {
         match self.streaming.message().await {
@@ -44,7 +46,10 @@ impl Response {
 
     pub fn routings(&self) -> Result<&[Routing]> {
         match &self.0.msg {
-            Some(gateway_resp_v1::Msg::RoutingStreamedResp(routings)) => Ok(&routings.routings),
+            Some(gateway_resp_v1::Msg::RoutingStreamedResp(routings)) => {
+                debug!("Received routings");
+                Ok(&routings.routings)
+            },
             msg => Err(Error::custom(format!(
                 "Unexpected gateway message {:?}",
                 msg
