@@ -1,5 +1,5 @@
 [config]
-additional_profiles = ["klkgw", "ramips_24kec", "dragino", "mtcdt", "raspi01", "raspi234", "resiot", "cotx", "raspi_64"]
+additional_profiles = ["klkgw", "ramips_24kec", "dragino", "mtcdt", "raspi01", "raspi234", "resiot", "cotx", "raspi_64", "bobcat"]
 default_to_workspace = false
 
 [env]
@@ -41,6 +41,11 @@ IPK_USE_AR = false
 
 [env.mtcdt]
 CROSS_TARGET = "armv5te-unknown-linux-musleabi"
+PKG = "ipk"
+IPK_USE_AR = true
+
+[env.bobcat]
+CROSS_TARGET = "arm-openwrt-linux-muslgnueabi"
 PKG = "ipk"
 IPK_USE_AR = true
 

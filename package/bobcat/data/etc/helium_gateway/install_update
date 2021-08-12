@@ -1,0 +1,6 @@
+#!/bin/sh -e
+
+# install the package. postinst step will (re)start the service
+opkg install "${1}"
+# remove the package from temp storage
+rm "${1}"
