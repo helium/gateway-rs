@@ -26,7 +26,7 @@ pub enum Error {
 #[derive(Error, Debug)]
 pub enum EncodeError {
     #[error("protobuf encode")]
-    ProstError(#[from] prost::EncodeError),
+    Prost(#[from] prost::EncodeError),
 }
 
 #[derive(Error, Debug)]

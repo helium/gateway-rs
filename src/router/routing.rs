@@ -1,18 +1,30 @@
 use super::{DevAddrFilter, EuiFilter};
 use crate::{KeyedUri, PublicKey, Result};
 use helium_proto::{routing_information::Data as RoutingData, RoutingInformation};
+use http::Uri;
 use slog::{warn, Logger};
 use std::{convert::TryFrom, sync::Arc};
 
 #[derive(Clone, Debug)]
 pub struct Routing {
     pub(crate) oui: u32,
-    pub(crate) filters: Vec<EuiFilter>,
-    pub(crate) subnets: Vec<DevAddrFilter>,
-    pub(crate) uris: Vec<KeyedUri>,
+    filters: Vec<EuiFilter>,
+    subnets: Vec<DevAddrFilter>,
+    uris: Vec<KeyedUri>,
 }
 
 impl Routing {
+    pub fn uris_for_each<F>(&self, f: F)
+    where
+        F: FnMut(&KeyedUri),
+    {
+        self.uris.iter().for_each(f)
+    }
+
+    pub fn contains_uri(&self, uri: &Uri) -> bool {
+        self.uris.iter().any(|keyed_uri| &keyed_uri.uri == uri)
+    }
+
     pub fn matches_routing_info(&self, routing_info: &Option<RoutingInformation>) -> bool {
         match routing_info {
             Some(RoutingInformation { ref data }) => self.matches_routing_data(data),

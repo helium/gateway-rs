@@ -1,43 +1,45 @@
-use super::{RouterBroadcast, Routing};
 use crate::{service::router, KeyedUri, Keypair, LinkPacket, Region, Result};
 use slog::{debug, info, o, warn, Logger};
 use std::sync::Arc;
-use tokio::sync::{broadcast, mpsc};
+use tokio::sync::mpsc;
 
 pub struct RouterClient {
-    client: router::Service,
-    region: Region,
-    routing: Routing,
-    keypair: Arc<Keypair>,
-    uplinks: broadcast::Receiver<RouterBroadcast>,
-    downlinks: mpsc::Sender<LinkPacket>,
+    pub(crate) client: router::Service,
+    pub(crate) oui: u32,
+    pub(crate) region: Region,
+    pub(crate) keypair: Arc<Keypair>,
+    pub(crate) downlinks: mpsc::Sender<LinkPacket>,
 }
 
 impl RouterClient {
     pub fn new(
+        oui: u32,
         region: Region,
         uri: KeyedUri,
-        routing: Routing,
-        uplinks: broadcast::Receiver<RouterBroadcast>,
         downlinks: mpsc::Sender<LinkPacket>,
         keypair: Arc<Keypair>,
     ) -> Result<Self> {
         let client = router::Service::new(uri)?;
         Ok(Self {
-            uplinks,
-            downlinks,
             client,
-            routing,
+            oui,
             region,
             keypair,
+            downlinks,
         })
     }
 
-    pub async fn run(&mut self, shutdown: triggered::Listener, logger: &Logger) -> Result {
+    pub async fn run(
+        &mut self,
+        mut uplinks: mpsc::Receiver<LinkPacket>,
+        shutdown: triggered::Listener,
+        logger: &Logger,
+    ) -> Result {
         let logger = logger.new(o!(
             "module" => "router",
-            "oui" => self.routing.oui,
-            "uri" => self.client.uri.uri.to_string()
+            "public_key" => self.client.uri.public_key.to_string(),
+            "uri" => self.client.uri.uri.to_string(),
+            "oui" => self.oui,
         ));
         info!(logger, "starting");
 
@@ -47,26 +49,18 @@ impl RouterClient {
                     info!(logger, "shutting down");
                     return Ok(())
                 },
-                uplink = self.uplinks.recv() => match uplink {
-                    Ok(RouterBroadcast::LinkPacket(packet)) => match self.handle_uplink(&logger, packet).await {
+                uplink = uplinks.recv() => match uplink {
+                    Some(packet) => match self.handle_uplink(&logger, packet).await {
                         Ok(()) =>  (),
                         Err(err) => warn!(logger, "ignoring failed uplink {:?}", err)
                     },
-                    Ok(RouterBroadcast::Routing(routing)) => match self.handle_routing_update(&logger, routing) {
-                        true => continue,
-                        false => info!(logger, "stopping"),
-                    },
-                    Err(_) => warn!(logger, "ignoring closed uplinks channel"),
+                    None => warn!(logger, "ignoring closed uplinks channel"),
                 },
             }
         }
     }
 
     async fn handle_uplink(&mut self, logger: &Logger, uplink: LinkPacket) -> Result {
-        if !self.routing.matches_routing_info(&uplink.packet.routing) {
-            return Ok(());
-        }
-        info!(logger, "SENDING UPLINK");
         let gateway_mac = uplink.gateway_mac;
         let message = uplink.to_state_channel_message(&self.keypair, self.region)?;
         match self.client.route(message).await {
@@ -86,16 +80,5 @@ impl RouterClient {
             Err(err) => warn!(logger, "ignoring uplink error: {:?}", err),
         }
         Ok(())
-    }
-
-    fn handle_routing_update(&mut self, logger: &Logger, routing: Routing) -> bool {
-        if self.routing.oui == routing.oui {
-            if !routing.uris.contains(&self.client.uri) {
-                return false;
-            }
-            info!(logger, "updating routing");
-            self.routing = routing;
-        }
-        true
     }
 }

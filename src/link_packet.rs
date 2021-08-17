@@ -121,7 +121,7 @@ impl LinkPacket {
     }
 }
 
-pub fn mk_routing_information(payload: &[u8]) -> Result<Option<RoutingInformation>> {
+fn mk_routing_information(payload: &[u8]) -> Result<Option<RoutingInformation>> {
     use lorawan::{Direction, PHYPayload, PHYPayloadFrame};
     use std::io::Cursor;
     match PHYPayload::read(Direction::Uplink, &mut Cursor::new(payload)) {

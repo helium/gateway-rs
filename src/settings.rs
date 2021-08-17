@@ -92,7 +92,7 @@ impl Settings {
         }
         // Add in settings from the environment (with a prefix of APP)
         // Eg.. `GW_DEBUG=1 ./target/app` would set the `debug` key
-        c.merge(Environment::with_prefix("gw"))?;
+        c.merge(Environment::with_prefix("gw").separator("_"))?;
         c.try_into().map_err(|e| e.into())
     }
 

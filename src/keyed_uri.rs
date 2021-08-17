@@ -40,3 +40,15 @@ where
         ))),
     }
 }
+
+impl AsRef<Uri> for KeyedUri {
+    fn as_ref(&self) -> &Uri {
+        &self.uri
+    }
+}
+
+impl AsRef<PublicKey> for KeyedUri {
+    fn as_ref(&self) -> &PublicKey {
+        &self.public_key
+    }
+}
