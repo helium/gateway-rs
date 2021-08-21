@@ -147,15 +147,15 @@ If you want to support a new platform, please consider submitting a PR to get th
 
 ## Additional usage info
 
-The Helium Gateway application can be configured to suit your hardware/software environment in a variety of ways - either from the command line, using customisations to the `settings.toml` file or with environment variables. The following sections describe this functionality in more detail as well as more general information on how to use the application.
+The Helium Gateway application can be configured to suit your hardware/software environment in a variety of ways - either from the command line, using customizations to the `settings.toml` file or with environment variables. The following sections describe this functionality in more detail as well as more general information on how to use the application.
 
 ### Settings file
 
 The Helium Gateway application is configured using TOML files for your settings. The defaults can be found in the [default.toml](https://github.com/helium/gateway-rs/blob/main/config/default.toml) file in this repo. You should not edit this file directly, rather you should create a `settings.toml` file and store it either at the default expected locaton `/etc/helium_gateway/settings.toml` or at a custom location of your choosing by passing the `-c` flag to the `helium_gateway` application as shown below in the [general usage section](#general-usage-info).
 
-You can customise any of the fields shown in the [default.toml](https://github.com/helium/gateway-rs/blob/main/config/default.toml) file, however it is important to make sure that when editing you maintain the same ordering as shown in the default file. You do not need to include all fields in the `settings.toml` file - only the ones you want to change from default values - however maintaining the correct order is highly recommended to avoid any unexpected behaviour.
+You can customize any of the fields shown in the [default.toml](https://github.com/helium/gateway-rs/blob/main/config/default.toml) file, however it is important to make sure that when editing you maintain the same ordering as shown in the default file. You do not need to include all fields in the `settings.toml` file - only the ones you want to change from default values - however maintaining the correct sections is highly recommended to avoid any unexpected behaviour.
 
-For example, this config **will not work correctly** as it is in the wrong order:
+For example, this config **will not work correctly** as it all ends up in the `update` section:
 
 ```
 [update]
@@ -186,28 +186,40 @@ By maintaining the same layout as the `default.toml` file you can avoid any unex
 
 The following are the settings that can be changed and their default and optional values:
 ```
-keypair = "/etc/helium_gateway/gateway_key.bin" # can be any file location where you store the gateway_key.bin file
-listen_addr = "127.0.0.1:1680" # can be any ip address and port combination
-region = "US915" # possible values are : US915| EU868 | EU433 | CN470 | CN779 | AU915 | AS923_1 | AS923_2 | AS923_3 | AS923_4 | KR920 | IN865
+# can be any file location where you store the gateway_key.bin file
+keypair = "/etc/helium_gateway/gateway_key.bin"
+# can be any ip address and port combination
+listen_addr = "127.0.0.1:1680"
+# possible values are : US915| EU868 | EU433 | CN470 | CN779 | AU915 | AS923_1 | AS923_2 | AS923_3 | AS923_4 | KR920 | IN865
+region = "US915"
 
 [log]
-method = "stdio" # either stdio or syslog
-level = "info" # possible values are: debug | info | warn
-timestamp = false # either true or false
+# either stdio or syslog
+method = "stdio"
+# possible values are: debug | info | warn
+level = "info"
+# either true or false
+timestamp = false
 
 [update]
-enabled = true # either true or false
-platform = "unknown" # this setting must be overriden to get updates. choose from the supported platforms listed here https://github.com/helium/gateway-rs#supported-platforms
-channel = "semver" # update channel to use: alpha | beta | release | semver - more details can be found at https://github.com/helium/gateway-rs#releases
-interval = 10 # Interval in minutes between update checks
-uri = "https://api.github.com/repos/helium/gateway-rs/releases" # The github release stream to check for updates
-command = "/etc/helium_gateway/install_update" # The command to run to install the update.
+# either true or false
+enabled = true
+# this setting must be overriden to get updates. choose from the supported platforms listed here https://github.com/helium/gateway-rs#supported-platforms
+platform = "unknown"
+# update channel to use: alpha | beta | release | semver - more details can be found at https://github.com/helium/gateway-rs#releases
+channel = "semver"
+# Interval in minutes between update checks
+interval = 10
+# The github release stream to check for updates
+uri = "https://api.github.com/repos/helium/gateway-rs/releases"
+# The command to run to install the update.
+command = "/etc/helium_gateway/install_update"
 ```
 The default router `uri` and `public_key` parameters can be changed, but this is only if you are using non-Helium routers. For general use with Helium you should leave these the same.
 
 ### Envrionment variables
 
-Instead of overriding paramaters in the [default.toml](https://github.com/helium/gateway-rs/blob/main/config/default.toml) file using a `settings.toml` file as described above, you can instead use environment variables. The environment variable name will be the same name as the entries in the settings file in uppercase and prefixed with "GW_". For example, following on from the above example where we change the region using `region = "EU868"` in the settings file, setting an environment variable of `GW_REGION="EU868"` will override the region setting.
+Instead of overriding paramaters in the [default.toml](https://github.com/helium/gateway-rs/blob/main/config/default.toml) file using a `settings.toml` file as described above, you can instead use environment variables. The environment variable name will be the same name as the entries in the settings file in uppercase and prefixed with "GW_". For example, following on from the above example where we change the region using `region = "EU868"` in the settings file, setting an environment variable of `GW_REGION="EU868"` will override the region setting. If the settings are in one of the lower sections such as the `[update]` or `[log]` sections then you need to also include that in the environment variable name such as `GW_LOG_LEVEL` or `GW_UPDATE_PLATFORM`.
 
 The settings are loaded first from `default.toml`, then from a `settings.toml` file, and then from environment variables and any duplicates are overriden in the order. Therefore, please note that if you have a setting in all three locations, the environment variable will override the settings in the other two locations.
 
