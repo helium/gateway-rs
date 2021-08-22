@@ -4,7 +4,7 @@ use semtech_udp::{
     server_runtime::{Error as SemtechError, Event, UdpRuntime},
     tx_ack,
 };
-use slog::{info, o, warn, Logger};
+use slog::{debug, info, o, warn, Logger};
 use std::time::Duration;
 use tokio::sync::mpsc::{Receiver, Sender};
 
@@ -84,9 +84,17 @@ impl Gateway {
                     "ignoring send to client with unknown MAC: {:?}", mac
                 )
             }
-            Event::RawPacket(raw) => {
-                info!(logger, "ignoring raw packet {:?}", raw)
-            }
+            Event::RawPacket(raw) => match raw {
+                semtech_udp::Up::PushData(packet) => {
+                    if let Some(rxpks) = packet.data.rxpk {
+                        let mac = packet.gateway_mac;
+                        for rxpk in rxpks {
+                            info!(logger, "uplink {}, from {}", rxpk, mac)
+                        }
+                    }
+                }
+                _ => debug!(logger, "GWMP frame received {:?}", raw),
+            },
         };
         Ok(())
     }
@@ -100,43 +108,53 @@ impl Gateway {
             self.udp_runtime
                 .prepare_empty_downlink(downlink.gateway_mac),
         );
-        let pull_resp = downlink.to_pull_resp(false)?;
-        if pull_resp.is_none() {
-            return Ok(());
-        }
-        info!(logger, "sending rx1 downlink {:?}", pull_resp);
-        downlink_rx1.set_packet(pull_resp.unwrap());
-        match downlink_rx1
-            .dispatch(Some(Duration::from_secs(DOWNLINK_TIMEOUT_SECS)))
-            .await
-        {
-            // On a too early or too late error retry on the rx2 slot if available.
-            Err(SemtechError::Ack(tx_ack::Error::TOO_EARLY))
-            | Err(SemtechError::Ack(tx_ack::Error::TOO_LATE)) => {
-                if let Some(pull_resp) = downlink.to_pull_resp(true)? {
-                    info!(logger, "sending rx2 downlink {:?}", pull_resp);
-                    downlink_rx2.set_packet(pull_resp);
-                    match downlink_rx2
-                        .dispatch(Some(Duration::from_secs(DOWNLINK_TIMEOUT_SECS)))
-                        .await
-                    {
-                        Err(SemtechError::Ack(tx_ack::Error::NONE)) => Ok(()),
-                        Err(err) => {
-                            warn!(logger, "ignoring rx2 downlink error: {:?}", err);
+
+        match downlink.to_pull_resp(false)? {
+            None => Ok(()),
+            Some(txpk) => {
+                info!(
+                    logger,
+                    "rx1 downlink {} via {}",
+                    txpk,
+                    downlink_rx1.get_destination_mac()
+                );
+                downlink_rx1.set_packet(txpk);
+                match downlink_rx1
+                    .dispatch(Some(Duration::from_secs(DOWNLINK_TIMEOUT_SECS)))
+                    .await
+                {
+                    // On a too early or too late error retry on the rx2 slot if available.
+                    Err(SemtechError::Ack(tx_ack::Error::TooEarly))
+                    | Err(SemtechError::Ack(tx_ack::Error::TooLate)) => {
+                        if let Some(txpk) = downlink.to_pull_resp(true)? {
+                            info!(
+                                logger,
+                                "rx2 downlink {} via {}",
+                                txpk,
+                                downlink_rx2.get_destination_mac()
+                            );
+                            downlink_rx2.set_packet(txpk);
+                            match downlink_rx2
+                                .dispatch(Some(Duration::from_secs(DOWNLINK_TIMEOUT_SECS)))
+                                .await
+                            {
+                                Err(err) => {
+                                    warn!(logger, "ignoring rx2 downlink error: {:?}", err);
+                                    Ok(())
+                                }
+                                Ok(()) => Ok(()),
+                            }
+                        } else {
                             Ok(())
                         }
-                        Ok(()) => Ok(()),
                     }
-                } else {
-                    Ok(())
+                    Err(err) => {
+                        warn!(logger, "ignoring rx1 downlink error: {:?}", err);
+                        Ok(())
+                    }
+                    Ok(()) => Ok(()),
                 }
             }
-            Err(SemtechError::Ack(tx_ack::Error::NONE)) => Ok(()),
-            Err(err) => {
-                warn!(logger, "ignoring rx1 downlink error: {:?}", err);
-                Ok(())
-            }
-            Ok(()) => Ok(()),
         }
     }
 }
