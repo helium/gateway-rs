@@ -44,7 +44,7 @@ impl Gateway {
                 event = self.udp_runtime.recv() =>
                     self.handle_udp_event(&logger, event).await?,
                 downlink = self.downlinks.recv() => match downlink {
-                    Some(packet) => self.handle_downlink(&logger, packet).await?,
+                    Some(packet) => self.handle_downlink(&logger, packet).await,
                     None => {
                         warn!(logger, "ignoring closed downlinks channel");
                         continue;
@@ -85,7 +85,7 @@ impl Gateway {
         Ok(())
     }
 
-    async fn handle_downlink(&mut self, logger: &Logger, downlink: LinkPacket) -> Result {
+    async fn handle_downlink(&mut self, logger: &Logger, downlink: LinkPacket) {
         let (mut downlink_rx1, mut downlink_rx2) = (
             // first downlink
             self.udp_runtime
@@ -94,53 +94,51 @@ impl Gateway {
             self.udp_runtime
                 .prepare_empty_downlink(downlink.gateway_mac),
         );
-
-        match downlink.to_pull_resp(false)? {
-            None => Ok(()),
-            Some(txpk) => {
-                info!(
-                    logger,
-                    "rx1 downlink {} via {}",
-                    txpk,
-                    downlink_rx1.get_destination_mac()
-                );
-                downlink_rx1.set_packet(txpk);
-                match downlink_rx1
-                    .dispatch(Some(Duration::from_secs(DOWNLINK_TIMEOUT_SECS)))
-                    .await
-                {
-                    // On a too early or too late error retry on the rx2 slot if available.
-                    Err(SemtechError::Ack(tx_ack::Error::TooEarly))
-                    | Err(SemtechError::Ack(tx_ack::Error::TooLate)) => {
-                        if let Some(txpk) = downlink.to_pull_resp(true)? {
-                            info!(
-                                logger,
-                                "rx2 downlink {} via {}",
-                                txpk,
-                                downlink_rx2.get_destination_mac()
-                            );
-                            downlink_rx2.set_packet(txpk);
-                            match downlink_rx2
-                                .dispatch(Some(Duration::from_secs(DOWNLINK_TIMEOUT_SECS)))
-                                .await
-                            {
-                                Err(err) => {
-                                    warn!(logger, "ignoring rx2 downlink error: {:?}", err);
-                                    Ok(())
+        let logger = logger.clone();
+        tokio::spawn(async move {
+            match downlink.to_pull_resp(false).unwrap() {
+                None => (),
+                Some(txpk) => {
+                    info!(
+                        logger,
+                        "rx1 downlink {} via {}",
+                        txpk,
+                        downlink_rx1.get_destination_mac()
+                    );
+                    downlink_rx1.set_packet(txpk);
+                    match downlink_rx1
+                        .dispatch(Some(Duration::from_secs(DOWNLINK_TIMEOUT_SECS)))
+                        .await
+                    {
+                        // On a too early or too late error retry on the rx2 slot if available.
+                        Err(SemtechError::Ack(tx_ack::Error::TooEarly))
+                        | Err(SemtechError::Ack(tx_ack::Error::TooLate)) => {
+                            if let Some(txpk) = downlink.to_pull_resp(true).unwrap() {
+                                info!(
+                                    logger,
+                                    "rx2 downlink {} via {}",
+                                    txpk,
+                                    downlink_rx2.get_destination_mac()
+                                );
+                                downlink_rx2.set_packet(txpk);
+                                match downlink_rx2
+                                    .dispatch(Some(Duration::from_secs(DOWNLINK_TIMEOUT_SECS)))
+                                    .await
+                                {
+                                    Err(err) => {
+                                        warn!(logger, "ignoring rx2 downlink error: {:?}", err);
+                                    }
+                                    Ok(()) => (),
                                 }
-                                Ok(()) => Ok(()),
                             }
-                        } else {
-                            Ok(())
                         }
+                        Err(err) => {
+                            warn!(logger, "ignoring rx1 downlink error: {:?}", err);
+                        }
+                        Ok(()) => (),
                     }
-                    Err(err) => {
-                        warn!(logger, "ignoring rx1 downlink error: {:?}", err);
-                        Ok(())
-                    }
-                    Ok(()) => Ok(()),
                 }
             }
-        }
+        });
     }
 }
