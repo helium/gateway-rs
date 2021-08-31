@@ -44,7 +44,7 @@ impl Gateway {
                 event = self.udp_runtime.recv() =>
                     self.handle_udp_event(&logger, event).await?,
                 downlink = self.downlinks.recv() => match downlink {
-                    Some(packet) => self.handle_downlink(&logger, packet).await?,
+                    Some(packet) => self.handle_downlink(&logger, packet).await,
                     None => {
                         warn!(logger, "ignoring closed downlinks channel");
                         continue;
@@ -86,7 +86,7 @@ impl Gateway {
         Ok(())
     }
 
-    async fn handle_downlink(&mut self, logger: &Logger, downlink: LinkPacket) -> Result {
+    async fn handle_downlink(&mut self, logger: &Logger, downlink: LinkPacket) {
         let (mut downlink_rx1, mut downlink_rx2) = (
             // first downlink
             self.udp_runtime
@@ -141,6 +141,5 @@ impl Gateway {
                 }
             }
         });
-        Ok(())
     }
 }
