@@ -1,17 +1,30 @@
 use crate::*;
-use helium_crypto::Sign;
 use helium_proto::{
     blockchain_state_channel_message_v1::Msg, packet::PacketType,
     routing_information::Data as RoutingData, BlockchainStateChannelMessageV1,
-    BlockchainStateChannelPacketV1, BlockchainStateChannelResponseV1, Eui, Message as ProstMessage,
-    Packet as LoraPacket, Region, RoutingInformation,
+    BlockchainStateChannelOfferV1, BlockchainStateChannelPacketV1,
+    BlockchainStateChannelResponseV1, Eui, Region, RoutingInformation,
 };
+use lorawan::PHYPayloadFrame;
 use semtech_udp::{pull_resp, push_data, CodingRate, MacAddress, Modulation, StringOrNum};
+use sha2::{Digest, Sha256};
+use std::ops::Deref;
+
+#[derive(Debug, Clone)]
+pub struct Packet(helium_proto::Packet);
+
+impl Deref for Packet {
+    type Target = helium_proto::Packet;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct LinkPacket {
     pub gateway_mac: MacAddress,
-    pub packet: LoraPacket,
+    pub packet: Packet,
 }
 
 impl LinkPacket {
@@ -19,18 +32,21 @@ impl LinkPacket {
         let rssi = push_data
             .get_signal_rssi()
             .unwrap_or_else(|| push_data.get_channel_rssi());
-        let packet = LoraPacket {
+        let packet = Packet(helium_proto::Packet {
             r#type: PacketType::Lorawan.into(),
             signal_strength: rssi as f32,
             snr: push_data.get_snr() as f32,
             frequency: *push_data.get_frequency() as f32,
-            timestamp: *push_data.get_timestamp(),
+            timestamp: *push_data.get_timestamp() as u64,
             datarate: push_data.get_datarate().to_string(),
-            routing: mk_routing_information(push_data.get_data())?,
+            routing: routing_information(&parse_frame(
+                lorawan::Direction::Uplink,
+                push_data.get_data(),
+            )?)?,
             payload: push_data.get_data().to_vec(),
             rx2_window: None,
             oui: 0,
-        };
+        });
         Ok(Self {
             gateway_mac,
             packet,
@@ -44,16 +60,16 @@ impl LinkPacket {
 
     pub fn to_pull_resp(&self, use_rx2: bool) -> Result<Option<pull_resp::TxPk>> {
         let (timestamp, frequency, datarate) = if use_rx2 {
-            if let Some(rx2) = &self.packet.rx2_window {
+            if let Some(rx2) = &self.packet.0.rx2_window {
                 (Some(rx2.timestamp), rx2.frequency, rx2.datarate.parse()?)
             } else {
                 return Ok(None);
             }
         } else {
             (
-                Some(self.packet.timestamp),
-                self.packet.frequency,
-                self.packet.datarate.parse()?,
+                Some(self.packet.0.timestamp),
+                self.packet.0.frequency,
+                self.packet.0.datarate.parse()?,
             )
         };
         Ok(Some(pull_resp::TxPk {
@@ -65,12 +81,12 @@ impl LinkPacket {
             // for normal lorawan packets we're not selecting different frequencies
             // like we are for PoC
             freq: frequency as f64,
-            data: self.packet.payload.clone(),
-            size: self.packet.payload.len() as u64,
+            data: self.packet.0.payload.clone(),
+            size: self.packet.0.payload.len() as u64,
             powe: 27,
             rfch: 0,
             tmst: match timestamp {
-                Some(t) => StringOrNum::N(t),
+                Some(t) => StringOrNum::N(t as u32),
                 None => StringOrNum::S("immediate".to_string()),
             },
             tmms: None,
@@ -92,52 +108,70 @@ impl LinkPacket {
                         ..
                     })),
             } => Some(Self {
-                packet: downlink,
+                packet: Packet(downlink),
                 gateway_mac,
             }),
             _ => None,
         }
     }
 
-    pub fn to_state_channel_message(
+    pub fn to_state_channel_packet(
         &self,
         keypair: &Keypair,
         region: Region,
-    ) -> Result<BlockchainStateChannelMessageV1> {
-        let mut router_packet = BlockchainStateChannelPacketV1 {
-            packet: Some(self.packet.clone()),
+    ) -> Result<StateChannelMessage> {
+        let mut packet = BlockchainStateChannelPacketV1 {
+            packet: Some(self.packet.0.clone()),
             signature: vec![],
-            hotspot: keypair.public_key().to_bytes().to_vec(),
+            hotspot: keypair.public_key().into(),
             region: region.into(),
             hold_time: 0,
         };
-        let mut encoded = vec![];
-        router_packet.encode(&mut encoded)?;
-        router_packet.signature = keypair.sign(&encoded)?;
-        let message = BlockchainStateChannelMessageV1 {
-            msg: Some(Msg::Packet(router_packet)),
+        packet.signature = packet.sign(keypair)?;
+        Ok(StateChannelMessage::from(packet))
+    }
+
+    pub fn to_state_channel_offer(
+        &self,
+        keypair: &Keypair,
+        region: Region,
+    ) -> Result<StateChannelMessage> {
+        let frame = parse_frame(lorawan::Direction::Uplink, &self.packet.0.payload)?;
+        let mut offer = BlockchainStateChannelOfferV1 {
+            packet_hash: self.packet_hash(),
+            payload_size: self.packet.0.payload.len() as u64,
+            fcnt: frame.fcnt().unwrap_or(0) as u32,
+            hotspot: keypair.public_key().into(),
+            region: region.into(),
+            routing: routing_information(&frame)?,
+            signature: vec![],
         };
-        Ok(message)
+        offer.signature = offer.sign(keypair)?;
+        Ok(StateChannelMessage::from(offer))
+    }
+
+    fn packet_hash(&self) -> Vec<u8> {
+        Sha256::digest(&self.packet.0.payload).to_vec()
     }
 }
 
-pub fn mk_routing_information(payload: &[u8]) -> Result<Option<RoutingInformation>> {
-    use lorawan::{Direction, PHYPayload, PHYPayloadFrame};
+fn parse_frame(direction: lorawan::Direction, payload: &[u8]) -> Result<PHYPayloadFrame> {
     use std::io::Cursor;
-    match PHYPayload::read(Direction::Uplink, &mut Cursor::new(payload)) {
-        Ok(packet) => {
-            let routing_data = match &packet.payload {
-                PHYPayloadFrame::JoinRequest(request) => Some(RoutingData::Eui(Eui {
-                    deveui: request.dev_eui,
-                    appeui: request.app_eui,
-                })),
-                PHYPayloadFrame::MACPayload(mac_payload) => {
-                    Some(RoutingData::Devaddr(mac_payload.dev_addr()))
-                }
-                _ => return Ok(None),
-            };
-            Ok(routing_data.map(|r| RoutingInformation { data: Some(r) }))
+    lorawan::PHYPayload::read(direction, &mut Cursor::new(payload))
+        .map(|p| p.payload)
+        .map_err(Error::from)
+}
+
+fn routing_information(frame: &PHYPayloadFrame) -> Result<Option<RoutingInformation>> {
+    let routing_data = match frame {
+        PHYPayloadFrame::JoinRequest(request) => Some(RoutingData::Eui(Eui {
+            deveui: request.dev_eui,
+            appeui: request.app_eui,
+        })),
+        PHYPayloadFrame::MACPayload(mac_payload) => {
+            Some(RoutingData::Devaddr(mac_payload.dev_addr()))
         }
-        Err(err) => Err(err.into()),
-    }
+        _ => return Ok(None),
+    };
+    Ok(routing_data.map(|r| RoutingInformation { data: Some(r) }))
 }

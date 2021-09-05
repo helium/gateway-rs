@@ -2,8 +2,10 @@ pub mod cmd;
 pub mod curl;
 pub mod error;
 pub mod gateway;
+pub mod keyed_uri;
 pub mod keypair;
 pub mod link_packet;
+pub mod region;
 pub mod releases;
 pub mod router;
 pub mod server;
@@ -11,9 +13,19 @@ pub mod service;
 pub mod settings;
 pub mod updater;
 
+mod msg_sign;
+mod msg_verify;
+mod state_channel;
+
 pub use error::{Error, Result};
+pub use keyed_uri::KeyedUri;
 pub use keypair::{Keypair, PublicKey};
-pub use settings::{KeyedUri, Settings};
+pub use link_packet::LinkPacket;
+pub use msg_sign::MsgSign;
+pub use msg_verify::MsgVerify;
+pub use region::Region;
+pub use settings::{CacheSettings, Settings};
+pub use state_channel::StateChannelMessage;
 
 use futures::{Future as StdFuture, Stream as StdStream};
 use std::pin::Pin;

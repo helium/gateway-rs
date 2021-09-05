@@ -1,8 +1,9 @@
-use crate::{service::*, *};
-use helium_crypto::Verify;
+use crate::{service::CONNECT_TIMEOUT, Error, KeyedUri, MsgVerify, Result};
+use helium_crypto::PublicKey;
 use helium_proto::{
+    gateway_resp_v1,
     services::{self, Channel, Endpoint},
-    *,
+    GatewayRespV1, GatewayRoutingReqV1, GatewayScIsActiveReqV1, GatewayScIsActiveRespV1, Routing,
 };
 use rand::{rngs::OsRng, seq::SliceRandom};
 use std::{sync::Arc, time::Duration};
@@ -21,15 +22,8 @@ impl Streaming {
     pub async fn message(&mut self) -> Result<Option<Response>> {
         match self.streaming.message().await {
             Ok(Some(response)) => {
-                // Create a clone with an empty signature
-                let mut v = response.clone();
-                v.signature = vec![];
-                // Encode the clone
-                let mut buf = vec![];
-                v.encode(&mut buf)?;
-                // And verify against signature in the message
-                self.verifier.verify(&buf, &response.signature)?;
-                Ok(Some(Response(v)))
+                response.verify(&self.verifier)?;
+                Ok(Some(Response(response)))
             }
             Ok(None) => Ok(None),
             Err(err) => Err(err.into()),
@@ -53,10 +47,9 @@ impl Response {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Service {
-    pub uri: http::Uri,
-    pub verifier: Arc<PublicKey>,
+    pub uri: KeyedUri,
     client: ServiceClient,
 }
 
@@ -66,17 +59,8 @@ impl Service {
             .timeout(Duration::from_secs(CONNECT_TIMEOUT))
             .connect_lazy()?;
         Ok(Self {
-            uri: keyed_uri.uri,
+            uri: keyed_uri,
             client: ServiceClient::new(channel),
-            verifier: Arc::new(keyed_uri.public_key),
-        })
-    }
-
-    pub async fn routing(&mut self, height: u64) -> Result<Streaming> {
-        let stream = self.client.routing(GatewayRoutingReqV1 { height }).await?;
-        Ok(Streaming {
-            streaming: stream.into_inner(),
-            verifier: self.verifier.clone(),
         })
     }
 
@@ -84,6 +68,40 @@ impl Service {
         let uri = uris
             .choose(&mut OsRng)
             .ok_or_else(|| Error::custom("empty uri list"))?;
-        Self::new(uri.clone())
+        Self::new(uri.to_owned())
+    }
+
+    pub async fn routing(&mut self, height: u64) -> Result<Streaming> {
+        let stream = self.client.routing(GatewayRoutingReqV1 { height }).await?;
+        Ok(Streaming {
+            streaming: stream.into_inner(),
+            verifier: self.uri.public_key.clone(),
+        })
+    }
+
+    pub async fn is_active(&mut self, id: &[u8], owner: &[u8]) -> Result<bool> {
+        match self
+            .client
+            .is_active_sc(GatewayScIsActiveReqV1 {
+                sc_owner: owner.into(),
+                sc_id: id.into(),
+            })
+            .await?
+            .into_inner()
+            .msg
+        {
+            Some(gateway_resp_v1::Msg::IsActiveResp(GatewayScIsActiveRespV1 {
+                sc_id,
+                sc_owner,
+                active,
+            })) => {
+                if sc_id == id && sc_owner == owner {
+                    Ok(active)
+                } else {
+                    Err(Error::custom("mismatched state channel id and owner"))
+                }
+            }
+            _ => Ok(false),
+        }
     }
 }

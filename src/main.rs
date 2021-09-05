@@ -82,6 +82,7 @@ pub fn main() -> Result {
     let logger = mk_logger(&settings);
     let scope_guard = slog_scope::set_global_logger(logger);
     let run_logger = slog_scope::logger().new(o!());
+    let _log_guard = slog_stdlog::init().unwrap();
     // Start the runtime after the daemon fork
     let res = tokio::runtime::Builder::new_current_thread()
         .enable_all()

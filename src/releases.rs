@@ -72,6 +72,22 @@ pub enum Channel {
     Release,
 }
 
+pub fn deserialize_channel<'de, D>(d: D) -> std::result::Result<releases::Channel, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let channel_str = String::deserialize(d)?.to_lowercase();
+    match channel_str.parse::<releases::Channel>() {
+        Ok(channel) => Ok(channel),
+        Err(_) => {
+            return Err(de::Error::custom(format!(
+                "unsupported update channel: \"{}\"",
+                channel_str
+            )))
+        }
+    }
+}
+
 impl fmt::Display for Channel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let s = match self {
