@@ -3,7 +3,7 @@ cargo-features = ["strip"]
 [package]
 name = "gateway-rs"
 description = "Helium Gateway for LoRa packet forwarders"
-version = "1.0.0-alpha.13"
+version = "1.0.0-alpha.14"
 authors = ["Marc Nijdam <marc@helium.com>"]
 edition = "2018"
 license = "Apache-2.0"
