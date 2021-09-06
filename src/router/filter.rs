@@ -40,11 +40,12 @@ impl EuiFilter {
 
     pub fn contains(&self, eui: &Eui) -> bool {
         let Eui { deveui, appeui } = eui;
-        let mut buf = &mut [0u8; 16][..];
+        let mut data = [0u8; 16];
+        let mut buf = &mut data[..];
         buf.put_u64_le(*deveui);
         buf.put_u64_le(*appeui);
         let mut hasher = XXH64::new(0);
-        hasher.write(buf);
+        hasher.write(&data);
         let hash = hasher.finish();
         self.0.contains(&hash)
     }
