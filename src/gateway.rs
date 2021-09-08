@@ -66,6 +66,7 @@ impl Gateway {
                 info!(logger, "mac existed, but IP updated: {}, {}", mac, addr)
             }
             Event::PacketReceived(rxpk, gateway_mac) => {
+                info!(logger, "received packet {}", rxpk);
                 match LinkPacket::from_push_data(&rxpk, gateway_mac) {
                     Ok(packet) if packet.is_longfi() => {
                         info!(logger, "ignoring longfi packet");
@@ -101,7 +102,7 @@ impl Gateway {
                 Some(txpk) => {
                     info!(
                         logger,
-                        "rx1 downlink {} via {}",
+                        "rx1 downlink    {} via {}",
                         txpk,
                         downlink_rx1.get_destination_mac()
                     );
@@ -116,7 +117,7 @@ impl Gateway {
                             if let Some(txpk) = downlink.to_pull_resp(true).unwrap() {
                                 info!(
                                     logger,
-                                    "rx2 downlink {} via {}",
+                                    "rx2 downlink    {} via {}",
                                     txpk,
                                     downlink_rx2.get_destination_mac()
                                 );

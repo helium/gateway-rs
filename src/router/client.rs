@@ -83,22 +83,27 @@ impl RouterClient {
     async fn handle_uplink(&mut self, logger: &Logger, uplink: LinkPacket) -> Result {
         let gateway_mac = uplink.gateway_mac;
         let message = uplink.to_state_channel_packet(&self.keypair, self.region.clone().into())?;
-        match self.client.route(message.into()).await {
-            Ok(response) => {
-                debug!(logger, "response from router {:?}", response);
-                if let Some(downlink) =
-                    LinkPacket::from_state_channel_message(response, gateway_mac)
-                {
-                    match self.downlinks.send(downlink).await {
-                        Ok(()) => (),
-                        Err(_) => {
-                            warn!(logger, "failed to push downlink")
+        let mut client = self.client.clone();
+        let logger = logger.clone();
+        let downlinks = self.downlinks.clone();
+        tokio::spawn(async move {
+            match client.route(message.into()).await {
+                Ok(response) => {
+                    debug!(logger, "response from router {:?}", response);
+                    if let Some(downlink) =
+                        LinkPacket::from_state_channel_message(response, gateway_mac)
+                    {
+                        match downlinks.send(downlink).await {
+                            Ok(()) => (),
+                            Err(_) => {
+                                warn!(logger, "failed to push downlink")
+                            }
                         }
                     }
                 }
+                Err(err) => warn!(logger, "ignoring uplink error: {:?}", err),
             }
-            Err(err) => warn!(logger, "ignoring uplink error: {:?}", err),
-        }
+        });
         Ok(())
     }
 }

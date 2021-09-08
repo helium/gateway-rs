@@ -10,7 +10,7 @@ use tokio_stream::wrappers::ReceiverStream;
 type RouterClient = services::router::RouterClient<Channel>;
 type StateChannelClient = services::router::StateChannelClient<Channel>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Service {
     pub uri: KeyedUri,
     router_client: RouterClient,
