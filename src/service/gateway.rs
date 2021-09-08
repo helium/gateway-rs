@@ -47,13 +47,13 @@ impl Response {
     }
 }
 
-#[derive(Debug)]
-pub struct Service {
+#[derive(Debug, Clone)]
+pub struct GatewayService {
     pub uri: KeyedUri,
     client: ServiceClient,
 }
 
-impl Service {
+impl GatewayService {
     pub fn new(keyed_uri: KeyedUri) -> Result<Self> {
         let channel = Endpoint::from(keyed_uri.uri.clone())
             .timeout(Duration::from_secs(CONNECT_TIMEOUT))
@@ -79,7 +79,7 @@ impl Service {
         })
     }
 
-    pub async fn is_active(&mut self, id: &[u8], owner: &[u8]) -> Result<bool> {
+    pub async fn is_active(&mut self, id: &[u8], owner: &[u8]) -> Result<GatewayScIsActiveRespV1> {
         match self
             .client
             .is_active_sc(GatewayScIsActiveReqV1 {
@@ -90,18 +90,21 @@ impl Service {
             .into_inner()
             .msg
         {
-            Some(gateway_resp_v1::Msg::IsActiveResp(GatewayScIsActiveRespV1 {
-                sc_id,
-                sc_owner,
-                active,
-            })) => {
+            Some(gateway_resp_v1::Msg::IsActiveResp(resp)) => {
+                let GatewayScIsActiveRespV1 {
+                    sc_id, sc_owner, ..
+                } = &resp;
                 if sc_id == id && sc_owner == owner {
-                    Ok(active)
+                    Ok(resp)
                 } else {
                     Err(Error::custom("mismatched state channel id and owner"))
                 }
             }
-            _ => Ok(false),
+            Some(other) => Err(Error::custom(format!(
+                "invalid is_active response {:?}",
+                other
+            ))),
+            None => Err(Error::custom("empty is_active response")),
         }
     }
 }

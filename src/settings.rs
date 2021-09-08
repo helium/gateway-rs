@@ -85,6 +85,8 @@ pub struct UpdateSettings {
 pub struct CacheSettings {
     // Path to storage folder
     pub store: PathBuf,
+    // Maximum number of packets to queue up per router client
+    pub max_packets: u16,
 }
 
 impl Settings {

@@ -26,6 +26,8 @@ pub struct StateChannelService {
     )>,
 }
 
+pub const CONDUIT_CAPACITY: usize = 50;
+
 impl StateChannelService {
     pub async fn send(&mut self, msg: BlockchainStateChannelMessageV1) -> Result {
         if self.conduit.is_none() {
@@ -33,6 +35,13 @@ impl StateChannelService {
         }
         let (tx, _) = self.conduit.as_ref().unwrap();
         Ok(tx.send(msg).await?)
+    }
+
+    pub fn capacity(&self) -> usize {
+        self.conduit
+            .as_ref()
+            .map(|(tx, _)| tx.capacity())
+            .unwrap_or(CONDUIT_CAPACITY)
     }
 
     pub async fn message(&mut self) -> Result<Option<BlockchainStateChannelMessageV1>> {
@@ -57,7 +66,7 @@ impl StateChannelService {
         mpsc::Sender<BlockchainStateChannelMessageV1>,
         tonic::Streaming<BlockchainStateChannelMessageV1>,
     )> {
-        let (tx, client_rx) = mpsc::channel(50);
+        let (tx, client_rx) = mpsc::channel(CONDUIT_CAPACITY);
         let rx = self
             .client
             .msg(ReceiverStream::new(client_rx))

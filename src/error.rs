@@ -23,8 +23,8 @@ pub enum Error {
     StateChannel(#[from] StateChannelError),
     #[error("semtech udp error")]
     Semtech(#[from] semtech_udp::server_runtime::Error),
-    #[error("storage error")]
-    Store(#[from] rusqlite::Error),
+    #[error("time error")]
+    Time(#[from] std::time::SystemTimeError),
 }
 
 #[derive(Error, Debug)]
@@ -65,14 +65,22 @@ pub enum ServiceError {
 
 #[derive(Error, Debug)]
 pub enum StateChannelError {
-    #[error("no state channel")]
-    NotFound,
     #[error("inactive state channel")]
     Inactive,
     #[error("invalid owner for state channel")]
     InvalidOwner,
     #[error("state channel summary error")]
     Summary(#[from] StateChannelSummaryError),
+    #[error("state channel not found")]
+    NotFound,
+    #[error("state channel causal conflict")]
+    CausalConflict,
+    #[error("state channel overpaid")]
+    Overpaid,
+    #[error("state channel underpaid for a packet")]
+    Underpaid,
+    #[error("state channel low balance too low")]
+    LowBalance,
 }
 
 #[derive(Error, Debug)]
@@ -134,6 +142,22 @@ impl StateChannelError {
 
     pub fn not_found() -> Error {
         Error::StateChannel(Self::NotFound)
+    }
+
+    pub fn causal_conflict() -> Error {
+        Error::StateChannel(Self::CausalConflict)
+    }
+
+    pub fn overpaid() -> Error {
+        Error::StateChannel(Self::Overpaid)
+    }
+
+    pub fn underpaid() -> Error {
+        Error::StateChannel(Self::Underpaid)
+    }
+
+    pub fn low_balance() -> Error {
+        Error::StateChannel(Self::LowBalance)
     }
 }
 
