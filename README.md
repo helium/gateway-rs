@@ -25,7 +25,7 @@ The current gateway project forwards packets to the router but does **not** yet 
 
 ### Releases
 
-The project builds `ipk` [packaged releases](https://github.com/helium/gateway-rs/releases) for Linux-based LoRa gateways. These packages attempt to be self-updating to be able to track improvements to the service. Updates are delivered through the following _channels_ which a gateway can subscribe to by a `channel` setting in the `update` section of the settings file:
+The project builds `ipk` and `deb` [packaged releases](https://github.com/helium/gateway-rs/releases) for Linux-based LoRa gateways. These packages attempt to be self-updating to be able to track improvements to the service. Updates are delivered through the following _channels_ which a gateway can subscribe to by a `channel` setting in the `update` section of the settings file:
 
 * **alpha** - Early development releases. These will happen frequently as functionality is developed and may be unstable. Expect to need to log into your gateway to restart or manually fix your light gateway.
 * **beta** - Pre-release candidates which are considered to be stable enough for early access. Breaking issues can still happen but should be rare.
