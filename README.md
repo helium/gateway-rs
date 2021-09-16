@@ -214,8 +214,12 @@ interval = 10
 uri = "https://api.github.com/repos/helium/gateway-rs/releases"
 # The command to run to install the update.
 command = "/etc/helium_gateway/install_update"
+
+[cache]
+# The location of the cache store for the great gateway service
+store = "/etc/helium_gateway/cache"
 ```
-The default router `uri` and `public_key` parameters can be changed, but this is only if you are using non-Helium routers. For general use with Helium you should leave these the same.
+The default gateways / router `uri` and `public_key` parameters can be changed, but this is only if you are using non-Helium routers. For general use with Helium you should leave these the same.
 
 ### Envrionment variables
 
