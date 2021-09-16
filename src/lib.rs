@@ -25,7 +25,9 @@ pub use msg_verify::MsgVerify;
 pub use packet::Packet;
 pub use region::Region;
 pub use settings::{CacheSettings, Settings};
-pub use state_channel::{StateChannel, StateChannelKey, StateChannelMessage};
+pub use state_channel::{
+    StateChannel, StateChannelCausality, StateChannelKey, StateChannelMessage,
+};
 
 use futures::{Future as StdFuture, Stream as StdStream};
 use std::pin::Pin;
