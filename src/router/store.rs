@@ -1,101 +1,171 @@
-use crate::{link_packet::Packet, Error, Region, Result};
-use chrono::Utc;
-use helium_proto::Message;
-use rusqlite::{params, types::ToSqlOutput, Connection, OptionalExtension, ToSql};
-use std::{fs, path::Path};
-
-pub const VERSION: u16 = 0;
+use crate::{
+    error::{Error, StateChannelError},
+    CacheSettings, Packet, Result, StateChannel, StateChannelKey,
+};
+use std::{
+    collections::VecDeque,
+    convert::TryFrom,
+    io,
+    ops::Deref,
+    path::{Path, PathBuf},
+    time::{Duration, Instant},
+};
+use tokio::fs;
 
 pub struct RouterStore {
-    connection: rusqlite::Connection,
+    path: PathBuf,
+    waiting_packets: VecDeque<QuePacket>,
+    queued_packets: VecDeque<QuePacket>,
+    max_packets: u16,
+}
+
+#[derive(Debug)]
+pub struct QuePacket {
+    received: Instant,
+    packet: Packet,
+}
+
+impl QuePacket {
+    pub fn hold_time(&self) -> Duration {
+        self.received.elapsed()
+    }
+
+    pub fn packet(&self) -> &Packet {
+        &self.packet
+    }
+}
+
+impl Deref for QuePacket {
+    type Target = Packet;
+
+    fn deref(&self) -> &Self::Target {
+        &self.packet
+    }
+}
+
+impl From<Packet> for QuePacket {
+    fn from(packet: Packet) -> Self {
+        let received = Instant::now();
+        Self { received, packet }
+    }
 }
 
 impl RouterStore {
-    pub fn new(path: &Path) -> Result<Self> {
-        let connection = rusqlite::Connection::open(path)?;
-        let result = match get_version(&connection)? {
-            None => {
-                init_store(&connection)?;
-                connection
-            }
-            Some(stored_version) if stored_version != VERSION => {
-                drop(connection);
-                fs::remove_file(path)?;
-                let connection = rusqlite::Connection::open(path)?;
-                init_store(&connection)?;
-                connection
-            }
-            _ => connection,
-        };
-        Ok(Self { connection: result })
+    pub async fn new(name: &str, settings: &CacheSettings) -> Result<Self> {
+        let path = settings.store.join(name);
+        fs::create_dir_all(&path).await?;
+        clean_dir(&path).await?;
+        let max_packets = settings.max_packets;
+        let waiting_packets = VecDeque::new();
+        let queued_packets = VecDeque::new();
+        Ok(Self {
+            path,
+            waiting_packets,
+            queued_packets,
+            max_packets,
+        })
     }
 
-    pub fn store_packet(&self, region: Region, packet: &Packet) -> Result {
-        let mut stmt = self
-            .connection
-            .prepare_cached("INSERT INTO packets (received, region, packet)  values (?, ?, ?)")?;
-        let _ = stmt.execute(params![Utc::now(), region, packet])?;
+    pub fn store_waiting_packet(&mut self, packet: Packet) -> Result {
+        self.waiting_packets.push_back(QuePacket::from(packet));
+        if self.waiting_packets.len() > self.max_packets as usize {
+            self.waiting_packets.pop_front();
+        }
         Ok(())
     }
-}
 
-fn get_version(conn: &Connection) -> Result<Option<u16>> {
-    conn.query_row(
-        "SELECT value FROM metadata where name = 'version'",
-        [],
-        |row| row.get(0),
-    )
-    .optional()
-    .map_err(Error::from)
-}
+    pub fn pop_waiting_packet(&mut self) -> Option<QuePacket> {
+        self.waiting_packets.pop_front()
+    }
 
-fn update_metadata<V>(conn: &Connection, key: &str, value: V) -> rusqlite::Result<usize>
-where
-    V: ToSql,
-{
-    conn.execute(
-        "REPLACE INTO metadata (name, value) VALUES(?, ?)",
-        params![key, value],
-    )
-}
+    pub fn que_packet(&mut self, packet: QuePacket) -> Result {
+        self.queued_packets.push_back(packet);
+        if self.queued_packets.len() > self.max_packets as usize {
+            self.queued_packets.pop_front();
+        }
+        Ok(())
+    }
 
-fn init_store(conn: &Connection) -> Result {
-    init_metadata(conn)
-        .and_then(|_| init_store_packets(conn))
-        .and_then(|_| update_metadata(conn, "version", VERSION))
-        .map(|_| ())
-        .map_err(Error::from)
-}
+    pub fn deque_packet(&mut self) -> Option<QuePacket> {
+        self.queued_packets.pop_front()
+    }
 
-fn init_metadata(conn: &Connection) -> rusqlite::Result<usize> {
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS metadata(name TEXT PRIMARY KEY, value)",
-        [],
-    )
-}
+    pub async fn state_channel_count(&self) -> Result<usize> {
+        Ok(file_names(&self.path).await?.len())
+    }
 
-fn init_store_packets(conn: &Connection) -> rusqlite::Result<usize> {
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS packets (
-            received TEXT,
-            region TEXT, 
-            packet BLOB
-        )",
-        [],
-    )
-}
+    pub async fn get_state_channel<S>(&self, sk: S) -> Result<Option<StateChannel>>
+    where
+        S: StateChannelKey,
+    {
+        let sc_id = sk.id_key();
+        let hashes = self.get_state_channel_hashes(&sc_id).await?;
+        if hashes.is_empty() {
+            return Ok(None);
+        } else if hashes.len() > 1 {
+            return Err(StateChannelError::causal_conflict());
+        }
+        let data = fs::read(self.path.join(sc_id).join(&hashes[0])).await?;
+        Ok(Some(StateChannel::try_from(&data[..])?))
+    }
 
-impl ToSql for Region {
-    fn to_sql(&self) -> std::result::Result<ToSqlOutput<'_>, rusqlite::Error> {
-        Ok(ToSqlOutput::from(self.to_string()))
+    pub async fn append_state_channel(&self, sc_id: &str, sc: &StateChannel) -> Result {
+        let sc_hash = sc.hash_key();
+        let known_hashes = self.get_state_channel_hashes(sc_id).await?;
+        // Only add if we don't already have it to save writing multiple times
+        if known_hashes.contains(&sc_hash) {
+            return Ok(());
+        }
+        let file_path = self.path.join(sc_id).join(sc_hash);
+        fs::write(file_path, sc.to_vec()?)
+            .await
+            .map_err(Error::from)
+    }
+
+    pub async fn overwrite_state_channel(&self, sc_id: &str, sc: &StateChannel) -> Result {
+        let sc_path = self.path.join(sc_id);
+        clean_dir(&sc_path).await?;
+        let sc_hash = sc.hash_key();
+        fs::write(&sc_path.join(sc_hash), sc.to_vec()?)
+            .await
+            .map_err(Error::from)
+    }
+
+    async fn get_state_channel_hashes(&self, sc_id: &str) -> Result<Vec<String>> {
+        match file_names(self.path.join(sc_id)).await {
+            Ok(names) => Ok(names),
+            Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(vec![]),
+            Err(other) => Err(other.into()),
+        }
     }
 }
 
-impl ToSql for Packet {
-    fn to_sql(&self) -> std::result::Result<ToSqlOutput<'_>, rusqlite::Error> {
-        let mut buf = vec![];
-        self.encode(&mut buf)
-            .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
-        Ok(ToSqlOutput::from(buf))
+async fn clean_dir<P: AsRef<Path>>(path: P) -> io::Result<()> {
+    fs::create_dir_all(&path).await?;
+    let mut entries = fs::read_dir(path).await?;
+    while let Some(entry) = entries.next_entry().await? {
+        let path = entry.path();
+        if entry.file_type().await?.is_dir() {
+            fs::remove_dir_all(path).await?;
+        } else {
+            fs::remove_file(path).await?;
+        }
     }
+    Ok(())
+}
+
+async fn file_names<P: AsRef<Path>>(path: P) -> io::Result<Vec<String>> {
+    use futures::StreamExt;
+    use tokio_stream::wrappers::ReadDirStream;
+    let entries = ReadDirStream::new(fs::read_dir(path).await?);
+    let names = entries
+        .filter_map(|entry| async move {
+            match entry {
+                Ok(entry) => entry.file_name().into_string().ok(),
+                Err(err) => panic!("filesystem error: {:?}", err),
+            }
+        })
+        .collect()
+        .await;
+    Ok(names)
 }

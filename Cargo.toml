@@ -25,8 +25,8 @@ serde = "1"
 serde_derive = "1"
 serde_json = "1"
 http-serde = "1"
-tokio = { version = "1", default-features=false, features=["macros", "signal", "rt", "process"] }
-tokio-stream = "0"
+tokio = { version = "1", default-features=false, features=["fs", "macros", "signal", "rt", "process"] }
+tokio-stream = {version = "0", features = ["fs"] }
 futures = "*"
 triggered = "0.1"
 slog = "2"
@@ -47,9 +47,7 @@ bytes = "*"
 xxhash-c = "0.8"
 xorf = "0.7"
 sha2 = "0"
-chrono = "0"
 angry-purple-tiger = "0"
-rusqlite = {version = "0", features = ["bundled", "chrono"]}
 lorawan = { package = "lorawan", path = "lorawan" }
 semtech-udp = { version = ">=0.7,<1", default-features=false, features=["server"] }
 helium-proto = { git = "https://github.com/helium/proto", branch="master", features=["services"]}

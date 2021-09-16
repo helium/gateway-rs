@@ -17,7 +17,7 @@ macro_rules! impl_msg_verify {
                 let mut msg = self.clone();
                 msg.$sig = vec![];
                 msg.encode(&mut buf)?;
-                verifier.verify(&buf, &self.$sig).map_err(|err| err.into())
+                verifier.verify(&buf, &self.$sig).map_err(Error::from)
             }
         }
     };

@@ -56,3 +56,15 @@ impl fmt::Display for Region {
         }
     }
 }
+
+impl From<Region> for i32 {
+    fn from(region: Region) -> Self {
+        region.0.into()
+    }
+}
+
+impl From<&Region> for i32 {
+    fn from(region: &Region) -> Self {
+        region.0.into()
+    }
+}

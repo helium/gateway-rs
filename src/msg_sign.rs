@@ -1,4 +1,4 @@
-use crate::Result;
+use crate::{Error, Result};
 use helium_crypto::{Keypair, Sign};
 use helium_proto::{BlockchainStateChannelOfferV1, BlockchainStateChannelPacketV1, Message};
 
@@ -16,7 +16,7 @@ macro_rules! impl_msg_sign {
                 let mut txn = self.clone();
                 $(txn.$sig = vec![];)+
                 txn.encode(& mut buf)?;
-                keypair.sign(&buf).map_err(|err| err.into())
+                keypair.sign(&buf).map_err(Error::from)
             }
         }
     };
