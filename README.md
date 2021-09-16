@@ -86,7 +86,7 @@ Note that platforms will be tested much faster if you join the development proce
 | [ramips_24kec] | mipsel-unknown-linux-musl      | :white_check_mark: [RAK833] EVB Kit                      |
 |                |                                | :white_check_mark: [RAK7258] (WisGate Edge Lite)         |
 |                |                                | :grey_question: [RAK7249] (WisGate Edge Max)             |
-|                |                                | :grey_question: [RAK7240] (WisGate Edge Prime)           |
+|                |                                | :white_check_mark: [RAK7240] (WisGate Edge Prime)           |
 | klkgw          | armv7-unknown-linux-musleabihf | :white_check_mark: Kerlink [Wirnet iFemtoCell Evolution] |
 | dragino        | mips-unknown-linux-musl        | :white_check_mark: Dragino [LPS8]                        |
 |                |                                | :grey_question: Dragino [DLOS8]                          |
