@@ -25,7 +25,7 @@ The current gateway project forwards packets to the router but does **not** yet 
 
 ### Releases
 
-The project builds `ipk` [packaged releases](https://github.com/helium/gateway-rs/releases) for Linux-based LoRa gateways. These packages attempt to be self-updating to be able to track improvements to the service. Updates are delivered through the following _channels_ which a gateway can subscribe to by a `channel` setting in the `update` section of the settings file:
+The project builds `ipk` and `deb` [packaged releases](https://github.com/helium/gateway-rs/releases) for Linux-based LoRa gateways. These packages attempt to be self-updating to be able to track improvements to the service. Updates are delivered through the following _channels_ which a gateway can subscribe to by a `channel` setting in the `update` section of the settings file:
 
 * **alpha** - Early development releases. These will happen frequently as functionality is developed and may be unstable. Expect to need to log into your gateway to restart or manually fix your light gateway.
 * **beta** - Pre-release candidates which are considered to be stable enough for early access. Breaking issues can still happen but should be rare.
@@ -92,11 +92,11 @@ Note that platforms will be tested much faster if you join the development proce
 |                |                                | :grey_question: Dragino [DLOS8]                          |
 | mtcdt          | armv5te-unknown-linux-musleabi | :white_check_mark: Multitech Conduit [MTCDT] (mLinux)    |
 | resiot         | armv7-unknown-linux-gnueabihf  | :white_check_mark: ResIOT X gateways [resiot]            |
-| cotx           | aarch64-unknown-linux-gnu      | :white_check_mark: Cotx gateways [cotx]               |
+| cotx           | aarch64-unknown-linux-gnu      | :white_check_mark: Cotx gateways [cotx]                  |
 | x86_64         | x86_64-unknown-linux-gnu       | :white_check_mark: Debian x86_64                         |
 | raspi01        | arm-unknown-linux-gnueabihf    | :white_check_mark: Raspberry Pi 0 or 1 running Raspian / Raspberry Pi OS or another Debian-based Linux distro        |
 | raspi234       | armv7-unknown-linux-gnueabihf  | :white_check_mark: Raspberry Pi 2, 3, or 4 running Raspian / Raspberry Pi OS or another Debian-based Linux distro    |
-| raspi_64        | aarch64-unknown-linux-gnu      | :grey_question: Raspberry Pi 3 or 4 running Raspian / Raspberry Pi OS 64 bit or another 64 bit Debian-based Linux distro |
+| raspi_64       | aarch64-unknown-linux-gnu      | :white_check_mark: Raspberry Pi 3 or 4 running Raspian / Raspberry Pi OS 64 bit or another 64 bit Debian-based Linux distro |
 
 [ramips_24kec]: https://downloads.rakwireless.com/WIFI/RAK634/Hardware%20Specification/RAK634_Module_Specification_V1.0.pdf
 [RAK833]: https://github.com/RAKWireless/RAK2247-RAK833-LoRaGateway-OpenWRT-MT7628
