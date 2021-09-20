@@ -118,7 +118,7 @@ pub enum StateChannelCausality {
     Conflict,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct StateChannel {
     sc: BlockchainStateChannelV1,
     expiry_at_block: u64,
@@ -198,15 +198,20 @@ impl StateChannel {
     ///  Validates this state channel for just the gateway with the given public key
     ///
     /// This assumes the caller will validatea that the state channel is active.
-    pub fn is_valid_sc_for(&self, public_key: &PublicKey, newer: &Self) -> Result {
+    pub fn is_valid_sc_for(
+        &self,
+        public_key: &PublicKey,
+        newer: &Self,
+    ) -> Result<StateChannelCausality> {
         newer.is_valid_for(public_key)?;
-        if self.causally_compare_for(public_key, newer) == StateChannelCausality::Conflict {
+        let causality = self.causally_compare_for(public_key, newer);
+        if causality == StateChannelCausality::Conflict {
             return Err(StateChannelError::causal_conflict());
         }
         if newer.is_overpaid(self) {
             return Err(StateChannelError::overpaid());
         }
-        Ok(())
+        Ok(causality)
     }
 
     pub fn is_valid_for(&self, public_key: &PublicKey) -> Result {
@@ -300,6 +305,17 @@ impl StateChannel {
             .summaries
             .iter()
             .fold(0, |acc, summary| acc + summary.num_dcs)
+    }
+
+    pub fn num_dcs_for(&self, public_key: &PublicKey) -> u64 {
+        let public_keybin = public_key.to_vec();
+        self.sc.summaries.iter().fold(0, |acc, summary| {
+            if summary.client_pubkeybin == public_keybin {
+                acc + summary.num_dcs
+            } else {
+                acc
+            }
+        })
     }
 
     pub fn get_summary(&self, public_key: &PublicKey) -> Option<&BlockchainStateChannelSummaryV1> {

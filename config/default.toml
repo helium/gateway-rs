@@ -30,7 +30,6 @@ uri = "https://api.github.com/repos/helium/gateway-rs/releases"
 command = "/etc/helium_gateway/install_update"
 
 [cache]
-store = "/etc/helium_gateway/cache"
 max_packets = 20
 
 # A list of gateway service keys and urls (note https is not supported

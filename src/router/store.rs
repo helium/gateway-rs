@@ -1,22 +1,20 @@
-use crate::{
-    error::{Error, StateChannelError},
-    CacheSettings, Packet, Result, StateChannel, StateChannelKey,
-};
+use crate::{error::StateChannelError, CacheSettings, Packet, Result, StateChannel};
 use std::{
-    collections::VecDeque,
-    convert::TryFrom,
-    io,
+    collections::{HashMap, VecDeque},
     ops::Deref,
-    path::{Path, PathBuf},
     time::{Duration, Instant},
 };
-use tokio::fs;
 
 pub struct RouterStore {
-    path: PathBuf,
+    state_channels: HashMap<Vec<u8>, StateChannelEntry>,
     waiting_packets: VecDeque<QuePacket>,
     queued_packets: VecDeque<QuePacket>,
     max_packets: u16,
+}
+
+pub struct StateChannelEntry {
+    state_channel: StateChannel,
+    in_conflict: bool,
 }
 
 #[derive(Debug)]
@@ -51,19 +49,17 @@ impl From<Packet> for QuePacket {
 }
 
 impl RouterStore {
-    pub async fn new(name: &str, settings: &CacheSettings) -> Result<Self> {
-        let path = settings.store.join(name);
-        fs::create_dir_all(&path).await?;
-        clean_dir(&path).await?;
+    pub fn new(settings: &CacheSettings) -> Self {
         let max_packets = settings.max_packets;
         let waiting_packets = VecDeque::new();
         let queued_packets = VecDeque::new();
-        Ok(Self {
-            path,
+        let state_channels = HashMap::new();
+        Self {
             waiting_packets,
             queued_packets,
             max_packets,
-        })
+            state_channels,
+        }
     }
 
     pub fn store_waiting_packet(&mut self, packet: Packet) -> Result {
@@ -90,82 +86,45 @@ impl RouterStore {
         self.queued_packets.pop_front()
     }
 
-    pub async fn state_channel_count(&self) -> Result<usize> {
-        Ok(file_names(&self.path).await?.len())
-    }
-
-    pub async fn get_state_channel<S>(&self, sk: S) -> Result<Option<StateChannel>>
-    where
-        S: StateChannelKey,
-    {
-        let sc_id = sk.id_key();
-        let hashes = self.get_state_channel_hashes(&sc_id).await?;
-        if hashes.is_empty() {
-            return Ok(None);
-        } else if hashes.len() > 1 {
-            return Err(StateChannelError::causal_conflict());
-        }
-        let data = fs::read(self.path.join(sc_id).join(&hashes[0])).await?;
-        Ok(Some(StateChannel::try_from(&data[..])?))
-    }
-
-    pub async fn append_state_channel(&self, sc_id: &str, sc: &StateChannel) -> Result {
-        let sc_hash = sc.hash_key();
-        let known_hashes = self.get_state_channel_hashes(sc_id).await?;
-        // Only add if we don't already have it to save writing multiple times
-        if known_hashes.contains(&sc_hash) {
-            return Ok(());
-        }
-        let file_path = self.path.join(sc_id).join(sc_hash);
-        fs::write(file_path, sc.to_vec()?)
-            .await
-            .map_err(Error::from)
-    }
-
-    pub async fn overwrite_state_channel(&self, sc_id: &str, sc: &StateChannel) -> Result {
-        let sc_path = self.path.join(sc_id);
-        clean_dir(&sc_path).await?;
-        let sc_hash = sc.hash_key();
-        fs::write(&sc_path.join(sc_hash), sc.to_vec()?)
-            .await
-            .map_err(Error::from)
-    }
-
-    async fn get_state_channel_hashes(&self, sc_id: &str) -> Result<Vec<String>> {
-        match file_names(self.path.join(sc_id)).await {
-            Ok(names) => Ok(names),
-            Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(vec![]),
-            Err(other) => Err(other.into()),
-        }
-    }
-}
-
-async fn clean_dir<P: AsRef<Path>>(path: P) -> io::Result<()> {
-    fs::create_dir_all(&path).await?;
-    let mut entries = fs::read_dir(path).await?;
-    while let Some(entry) = entries.next_entry().await? {
-        let path = entry.path();
-        if entry.file_type().await?.is_dir() {
-            fs::remove_dir_all(path).await?;
-        } else {
-            fs::remove_file(path).await?;
-        }
-    }
-    Ok(())
-}
-
-async fn file_names<P: AsRef<Path>>(path: P) -> io::Result<Vec<String>> {
-    use futures::StreamExt;
-    use tokio_stream::wrappers::ReadDirStream;
-    let entries = ReadDirStream::new(fs::read_dir(path).await?);
-    let names = entries
-        .filter_map(|entry| async move {
-            match entry {
-                Ok(entry) => entry.file_name().into_string().ok(),
-                Err(err) => panic!("filesystem error: {:?}", err),
+    pub fn get_state_channel(&self, sk: &[u8]) -> Result<Option<&StateChannel>> {
+        match self.state_channels.get(&sk.to_vec()) {
+            None => Ok(None),
+            Some(StateChannelEntry {
+                in_conflict,
+                state_channel,
+            }) => {
+                if *in_conflict {
+                    Err(StateChannelError::causal_conflict())
+                } else {
+                    Ok(Some(state_channel))
+                }
             }
-        })
-        .collect()
-        .await;
-    Ok(names)
+        }
+    }
+
+    pub fn store_conflicting_state_channel(&mut self, sc: StateChannel) -> Result {
+        self.state_channels.insert(
+            sc.id().to_vec(),
+            StateChannelEntry {
+                in_conflict: true,
+                state_channel: sc,
+            },
+        );
+        Ok(())
+    }
+
+    pub fn store_state_channel(&mut self, sc: StateChannel) -> Result {
+        self.state_channels.insert(
+            sc.id().to_vec(),
+            StateChannelEntry {
+                in_conflict: false,
+                state_channel: sc,
+            },
+        );
+        Ok(())
+    }
+
+    pub fn state_channel_count(&self) -> usize {
+        self.state_channels.len()
+    }
 }

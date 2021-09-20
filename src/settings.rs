@@ -2,12 +2,7 @@ use crate::{keypair, region, releases, KeyedUri, Keypair, Region, Result};
 use config::{Config, Environment, File};
 use http::uri::Uri;
 use serde::Deserialize;
-use std::{
-    collections::HashMap,
-    net::SocketAddr,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::{collections::HashMap, path::Path, sync::Arc};
 
 pub use log_method::LogMethod;
 
@@ -20,7 +15,8 @@ pub fn version() -> semver::Version {
 pub struct Settings {
     /// The listen address to use for listening for the semtech UDP packet forwarder.
     /// Default "127.0.0.1:1680"
-    pub listen_addr: SocketAddr,
+    #[serde(default = "default_listen_addr")]
+    pub listen_addr: String,
     /// The location of the keypair binary file for the gateway. Defaults to
     /// "/etc/helium_gateway/keypair.bin". If the keyfile is not found there a new
     /// one is generated and saved in that location.
@@ -83,8 +79,6 @@ pub struct UpdateSettings {
 /// Settings for cache storage
 #[derive(Debug, Deserialize, Clone)]
 pub struct CacheSettings {
-    // Path to storage folder
-    pub store: PathBuf,
     // Maximum number of packets to queue up per router client
     pub max_packets: u16,
 }
@@ -115,6 +109,10 @@ impl Settings {
     pub fn default_router(&self) -> &KeyedUri {
         &self.router[&self.update.channel.to_string()]
     }
+}
+
+fn default_listen_addr() -> String {
+    "127.0..0.1:1680".to_string()
 }
 
 pub mod log_level {

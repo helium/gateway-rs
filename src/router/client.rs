@@ -3,8 +3,8 @@ use crate::{
     router::{Dispatch, QuePacket, RouterStore},
     service::gateway::GatewayService,
     service::router::{Service as RouterService, StateChannelService},
-    CacheSettings, KeyedUri, Keypair, Packet, Region, Result, StateChannel, StateChannelKey,
-    StateChannelMessage,
+    CacheSettings, KeyedUri, Keypair, Packet, Region, Result, StateChannel, StateChannelCausality,
+    StateChannelKey, StateChannelMessage,
 };
 use helium_proto::{blockchain_state_channel_message_v1::Msg, BlockchainStateChannelV1};
 use slog::{info, o, warn, Logger};
@@ -32,9 +32,9 @@ impl RouterClient {
         keypair: Arc<Keypair>,
         settings: CacheSettings,
     ) -> Result<Self> {
-        let mut client = RouterService::new(uri.clone())?;
+        let mut client = RouterService::new(uri)?;
         let state_channel = client.state_channel()?;
-        let store = RouterStore::new(&uri.public_key.to_string(), &settings).await?;
+        let store = RouterStore::new(&settings);
         Ok(Self {
             client,
             oui,
@@ -73,7 +73,7 @@ impl RouterClient {
                         Err(err) => warn!(logger, "ignoring failed uplink {:?}", err)
                     },
                     Some(Dispatch::Gateway(gateway)) => {
-                        info!(logger, "using new gateway";
+                        info!(logger, "updating gateway";
                             "public_key" => gateway.uri.public_key.to_string(),
                             "uri" => gateway.uri.uri.to_string());
                         self.gateway = gateway;
@@ -100,8 +100,7 @@ impl RouterClient {
     }
 
     async fn handle_uplink(&mut self, logger: &Logger, uplink: Packet) -> Result {
-        if self.store.state_channel_count().await? == 0 {
-            // No banner received yet, start connect
+        if self.store.state_channel_count() == 0 {
             self.state_channel.connect().await?;
         }
         self.send_packet(logger, Some(&QuePacket::from(uplink)))
@@ -171,31 +170,41 @@ impl RouterClient {
         let sc = sc.unwrap();
         // Check if we already have a stored state channel with the given key
         // and accept it without checking is active or validating
-        if let Some(known_sc) = self.store.get_state_channel(&sc.id).await? {
+        let public_key = self.keypair.public_key();
+        if let Some(known_sc) = self.store.get_state_channel(&sc.id)? {
             if sc.id == known_sc.id() {
                 let sc = known_sc.with_sc(sc)?;
-                final_validation(Some(&known_sc), &sc)?;
-                self.store
-                    .overwrite_state_channel(&sc.id_key(), &sc)
-                    .await?;
+                final_validation(Some(known_sc), &sc)?;
+                self.store.store_state_channel(sc.clone())?;
                 Ok(sc)
             } else {
                 // the new sc has a different id
                 let sc = StateChannel::from_sc(sc, &mut self.gateway).await?;
-                match known_sc.is_valid_sc_for(self.keypair.public_key(), &sc) {
-                    Ok(()) => match final_validation(Some(&known_sc), &sc) {
+                match known_sc.is_valid_sc_for(public_key, &sc) {
+                    Ok(causality) => match final_validation(Some(known_sc), &sc) {
                         Ok(()) => {
-                            // TODO: Add check to ensure that the received state channel
-                            // is newer than the last known one.
-                            self.store
-                                .overwrite_state_channel(&sc.id_key(), &sc)
-                                .await?;
-                            Ok(sc)
+                            // Ensure the new sc newer than the last known one.
+                            // We only check for this gateway rather than the
+                            // whole state channel to save some time
+                            if causality == StateChannelCausality::Cause {
+                                self.store.store_state_channel(sc.clone())?;
+                                Ok(sc)
+                            } else {
+                                Ok(known_sc.clone())
+                            }
                         }
                         Err(err) => Err(err),
                     },
                     Err(Error::StateChannel(err)) => {
-                        self.store.append_state_channel(&sc.id_key(), &sc).await?;
+                        // Mark the state channel as conflicting and store the
+                        // one that maximizes the number of dcs for this gateway
+                        let max_return_sc =
+                            if known_sc.num_dcs_for(public_key) > sc.num_dcs_for(public_key) {
+                                known_sc.clone()
+                            } else {
+                                sc
+                            };
+                        self.store.store_conflicting_state_channel(max_return_sc)?;
                         Err(Error::StateChannel(err))
                     }
                     Err(err) => Err(err),
@@ -207,15 +216,13 @@ impl RouterClient {
             match sc.is_valid_for(self.keypair.public_key()) {
                 Ok(()) => match final_validation(None, &sc) {
                     Ok(()) => {
-                        self.store
-                            .overwrite_state_channel(&sc.id_key(), &sc)
-                            .await?;
+                        self.store.store_state_channel(sc.clone())?;
                         Ok(sc)
                     }
                     Err(err) => Err(err),
                 },
                 Err(Error::StateChannel(err)) => {
-                    self.store.append_state_channel(&sc.id_key(), &sc).await?;
+                    self.store.store_conflicting_state_channel(sc)?;
                     Err(Error::StateChannel(err))
                 }
                 Err(err) => Err(err),
