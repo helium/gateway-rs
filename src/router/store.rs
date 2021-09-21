@@ -1,4 +1,4 @@
-use crate::{error::StateChannelError, CacheSettings, Packet, Result, StateChannel};
+use crate::{state_channel::StateChannel, CacheSettings, Packet, Result};
 use std::{
     collections::{HashMap, VecDeque},
     ops::Deref,
@@ -13,8 +13,18 @@ pub struct RouterStore {
 }
 
 pub struct StateChannelEntry {
-    state_channel: StateChannel,
-    in_conflict: bool,
+    pub(crate) sc: StateChannel,
+    pub(crate) conflicts_with: Option<StateChannel>,
+}
+
+impl StateChannelEntry {
+    pub fn set_conflicting_state_channel(&mut self, conflicts_with: StateChannel) {
+        self.conflicts_with = Some(conflicts_with);
+    }
+
+    pub fn in_conflict(&self) -> bool {
+        self.conflicts_with.is_some()
+    }
 }
 
 #[derive(Debug)]
@@ -86,42 +96,41 @@ impl RouterStore {
         self.queued_packets.pop_front()
     }
 
-    pub fn get_state_channel(&self, sk: &[u8]) -> Result<Option<&StateChannel>> {
-        match self.state_channels.get(&sk.to_vec()) {
-            None => Ok(None),
-            Some(StateChannelEntry {
-                in_conflict,
-                state_channel,
-            }) => {
-                if *in_conflict {
-                    Err(StateChannelError::causal_conflict())
-                } else {
-                    Ok(Some(state_channel))
-                }
-            }
-        }
+    pub fn get_state_channel_entry(&self, sk: &[u8]) -> Option<&StateChannelEntry> {
+        self.state_channels.get(&sk.to_vec())
     }
 
-    pub fn store_conflicting_state_channel(&mut self, sc: StateChannel) -> Result {
+    pub fn get_state_channel_entry_mut(&mut self, sk: &[u8]) -> Option<&mut StateChannelEntry> {
+        self.state_channels.get_mut(&sk.to_vec())
+    }
+
+    pub fn store_conflicting_state_channel(
+        &mut self,
+        sc: StateChannel,
+        conflicts_with: StateChannel,
+    ) -> Result {
         self.state_channels.insert(
             sc.id().to_vec(),
             StateChannelEntry {
-                in_conflict: true,
-                state_channel: sc,
+                sc,
+                conflicts_with: Some(conflicts_with),
             },
         );
         Ok(())
     }
 
     pub fn store_state_channel(&mut self, sc: StateChannel) -> Result {
-        self.state_channels.insert(
-            sc.id().to_vec(),
-            StateChannelEntry {
-                in_conflict: false,
-                state_channel: sc,
-            },
-        );
+        self.state_channels
+            .entry(sc.id().to_vec())
+            .or_insert_with(|| StateChannelEntry {
+                sc,
+                conflicts_with: None,
+            });
         Ok(())
+    }
+
+    pub fn remove_state_channel(&mut self, sk: &[u8]) -> Option<StateChannelEntry> {
+        self.state_channels.remove(&sk.to_vec())
     }
 
     pub fn state_channel_count(&self) -> usize {

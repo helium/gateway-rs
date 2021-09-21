@@ -1,23 +1,27 @@
 use crate::{
     error::{Error, StateChannelError},
-    router::{Dispatch, QuePacket, RouterStore},
-    service::gateway::GatewayService,
+    router::{Dispatch, QuePacket, RouterStore, StateChannelEntry},
+    service::gateway::{GatewayService, StateChannelFollowService},
     service::router::{Service as RouterService, StateChannelService},
-    CacheSettings, KeyedUri, Keypair, Packet, Region, Result, StateChannel, StateChannelCausality,
-    StateChannelKey, StateChannelMessage,
+    state_channel::{StateChannelMessage, StateChannelValidation},
+    CacheSettings, KeyedUri, Keypair, MsgSign, Packet, Region, Result, TxnFee, TxnFeeConfig,
 };
-use helium_proto::{blockchain_state_channel_message_v1::Msg, BlockchainStateChannelV1};
-use slog::{info, o, warn, Logger};
-use std::sync::Arc;
+use helium_proto::{
+    blockchain_state_channel_message_v1::Msg, BlockchainTxnStateChannelCloseV1, CloseState,
+    GatewayScFollowStreamedRespV1,
+};
+use slog::{debug, info, o, warn, Logger};
+use std::{cmp::max, sync::Arc};
 use tokio::sync::mpsc;
 
 pub struct RouterClient {
-    client: RouterService,
+    router: RouterService,
     oui: u32,
     region: Region,
     keypair: Arc<Keypair>,
     downlinks: mpsc::Sender<Packet>,
     gateway: GatewayService,
+    state_channel_follower: StateChannelFollowService,
     store: RouterStore,
     state_channel: StateChannelService,
 }
@@ -27,16 +31,17 @@ impl RouterClient {
         oui: u32,
         region: Region,
         uri: KeyedUri,
-        gateway: GatewayService,
+        mut gateway: GatewayService,
         downlinks: mpsc::Sender<Packet>,
         keypair: Arc<Keypair>,
         settings: CacheSettings,
     ) -> Result<Self> {
-        let mut client = RouterService::new(uri)?;
-        let state_channel = client.state_channel()?;
+        let mut router = RouterService::new(uri)?;
+        let state_channel = router.state_channel()?;
+        let state_channel_follower = gateway.follow_sc().await?;
         let store = RouterStore::new(&settings);
         Ok(Self {
-            client,
+            router,
             oui,
             region,
             keypair,
@@ -44,6 +49,7 @@ impl RouterClient {
             store,
             state_channel,
             gateway,
+            state_channel_follower,
         })
     }
 
@@ -55,8 +61,8 @@ impl RouterClient {
     ) -> Result {
         let logger = logger.new(o!(
             "module" => "router",
-            "public_key" => self.client.uri.public_key.to_string(),
-            "uri" => self.client.uri.uri.to_string(),
+            "public_key" => self.router.uri.public_key.to_string(),
+            "uri" => self.router.uri.uri.to_string(),
             "oui" => self.oui,
         ));
         info!(logger, "starting");
@@ -80,12 +86,25 @@ impl RouterClient {
                     },
                     None => warn!(logger, "ignoring closed uplinks channel"),
                 },
+                gw_message = self.state_channel_follower.message() => match gw_message {
+                    Ok(Some(message)) =>  {
+                        match self.handle_state_channel_close_message(&logger, message).await {
+                            Ok(()) => (),
+                            Err(err) => warn!(logger, "ignoring gateway handling error {:?}", err),
+                        }
+                    },
+                    Ok(None) => return Ok(()),
+                    Err(err) => {
+                        warn!(logger, "gateway service error {:?}", err);
+                        return Ok(())
+                    }
+                },
                 sc_message = self.state_channel.message() =>  match sc_message {
                     Ok(Some(message)) => {
                         if let Some(inner_msg) = message.msg {
                         match self.handle_state_channel_message(&logger, inner_msg.into()).await {
                             Ok(()) => (),
-                            Err(err) => warn!(logger, "state channel handling error {:?}", err),
+                            Err(err) => warn!(logger, "ignoring state channel handling error {:?}", err),
                         }
                     }
                     },
@@ -100,17 +119,61 @@ impl RouterClient {
     }
 
     async fn handle_uplink(&mut self, logger: &Logger, uplink: Packet) -> Result {
-        if self.store.state_channel_count() == 0 {
-            self.state_channel.connect().await?;
-        }
-        self.send_packet(logger, Some(&QuePacket::from(uplink)))
-            .await
-        // self.store.store_waiting_packet(uplink)?;
-        // if self.store.state_channel_count().await? == 0 {
-        //     // No banner received yet, start connect
-        //     return self.state_channel.connect().await;
+        // if self.store.state_channel_count() == 0 {
+        //     self.state_channel.connect().await?;
         // }
-        // self.send_packet_offers(logger).await
+        // self.send_packet(logger, Some(&QuePacket::from(uplink)))
+        //     .await
+        self.store.store_waiting_packet(uplink)?;
+        if self.store.state_channel_count() == 0 {
+            // No banner received yet, start connect
+            return self.state_channel.connect().await;
+        }
+        self.send_packet_offers(logger).await
+    }
+
+    async fn handle_state_channel_close_message(
+        &mut self,
+        logger: &Logger,
+        message: GatewayScFollowStreamedRespV1,
+    ) -> Result {
+        let (txn, remove) =
+            if let Some(entry) = self.store.get_state_channel_entry_mut(&message.sc_id) {
+                let keypair = &self.keypair;
+                match CloseState::from_i32(message.close_state).unwrap() {
+                    // File a dispute as soon as we hit the expiration time
+                    CloseState::Closable => (
+                        entry.in_conflict().then(|| mk_close_txn(keypair, entry)),
+                        entry.in_conflict(),
+                    ),
+                    // This is after the router had it's time to close at the
+                    // beginning of the grace period. Close non disputed
+                    // state channels
+                    CloseState::Closing => (
+                        (!entry.in_conflict()).then(|| mk_close_txn(keypair, entry)),
+                        !entry.in_conflict(),
+                    ),
+                    // Done with the state channel, get it out of the cache
+                    CloseState::Closed => (None, true),
+                    // A state channel was disputed. If we disputed it it would
+                    // already have been sent and removed as part of Closing
+                    // handling. If it was disputed by someone else we'll file
+                    // our close here too to get in on the dispute
+                    CloseState::Dispute => (Some(mk_close_txn(keypair, entry)), true),
+                }
+            } else {
+                (None, false)
+            };
+        if let Some(txn) = txn {
+            match self.gateway.close_sc(txn).await {
+                Ok(()) => (),
+                Err(err) => warn!(logger, "ignoring gateway close_sc error: {:?}", err),
+            }
+        }
+        if remove {
+            self.store.remove_state_channel(&message.sc_id);
+        }
+        Ok(())
     }
 
     async fn handle_state_channel_message(
@@ -129,103 +192,116 @@ impl RouterClient {
             Msg::Offer(_) => Err(Error::custom("unexpected state channel offer message")),
             Msg::Purchase(purchase) => {
                 let packet = self.store.deque_packet();
-                let purchase_sc = self
-                    .mk_state_channel(purchase.sc.to_owned(), |known_sc, new_sc| {
-                        if let Some(known_sc) = known_sc {
-                            return known_sc.is_valid_purchase(new_sc, packet.as_ref());
+                if let Some(purchase_sc) = &purchase.sc {
+                    let public_key = self.keypair.public_key();
+                    match purchase_sc
+                        .check_active(&mut self.gateway, &self.store)
+                        .await
+                        .and_then(|sc| sc.is_valid_upgrade_for(public_key, purchase_sc))
+                        .and_then(|(prev_sc, new_sc)| {
+                            if let Some(packet) = packet.as_ref() {
+                                let dc_budget = purchase_sc.credits;
+                                let dc_total = purchase_sc.total_dcs();
+                                let dc_remaining = max(0, dc_budget - dc_total);
+
+                                // Check that the dcs remaining in the state
+                                // channel at least covers the dcs required for
+                                // this packet
+                                let dc_packet = packet.dc_payload();
+                                if dc_remaining >= dc_packet {
+                                    let dc_prev_total = (&prev_sc.sc).total_dcs();
+                                    // Check that the dc change between the last
+                                    // state chanel and the new one is at least
+                                    // incremented by the dcs for the packet.
+                                    if (dc_total - dc_prev_total) >= dc_packet {
+                                        Ok(new_sc)
+                                    } else {
+                                        Err(StateChannelError::underpaid(new_sc))
+                                    }
+                                } else {
+                                    Err(StateChannelError::low_balance())
+                                }
+                            } else {
+                                // We've discarded the packet previously. Accept
+                                // the new purchase.
+                                Ok(new_sc)
+                            }
+                        }) {
+                        Err(Error::StateChannel(err)) => match *err {
+                            StateChannelError::Overpaid { sc, .. } => {
+                                // we don't need to keep a sibling here as proof of misbehaviour is standalone
+                                // this will conflict or dominate any later attempt to close within spec
+                                self.store.store_state_channel(sc)
+                            }
+                            StateChannelError::Underpaid { sc, .. } => {
+                                // We're not getting paid for this packet. Drop it
+                                // and store the channel using the same reasoning as
+                                // Overpaid
+                                self.store.store_state_channel(sc)
+                            }
+                            StateChannelError::CausalConflict { sc, conflicts_with } => self
+                                .store
+                                .store_conflicting_state_channel(sc, conflicts_with),
+                            err => {
+                                info!(logger, "ignoring purchase: {:?}", err);
+                                Ok(())
+                            }
+                        },
+                        Err(err) => {
+                            info!(logger, "ignoring purchase: {:?}", err);
+                            Ok(())
                         }
-                        Ok(())
-                    })
-                    .await?;
-                info!(logger, "received purchase";
-                    "sc_id" => purchase_sc.id_key());
-                self.send_packet(logger, packet.as_ref()).await
+                        Ok(new_sc) => {
+                            self.store.store_state_channel(new_sc)?;
+                            let _ =
+                                self.send_packet(logger, packet.as_ref())
+                                    .await
+                                    .map_err(|err| {
+                                        warn!(logger, "ignoring packet send error: {:?}", err)
+                                    });
+                            self.send_packet_offers(logger).await
+                        }
+                    }
+                } else {
+                    Ok(())
+                }
             }
             Msg::Banner(banner) => {
-                let banner_sc = self
-                    .mk_state_channel(banner.sc.to_owned(), |_, _| Ok(()))
-                    .await?;
-                info!(logger, "received banner";
-                    "sc_id" => banner_sc.id_key());
-                self.send_packet_offers(logger).await
+                if let Some(banner_sc) = &banner.sc {
+                    let public_key = self.keypair.public_key();
+                    match banner_sc
+                        .check_active(&mut self.gateway, &self.store)
+                        .await
+                        .and_then(|sc| sc.is_valid_upgrade_for(public_key, banner_sc))
+                    {
+                        Ok((_, new_sc)) => {
+                            info!(logger, "received banner";
+                                "sc_id" => new_sc.id_str());
+                            self.store.store_state_channel(new_sc)?;
+                            self.send_packet_offers(logger).await
+                        }
+                        Err(Error::StateChannel(err)) => match *err {
+                            StateChannelError::CausalConflict { sc, conflicts_with } => self
+                                .store
+                                .store_conflicting_state_channel(sc, conflicts_with),
+                            err => {
+                                info!(logger, "ignoring banner: {:?}", err);
+                                Ok(())
+                            }
+                        },
+                        Err(err) => {
+                            info!(logger, "ignoring banner: {:?}", err);
+                            Ok(())
+                        }
+                    }
+                } else {
+                    Ok(())
+                }
             }
             Msg::Reject(_) => {
+                debug!(logger, "dropping rejected packet");
                 let _ = self.store.deque_packet();
                 Ok(())
-            }
-        }
-    }
-
-    async fn mk_state_channel<F>(
-        &mut self,
-        sc: Option<BlockchainStateChannelV1>,
-        final_validation: F,
-    ) -> Result<StateChannel>
-    where
-        F: Fn(Option<&StateChannel>, &StateChannel) -> Result,
-    {
-        if sc.is_none() {
-            return Err(StateChannelError::not_found());
-        }
-        let sc = sc.unwrap();
-        // Check if we already have a stored state channel with the given key
-        // and accept it without checking is active or validating
-        let public_key = self.keypair.public_key();
-        if let Some(known_sc) = self.store.get_state_channel(&sc.id)? {
-            if sc.id == known_sc.id() {
-                let sc = known_sc.with_sc(sc)?;
-                final_validation(Some(known_sc), &sc)?;
-                self.store.store_state_channel(sc.clone())?;
-                Ok(sc)
-            } else {
-                // the new sc has a different id
-                let sc = StateChannel::from_sc(sc, &mut self.gateway).await?;
-                match known_sc.is_valid_sc_for(public_key, &sc) {
-                    Ok(causality) => match final_validation(Some(known_sc), &sc) {
-                        Ok(()) => {
-                            // Ensure the new sc newer than the last known one.
-                            // We only check for this gateway rather than the
-                            // whole state channel to save some time
-                            if causality == StateChannelCausality::Cause {
-                                self.store.store_state_channel(sc.clone())?;
-                                Ok(sc)
-                            } else {
-                                Ok(known_sc.clone())
-                            }
-                        }
-                        Err(err) => Err(err),
-                    },
-                    Err(Error::StateChannel(err)) => {
-                        // Mark the state channel as conflicting and store the
-                        // one that maximizes the number of dcs for this gateway
-                        let max_return_sc =
-                            if known_sc.num_dcs_for(public_key) > sc.num_dcs_for(public_key) {
-                                known_sc.clone()
-                            } else {
-                                sc
-                            };
-                        self.store.store_conflicting_state_channel(max_return_sc)?;
-                        Err(Error::StateChannel(err))
-                    }
-                    Err(err) => Err(err),
-                }
-            }
-        } else {
-            // No previously known sc with that id
-            let sc = StateChannel::from_sc(sc, &mut self.gateway).await?;
-            match sc.is_valid_for(self.keypair.public_key()) {
-                Ok(()) => match final_validation(None, &sc) {
-                    Ok(()) => {
-                        self.store.store_state_channel(sc.clone())?;
-                        Ok(sc)
-                    }
-                    Err(err) => Err(err),
-                },
-                Err(Error::StateChannel(err)) => {
-                    self.store.store_conflicting_state_channel(sc)?;
-                    Err(Error::StateChannel(err))
-                }
-                Err(err) => Err(err),
             }
         }
     }
@@ -279,4 +355,21 @@ impl RouterClient {
             Err(err) => Err(err),
         }
     }
+}
+
+fn mk_close_txn(keypair: &Keypair, entry: &StateChannelEntry) -> BlockchainTxnStateChannelCloseV1 {
+    let mut txn = BlockchainTxnStateChannelCloseV1 {
+        state_channel: Some(entry.sc.sc.clone()),
+        closer: keypair.public_key().into(),
+        conflicts_with: None,
+        fee: 0,
+        signature: vec![],
+    };
+    if let Some(conflicts_with) = &entry.conflicts_with {
+        txn.conflicts_with = Some(conflicts_with.sc.clone());
+    }
+    let fee_config = TxnFeeConfig::default();
+    txn.fee = txn.txn_fee(&fee_config).expect("close txn fee");
+    txn.signature = txn.sign(keypair).expect("close txn signature");
+    txn
 }
