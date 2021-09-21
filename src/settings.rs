@@ -112,7 +112,7 @@ impl Settings {
 }
 
 fn default_listen_addr() -> String {
-    "127.0..0.1:1680".to_string()
+    "127.0.0.1:1680".to_string()
 }
 
 pub mod log_level {
