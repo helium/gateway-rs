@@ -1,5 +1,5 @@
 [config]
-additional_profiles = ["klkgw", "ramips_24kec", "dragino", "mtcdt", "raspi01", "raspi234", "resiot", "cotx", "raspi_64"]
+additional_profiles = ["klkgw", "ramips_24kec", "mipsel_24kc", "dragino", "mtcdt", "raspi01", "raspi234", "resiot", "cotx", "raspi_64"]
 default_to_workspace = false
 
 [env]
@@ -30,6 +30,11 @@ PKG = "ipk"
 IPK_USE_AR = false
 
 [env.ramips_24kec]
+CROSS_TARGET = "mipsel-unknown-linux-musl"
+PKG = "ipk"
+IPK_USE_AR = false
+
+[env.mipsel_24kc]
 CROSS_TARGET = "mipsel-unknown-linux-musl"
 PKG = "ipk"
 IPK_USE_AR = false
@@ -147,7 +152,7 @@ script = '''
 
 	# install control files
 	mkdir -p ${PKG_BUILD_DIR}/control
-	export CARGO_MAKE_PROFILE CARGO_MAKE_CRATE_VERSION 
+	export CARGO_MAKE_PROFILE CARGO_MAKE_CRATE_VERSION
 	for control_file in service preinst postinst prerm; do
 	    envsubst < ${PKG_SRC_DIR}/control/${control_file} > ${PKG_BUILD_DIR}/control/${control_file}
 	    chmod +x ${PKG_BUILD_DIR}/control/${control_file}

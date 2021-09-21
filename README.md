@@ -87,6 +87,7 @@ Note that platforms will be tested much faster if you join the development proce
 |                |                                | :white_check_mark: [RAK7258] (WisGate Edge Lite)         |
 |                |                                | :grey_question: [RAK7249] (WisGate Edge Max)             |
 |                |                                | :white_check_mark: [RAK7240] (WisGate Edge Prime)           |
+| mipsel_24kc    | mipsel-unknown-linux-musl      | :grey_question: Smart Harvest Instruments Light Gateway  |
 | klkgw          | armv7-unknown-linux-musleabihf | :white_check_mark: Kerlink [Wirnet iFemtoCell Evolution] |
 | dragino        | mips-unknown-linux-musl        | :white_check_mark: Dragino [LPS8]                        |
 |                |                                | :grey_question: Dragino [DLOS8]                          |
@@ -261,7 +262,7 @@ The only option available is the `config` option using the `-c` flag. This tells
 ./helium_gateway -c /location/of/config/folder server
 ```
 
-Lastly you can check the version, read the help information or daemonize the application using the `--version`, `--help` and `--daemon` flags respectively. 
+Lastly you can check the version, read the help information or daemonize the application using the `--version`, `--help` and `--daemon` flags respectively.
 
 ### Add gateway subcommand
 
@@ -400,7 +401,7 @@ SUBCOMMANDS:
     list        List available updates
 ```
 
-As you can see from the help output, there are essentially two functions of the `update` command - to list available updates and to download an update. 
+As you can see from the help output, there are essentially two functions of the `update` command - to list available updates and to download an update.
 
 For basic usage of the `list` function you can simply use:
 
@@ -435,7 +436,7 @@ Lastly, we have the `download` function which can be used as follows:
 ```
 ./helium_gateway update download --path <path> <version>
 ```
-  
+
 Where:
 - `<path>` is the directory path to download the update to (defaults to your current directory)
 - `<version>` is the version you want to update to (which can be found from the list command described above - there is no default, so the version must be passed or this command will fail)
