@@ -9,7 +9,7 @@ pub struct EuiFilter(Arc<Xor16>);
 #[derive(Clone, Debug)]
 pub struct DevAddrFilter {
     base: u32,
-    mask: u32,
+    size: u32,
 }
 
 impl fmt::Debug for EuiFilter {
@@ -51,22 +51,23 @@ impl EuiFilter {
     }
 }
 
+const BITS_23: u64 = 8388607; // biggest unsigned number in 23 bits
+const BITS_25: u64 = 33554431; // biggest unsigned number in 25 bits
+
 impl DevAddrFilter {
     pub fn from_bin<D: AsRef<[u8]>>(data: D) -> Self {
-        const BITS_23: u64 = 8388607; // biggest unsigned number in 23 bits
-        const BITS_25: u64 = 33554431; // biggest unsigned number in 25 bits
-
         let mut buf = [0u8; 8];
         buf[2..].copy_from_slice(data.as_ref());
         let val: u64 = u64::from_be_bytes(buf);
-        Self {
-            mask: (val & BITS_23) as u32,
-            base: ((val >> 23) & BITS_25) as u32,
-        }
+        let mask = (val & BITS_23) as u32;
+        let base = ((val >> 23) & BITS_25) as u32;
+        let size = ((mask ^ BITS_23 as u32) << 2) + 0b11 + 1;
+        Self { base, size }
     }
 
     pub fn contains(&self, devaddr: &u32) -> bool {
-        devaddr & self.mask == self.base
+        let addr_base = (BITS_23 as u32) & devaddr;
+        addr_base >= self.base && addr_base < (self.base + self.size)
     }
 }
 
@@ -77,12 +78,21 @@ mod tests {
     mod devaddr {
         use super::*;
         #[test]
-        fn from_bin() {
+        fn from_bin_1() {
             static MASK: [u8; 6] = [0, 2, 0, 127, 255, 0];
             let filter = DevAddrFilter::from_bin(&MASK);
             assert_eq!(1024, filter.base);
-            assert_eq!(8388352, filter.mask);
+            assert_eq!(1024, filter.size);
             assert!(filter.contains(&1024));
+        }
+
+        #[test]
+        fn from_bin_2() {
+            static MASK: [u8; 6] = [0, 4, 4, 127, 255, 254];
+            let filter = DevAddrFilter::from_bin(&MASK);
+            assert_eq!(2056, filter.base);
+            assert_eq!(8, filter.size);
+            assert!(filter.contains(&2063));
         }
     }
 
