@@ -42,7 +42,7 @@ jobs:
         target:
           - klkgw
           - ramips_24kec
-          - mipsel_24kc
+          - smartharvest
           - dragino
           - mtcdt
           - raspi01

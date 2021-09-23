@@ -87,7 +87,7 @@ Note that platforms will be tested much faster if you join the development proce
 |                |                                | :white_check_mark: [RAK7258] (WisGate Edge Lite)         |
 |                |                                | :grey_question: [RAK7249] (WisGate Edge Max)             |
 |                |                                | :white_check_mark: [RAK7240] (WisGate Edge Prime)           |
-| mipsel_24kc    | mipsel-unknown-linux-musl      | :grey_question: Smart Harvest Instruments Light Gateway  |
+| smartharvest   | mipsel-unknown-linux-musl      | :grey_question: Smart Harvest Instruments Light Gateway  |
 | klkgw          | armv7-unknown-linux-musleabihf | :white_check_mark: Kerlink [Wirnet iFemtoCell Evolution] |
 | dragino        | mips-unknown-linux-musl        | :white_check_mark: Dragino [LPS8]                        |
 |                |                                | :grey_question: Dragino [DLOS8]                          |

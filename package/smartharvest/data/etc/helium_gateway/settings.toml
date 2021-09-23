@@ -4,4 +4,4 @@ level = "info"
 timestamp = false
 
 [update]
-platform = "mipsel_24kc"
+platform = "smartharvest"
