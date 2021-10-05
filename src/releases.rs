@@ -8,6 +8,7 @@ use tokio::process;
 pub const GH_PAGE_SIZE: u8 = 10;
 
 /// Filter a given stream of releases with a given filter function.
+#[allow(clippy::redundant_closure)]
 pub fn filtered<F>(releases: Stream<Release>, filter: F) -> Stream<Release>
 where
     F: Fn(&Release) -> bool + Sync + 'static + std::marker::Send,
