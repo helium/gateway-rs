@@ -2,7 +2,7 @@ use crate::{
     error::{Error, StateChannelError},
     router::{Dispatch, QuePacket, RouterStore, StateChannelEntry},
     service::gateway::{GatewayService, StateChannelFollowService},
-    service::router::{Service as RouterService, StateChannelService},
+    service::router::{RouterService, StateChannelService},
     state_channel::{StateChannelMessage, StateChannelValidation},
     CacheSettings, KeyedUri, Keypair, MsgSign, Packet, Region, Result, TxnFee, TxnFeeConfig,
 };

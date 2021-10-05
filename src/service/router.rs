@@ -11,7 +11,7 @@ type RouterClient = services::router::RouterClient<Channel>;
 type StateChannelClient = services::router::StateChannelClient<Channel>;
 
 #[derive(Debug)]
-pub struct Service {
+pub struct RouterService {
     pub uri: KeyedUri,
     router_client: RouterClient,
     state_channel_client: StateChannelClient,
@@ -76,7 +76,7 @@ impl StateChannelService {
     }
 }
 
-impl Service {
+impl RouterService {
     pub fn new(keyed_uri: KeyedUri) -> Result<Self> {
         let router_channel = Endpoint::from(keyed_uri.uri.clone())
             .timeout(Duration::from_secs(CONNECT_TIMEOUT))
