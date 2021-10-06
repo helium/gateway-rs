@@ -67,6 +67,8 @@ pub enum ServiceError {
 #[allow(clippy::large_enum_variant)]
 #[derive(Error, Debug)]
 pub enum StateChannelError {
+    #[error("ignored state channel")]
+    Ignored { sc: state_channel::StateChannel },
     #[error("inactive state channel")]
     Inactive,
     #[error("invalid owner for state channel")]
@@ -146,6 +148,10 @@ impl StateChannelError {
 
     pub fn inactive() -> Error {
         Error::StateChannel(Box::new(Self::Inactive))
+    }
+
+    pub fn ignored(sc: state_channel::StateChannel) -> Error {
+        Error::StateChannel(Box::new(Self::Ignored { sc }))
     }
 
     pub fn not_found() -> Error {

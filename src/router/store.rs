@@ -13,15 +13,12 @@ pub struct RouterStore {
 }
 
 pub struct StateChannelEntry {
+    pub(crate) ignore: bool,
     pub(crate) sc: StateChannel,
     pub(crate) conflicts_with: Option<StateChannel>,
 }
 
 impl StateChannelEntry {
-    pub fn set_conflicting_state_channel(&mut self, conflicts_with: StateChannel) {
-        self.conflicts_with = Some(conflicts_with);
-    }
-
     pub fn in_conflict(&self) -> bool {
         self.conflicts_with.is_some()
     }
@@ -74,7 +71,7 @@ impl RouterStore {
 
     pub fn store_waiting_packet(&mut self, packet: Packet) -> Result {
         self.waiting_packets.push_back(QuePacket::from(packet));
-        if self.waiting_packets.len() > self.max_packets as usize {
+        if self.waiting_packets_len() > self.max_packets as usize {
             self.waiting_packets.pop_front();
         }
         Ok(())
@@ -84,11 +81,20 @@ impl RouterStore {
         self.waiting_packets.pop_front()
     }
 
+    pub fn waiting_packets_len(&self) -> usize {
+        self.waiting_packets.len()
+    }
+
+    pub fn que_full(&self) -> bool {
+        self.que_len() > self.max_packets as usize
+    }
+
+    pub fn que_len(&self) -> usize {
+        self.queued_packets.len()
+    }
+
     pub fn que_packet(&mut self, packet: QuePacket) -> Result {
         self.queued_packets.push_back(packet);
-        if self.queued_packets.len() > self.max_packets as usize {
-            self.queued_packets.pop_front();
-        }
         Ok(())
     }
 
@@ -112,6 +118,7 @@ impl RouterStore {
         self.state_channels.insert(
             sc.id().to_vec(),
             StateChannelEntry {
+                ignore: true,
                 sc,
                 conflicts_with: Some(conflicts_with),
             },
@@ -119,13 +126,27 @@ impl RouterStore {
         Ok(())
     }
 
-    pub fn store_state_channel(&mut self, sc: StateChannel) -> Result {
-        self.state_channels
-            .entry(sc.id().to_vec())
-            .or_insert_with(|| StateChannelEntry {
+    pub fn ignore_state_channel(&mut self, sc: StateChannel) -> Result {
+        self.state_channels.insert(
+            sc.id().to_vec(),
+            StateChannelEntry {
+                ignore: true,
                 sc,
                 conflicts_with: None,
-            });
+            },
+        );
+        Ok(())
+    }
+
+    pub fn store_state_channel(&mut self, sc: StateChannel) -> Result {
+        self.state_channels.insert(
+            sc.id().to_vec(),
+            StateChannelEntry {
+                ignore: false,
+                sc,
+                conflicts_with: None,
+            },
+        );
         Ok(())
     }
 

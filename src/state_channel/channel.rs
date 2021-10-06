@@ -22,6 +22,7 @@ pub enum StateChannelCausality {
 #[derive(Debug, Clone)]
 pub struct StateChannel {
     pub(crate) sc: BlockchainStateChannelV1,
+    total_dcs: u64,
     expiry_at_block: u64,
     original_dc_amount: u64,
 }
@@ -37,16 +38,18 @@ impl TryFrom<&[u8]> for StateChannel {
 
     fn try_from(v: &[u8]) -> Result<Self> {
         let mut buf = v;
-        if buf.len() < (mem::size_of::<u64>() * 2) {
+        if buf.len() < (mem::size_of::<u64>() * 3) {
             return Err(Error::Decode(
                 prost::DecodeError::new("not enough data").into(),
             ));
         }
         let expiry_at_block = buf.get_u64();
         let original_dc_amount = buf.get_u64();
+        let total_dcs = buf.get_u64();
         let sc = BlockchainStateChannelV1::decode(buf)?;
         Ok(Self {
             sc,
+            total_dcs,
             expiry_at_block,
             original_dc_amount,
         })
@@ -58,6 +61,7 @@ impl StateChannel {
         let mut buf = BytesMut::new();
         buf.put_u64(self.expiry_at_block);
         buf.put_u64(self.original_dc_amount);
+        buf.put_u64(self.total_dcs);
         self.sc.encode(&mut buf)?;
         Ok(buf.to_vec())
     }
@@ -69,10 +73,11 @@ impl StateChannel {
         self,
         public_key: &PublicKey,
         newer: &BlockchainStateChannelV1,
-    ) -> Result<(Self, Self)> {
+    ) -> Result<(Self, Self, StateChannelCausality)> {
         newer.is_valid_for(public_key)?;
         let newer_sc = Self {
             sc: newer.clone(),
+            total_dcs: newer.total_dcs(),
             expiry_at_block: self.expiry_at_block,
             original_dc_amount: self.original_dc_amount,
         };
@@ -80,13 +85,13 @@ impl StateChannel {
         if causality == StateChannelCausality::Conflict {
             return Err(StateChannelError::causal_conflict(self, newer_sc));
         }
-        if newer.is_overpaid(self.original_dc_amount) {
+        if newer_sc.total_dcs > self.original_dc_amount {
             return Err(StateChannelError::overpaid(
                 newer_sc,
                 self.original_dc_amount,
             ));
         }
-        Ok((self, newer_sc))
+        Ok((self, newer_sc, causality))
     }
 
     pub fn id(&self) -> &[u8] {
@@ -121,7 +126,6 @@ pub trait StateChannelValidation {
     ) -> Result<StateChannel>;
 
     fn is_valid_for(&self, public_key: &PublicKey) -> Result;
-    fn is_overpaid(&self, original_dc_amount: u64) -> bool;
     fn total_dcs(&self) -> u64;
     fn num_dcs_for(&self, public_key: &PublicKey) -> u64;
     fn get_summary(&self, public_key: &PublicKey) -> Option<&BlockchainStateChannelSummaryV1>;
@@ -143,18 +147,26 @@ impl StateChannelValidation for &BlockchainStateChannelV1 {
                 }
                 Ok(StateChannel {
                     sc: self.clone(),
+                    total_dcs: self.total_dcs(),
                     expiry_at_block: resp.sc_expiry_at_block,
                     original_dc_amount: resp.sc_original_dc_amount,
                 })
             }
             Some(entry) => match entry {
+                // If the entry is ignored return an error
+                StateChannelEntry {
+                    ignore: true, sc, ..
+                } => Err(StateChannelError::ignored(sc.clone())),
+                // Next is the conflict check
                 StateChannelEntry {
                     sc,
                     conflicts_with: Some(conflicts_with),
+                    ..
                 } => Err(StateChannelError::causal_conflict(
                     sc.clone(),
                     conflicts_with.clone(),
                 )),
+                // After which we're ok for a active check
                 StateChannelEntry { sc, .. } => Ok(sc.clone()),
             },
         }
@@ -177,10 +189,6 @@ impl StateChannelValidation for &BlockchainStateChannelV1 {
         self.summaries
             .iter()
             .find(|summary| summary.client_pubkeybin == public_keybin)
-    }
-
-    fn is_overpaid(&self, original_dc_amount: u64) -> bool {
-        original_dc_amount < self.total_dcs()
     }
 
     fn total_dcs(&self) -> u64 {

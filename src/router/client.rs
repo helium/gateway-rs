@@ -3,7 +3,7 @@ use crate::{
     router::{Dispatch, QuePacket, RouterStore, StateChannelEntry},
     service::gateway::{GatewayService, StateChannelFollowService},
     service::router::{RouterService, StateChannelService},
-    state_channel::{StateChannelMessage, StateChannelValidation},
+    state_channel::{StateChannelCausality, StateChannelMessage, StateChannelValidation},
     CacheSettings, KeyedUri, Keypair, MsgSign, Packet, Region, Result, TxnFee, TxnFeeConfig,
 };
 use helium_proto::{
@@ -11,7 +11,7 @@ use helium_proto::{
     GatewayScFollowStreamedRespV1,
 };
 use slog::{debug, info, o, warn, Logger};
-use std::{cmp::max, sync::Arc};
+use std::sync::Arc;
 use tokio::sync::mpsc;
 
 pub struct RouterClient {
@@ -108,25 +108,33 @@ impl RouterClient {
                         }
                     }
                     },
-                    Ok(None) => return Ok(()),
+                    Ok(None) =>
+                        self.maybe_reconnect_state_channel(&logger).await,
                     Err(err) => {
                         warn!(logger, "state channel error {:?}", err);
-                        return Ok(())
+                        self.maybe_reconnect_state_channel(&logger).await;
                     }
                 }
             }
         }
     }
 
+    // Reconects the state channel if there are queued or waiting packets in the
+    // store for the target router
+    async fn maybe_reconnect_state_channel(&mut self, logger: &Logger) {
+        if self.store.que_len() + self.store.waiting_packets_len() > 0 {
+            match self.state_channel.reconnect().await {
+                Ok(()) => info!(logger, "reconnected state channel"),
+                Err(err) => warn!(logger, "failed to reconnect state channel: {:?}", err),
+            }
+        }
+    }
+
     async fn handle_uplink(&mut self, logger: &Logger, uplink: Packet) -> Result {
-        // if self.store.state_channel_count() == 0 {
-        //     self.state_channel.connect().await?;
-        // }
-        // self.send_packet(logger, Some(&QuePacket::from(uplink)))
-        //     .await
         self.store.store_waiting_packet(uplink)?;
-        if self.store.state_channel_count() == 0 {
-            // No banner received yet, start connect
+        if !self.state_channel.has_received_banner() {
+            // No banner received yet on this connection, start connect
+            // (multiple connects are ignored) and wait for a banner to come in
             return self.state_channel.connect().await;
         }
         self.send_packet_offers(logger).await
@@ -198,47 +206,43 @@ impl RouterClient {
                         .check_active(&mut self.gateway, &self.store)
                         .await
                         .and_then(|sc| sc.is_valid_upgrade_for(public_key, purchase_sc))
-                        .and_then(|(prev_sc, new_sc)| {
-                            if let Some(packet) = packet.as_ref() {
-                                let dc_budget = purchase_sc.credits;
+                        .and_then(|(prev_sc, new_sc, causality)| {
+                            // Chheck that the purchase is an effect of the
+                            // current one to avoid double payment
+                            if causality != StateChannelCausality::Effect {
+                                Err(StateChannelError::causal_conflict(prev_sc, new_sc))
+                            } else if let Some(packet) = packet.as_ref() {
                                 let dc_total = purchase_sc.total_dcs();
-                                let dc_remaining = max(0, dc_budget - dc_total);
-
-                                // Check that the dcs remaining in the state
-                                // channel at least covers the dcs required for
-                                // this packet
+                                let dc_prev_total = (&prev_sc.sc).total_dcs();
                                 let dc_packet = packet.dc_payload();
-                                if dc_remaining >= dc_packet {
-                                    let dc_prev_total = (&prev_sc.sc).total_dcs();
-                                    // Check that the dc change between the last
-                                    // state chanel and the new one is at least
-                                    // incremented by the dcs for the packet.
-                                    if (dc_total - dc_prev_total) >= dc_packet {
-                                        Ok(new_sc)
-                                    } else {
-                                        Err(StateChannelError::underpaid(new_sc))
-                                    }
+                                // Check that the dc change between the last
+                                // state chanel and the new one is at least
+                                // incremented by the dcs for the packet.
+                                if (dc_total - dc_prev_total) >= dc_packet {
+                                    Ok(new_sc)
                                 } else {
-                                    Err(StateChannelError::low_balance())
+                                    Err(StateChannelError::underpaid(new_sc))
                                 }
                             } else {
                                 // We've discarded the packet previously. Accept
                                 // the new purchase.
+                                info!(logger, "unexpected purchase, accepting state channel");
                                 Ok(new_sc)
                             }
                         }) {
                         Err(Error::StateChannel(err)) => match *err {
+                            // Overpaid state channels are ignored
                             StateChannelError::Overpaid { sc, .. } => {
-                                // we don't need to keep a sibling here as proof of misbehaviour is standalone
-                                // this will conflict or dominate any later attempt to close within spec
-                                self.store.store_state_channel(sc)
+                                self.store.ignore_state_channel(sc)
                             }
+                            // Underpaid state channels are ignored
                             StateChannelError::Underpaid { sc, .. } => {
-                                // We're not getting paid for this packet. Drop it
-                                // and store the channel using the same reasoning as
-                                // Overpaid
-                                self.store.store_state_channel(sc)
+                                self.store.ignore_state_channel(sc)
                             }
+                            // TODO: Ideally we'd find the state channel that
+                            // pays us back to most in the conflict between
+                            // prev_sc, new_sc and conflicts_with and keep that
+                            // one?
                             StateChannelError::CausalConflict { sc, conflicts_with } => self
                                 .store
                                 .store_conflicting_state_channel(sc, conflicts_with),
@@ -274,7 +278,7 @@ impl RouterClient {
                         .await
                         .and_then(|sc| sc.is_valid_upgrade_for(public_key, banner_sc))
                     {
-                        Ok((_, new_sc)) => {
+                        Ok((_, new_sc, _)) => {
                             info!(logger, "received banner";
                                 "sc_id" => new_sc.id_str());
                             self.store.store_state_channel(new_sc)?;
@@ -301,7 +305,7 @@ impl RouterClient {
             Msg::Reject(_) => {
                 debug!(logger, "dropping rejected packet");
                 let _ = self.store.deque_packet();
-                Ok(())
+                self.send_packet_offers(logger).await
             }
         }
     }
@@ -316,13 +320,13 @@ impl RouterClient {
     }
 
     async fn send_packet_offers(&mut self, logger: &Logger) -> Result {
-        if self.state_channel.capacity() == 0 {
+        if self.state_channel.capacity() == 0 || self.store.que_full() {
             return Ok(());
         }
         while let Some(packet) = self.store.pop_waiting_packet() {
             self.send_offer(logger, &packet).await?;
             self.store.que_packet(packet)?;
-            if self.state_channel.capacity() == 0 {
+            if self.state_channel.capacity() == 0 || self.store.que_full() {
                 return Ok(());
             }
         }
