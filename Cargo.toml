@@ -25,7 +25,7 @@ serde = "1"
 serde_derive = "1"
 serde_json = "1"
 http-serde = "1"
-tokio = { version = "1", default-features=false, features=["fs", "macros", "signal", "rt", "process"] }
+tokio = { version = "1", default-features=false, features=["fs", "macros", "signal", "rt", "process", "time"] }
 tokio-stream = {version = "0", features = ["fs"] }
 futures = "*"
 triggered = "0.1"

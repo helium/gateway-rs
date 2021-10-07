@@ -8,7 +8,7 @@ use std::{
 pub struct RouterStore {
     state_channels: HashMap<Vec<u8>, StateChannelEntry>,
     waiting_packets: VecDeque<QuePacket>,
-    queued_packets: VecDeque<QuePacket>,
+    queued_packets: HashMap<Vec<u8>, QuePacket>,
     max_packets: u16,
 }
 
@@ -59,7 +59,7 @@ impl RouterStore {
     pub fn new(settings: &CacheSettings) -> Self {
         let max_packets = settings.max_packets;
         let waiting_packets = VecDeque::new();
-        let queued_packets = VecDeque::new();
+        let queued_packets = HashMap::new();
         let state_channels = HashMap::new();
         Self {
             waiting_packets,
@@ -85,21 +85,32 @@ impl RouterStore {
         self.waiting_packets.len()
     }
 
-    pub fn que_full(&self) -> bool {
-        self.que_len() > self.max_packets as usize
+    pub fn packet_queue_full(&self) -> bool {
+        self.packet_queue_len() > self.max_packets as usize
     }
 
-    pub fn que_len(&self) -> usize {
+    pub fn packet_queue_len(&self) -> usize {
         self.queued_packets.len()
     }
 
-    pub fn que_packet(&mut self, packet: QuePacket) -> Result {
-        self.queued_packets.push_back(packet);
+    pub fn queue_packet(&mut self, packet: QuePacket) -> Result {
+        self.queued_packets.insert(packet.hash(), packet);
         Ok(())
     }
 
-    pub fn deque_packet(&mut self) -> Option<QuePacket> {
-        self.queued_packets.pop_front()
+    /// Removes and returns the queued packets with the given packet_hash if it
+    /// exists.
+    pub fn dequeue_packet(&mut self, packet_hash: &[u8]) -> Option<QuePacket> {
+        self.queued_packets.remove(packet_hash)
+    }
+
+    /// Removes queued packets older than the given duration. Returns the number
+    /// of packets that were removed.
+    pub fn gc_queued_packets(&mut self, duration: Duration) -> usize {
+        let before_len = self.queued_packets.len();
+        self.queued_packets
+            .retain(|_, packet| packet.received.elapsed() <= duration);
+        before_len - self.queued_packets.len()
     }
 
     pub fn get_state_channel_entry(&self, sk: &[u8]) -> Option<&StateChannelEntry> {

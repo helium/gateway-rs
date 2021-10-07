@@ -12,7 +12,12 @@ use helium_proto::{
 };
 use slog::{debug, info, o, warn, Logger};
 use std::sync::Arc;
-use tokio::sync::mpsc;
+use tokio::{
+    sync::mpsc,
+    time::{self, Duration, MissedTickBehavior},
+};
+
+pub const STORE_GC_INTERVAL: Duration = Duration::from_secs(60);
 
 pub struct RouterClient {
     router: RouterService,
@@ -67,6 +72,9 @@ impl RouterClient {
         ));
         info!(logger, "starting");
 
+        let mut store_gc_timer = time::interval(STORE_GC_INTERVAL);
+        store_gc_timer.set_missed_tick_behavior(MissedTickBehavior::Delay);
+
         loop {
             tokio::select! {
                 _ = shutdown.clone() => {
@@ -114,6 +122,12 @@ impl RouterClient {
                         warn!(logger, "state channel error {:?}", err);
                         self.maybe_reconnect_state_channel(&logger).await;
                     }
+                },
+                _ = store_gc_timer.tick() => {
+                    let removed = self.store.gc_queued_packets(STORE_GC_INTERVAL);
+                    if removed > 0 {
+                        info!(logger, "discarded {} queued packets", removed);
+                    }
                 }
             }
         }
@@ -122,7 +136,7 @@ impl RouterClient {
     // Reconects the state channel if there are queued or waiting packets in the
     // store for the target router
     async fn maybe_reconnect_state_channel(&mut self, logger: &Logger) {
-        if self.store.que_len() + self.store.waiting_packets_len() > 0 {
+        if self.store.packet_queue_len() + self.store.waiting_packets_len() > 0 {
             match self.state_channel.reconnect().await {
                 Ok(()) => info!(logger, "reconnected state channel"),
                 Err(err) => warn!(logger, "failed to reconnect state channel: {:?}", err),
@@ -199,7 +213,7 @@ impl RouterClient {
             Msg::Packet(_) => Err(Error::custom("unexpected state channel packet message")),
             Msg::Offer(_) => Err(Error::custom("unexpected state channel offer message")),
             Msg::Purchase(purchase) => {
-                let packet = self.store.deque_packet();
+                let packet = self.store.dequeue_packet(&purchase.packet_hash);
                 if let Some(purchase_sc) = &purchase.sc {
                     let public_key = self.keypair.public_key();
                     match purchase_sc
@@ -209,7 +223,7 @@ impl RouterClient {
                         .and_then(|(prev_sc, new_sc, causality)| {
                             // Chheck that the purchase is an effect of the
                             // current one to avoid double payment
-                            if causality != StateChannelCausality::Effect {
+                            if causality != StateChannelCausality::Cause {
                                 Err(StateChannelError::causal_conflict(prev_sc, new_sc))
                             } else if let Some(packet) = packet.as_ref() {
                                 let dc_total = purchase_sc.total_dcs();
@@ -233,19 +247,32 @@ impl RouterClient {
                         Err(Error::StateChannel(err)) => match *err {
                             // Overpaid state channels are ignored
                             StateChannelError::Overpaid { sc, .. } => {
+                                warn!(logger, "ignoring overpaid state channel"; 
+                                    "sc_id" => sc.id_str());
                                 self.store.ignore_state_channel(sc)
                             }
                             // Underpaid state channels are ignored
                             StateChannelError::Underpaid { sc, .. } => {
+                                warn!(logger, "ignoring underpaid state channel"; 
+                                    "sc_id" => sc.id_str());
                                 self.store.ignore_state_channel(sc)
+                            }
+                            // A previously ignored state channel
+                            StateChannelError::Ignored { sc, .. } => {
+                                warn!(logger, "ignored purchase state channel"; 
+                                    "sc_id" => sc.id_str());
+                                Ok(())
                             }
                             // TODO: Ideally we'd find the state channel that
                             // pays us back to most in the conflict between
                             // prev_sc, new_sc and conflicts_with and keep that
                             // one?
-                            StateChannelError::CausalConflict { sc, conflicts_with } => self
-                                .store
-                                .store_conflicting_state_channel(sc, conflicts_with),
+                            StateChannelError::CausalConflict { sc, conflicts_with } => {
+                                warn!(logger, "ignoring non-causal purchase";
+                                    "sc_id" => sc.id_str());
+                                self.store
+                                    .store_conflicting_state_channel(sc, conflicts_with)
+                            }
                             err => {
                                 info!(logger, "ignoring purchase: {:?}", err);
                                 Ok(())
@@ -285,16 +312,26 @@ impl RouterClient {
                             self.send_packet_offers(logger).await
                         }
                         Err(Error::StateChannel(err)) => match *err {
-                            StateChannelError::CausalConflict { sc, conflicts_with } => self
-                                .store
-                                .store_conflicting_state_channel(sc, conflicts_with),
+                            StateChannelError::CausalConflict { sc, conflicts_with } => {
+                                warn!(logger, "ignoring non-causal banner"; 
+                                    "sc_id" => sc.id_str());
+                                self.store
+                                    .store_conflicting_state_channel(sc, conflicts_with)
+                            }
+                            // A previously ignored state channel
+                            StateChannelError::Ignored { sc, .. } => {
+                                warn!(logger, "ignored banner state channel"; 
+                                    "sc_id" => sc.id_str());
+                                Ok(())
+                            }
+
                             err => {
                                 info!(logger, "ignoring banner: {:?}", err);
                                 Ok(())
                             }
                         },
                         Err(err) => {
-                            info!(logger, "ignoring banner: {:?}", err);
+                            warn!(logger, "ignoring banner: {:?}", err);
                             Ok(())
                         }
                     }
@@ -303,8 +340,10 @@ impl RouterClient {
                 }
             }
             Msg::Reject(_) => {
-                debug!(logger, "dropping rejected packet");
-                let _ = self.store.deque_packet();
+                debug!(logger, "packet rejected");
+                // We do not receive the hash of the packet that was rejected so
+                // we rely on the store cleanup to remove the implied packet.
+                // Try to send offers again in case we have space
                 self.send_packet_offers(logger).await
             }
         }
@@ -320,13 +359,13 @@ impl RouterClient {
     }
 
     async fn send_packet_offers(&mut self, logger: &Logger) -> Result {
-        if self.state_channel.capacity() == 0 || self.store.que_full() {
+        if self.state_channel.capacity() == 0 || self.store.packet_queue_full() {
             return Ok(());
         }
         while let Some(packet) = self.store.pop_waiting_packet() {
             self.send_offer(logger, &packet).await?;
-            self.store.que_packet(packet)?;
-            if self.state_channel.capacity() == 0 || self.store.que_full() {
+            self.store.queue_packet(packet)?;
+            if self.state_channel.capacity() == 0 || self.store.packet_queue_full() {
                 return Ok(());
             }
         }
