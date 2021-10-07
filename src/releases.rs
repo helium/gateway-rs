@@ -13,7 +13,7 @@ where
     F: Fn(&Release) -> bool + Sync + 'static + std::marker::Send,
 {
     releases
-        .filter(move |release| future::ready(release.as_ref().map_or(false, |r| filter(r))))
+        .filter(move |release| future::ready(release.as_ref().map_or(false, &filter)))
         .boxed()
 }
 

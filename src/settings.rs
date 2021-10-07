@@ -1,8 +1,8 @@
-use crate::{keypair, region, releases, KeyedUri, Keypair, Region, Result};
+use crate::{keypair, region, releases, Error, KeyedUri, Keypair, Region, Result};
 use config::{Config, Environment, File};
 use http::uri::Uri;
 use serde::Deserialize;
-use std::{collections::HashMap, path::Path, sync::Arc};
+use std::{collections::HashMap, fmt, path::Path, str::FromStr, sync::Arc};
 
 pub use log_method::LogMethod;
 
@@ -113,6 +113,35 @@ impl Settings {
 
 fn default_listen_addr() -> String {
     "127.0.0.1:1680".to_string()
+}
+
+#[derive(Debug)]
+pub enum StakingMode {
+    DataOnly,
+    Light,
+    Full,
+}
+
+impl fmt::Display for StakingMode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            StakingMode::DataOnly => f.write_str("dataonly"),
+            StakingMode::Full => f.write_str("full"),
+            StakingMode::Light => f.write_str("light"),
+        }
+    }
+}
+
+impl FromStr for StakingMode {
+    type Err = Error;
+    fn from_str(v: &str) -> Result<Self> {
+        match v.to_lowercase().as_ref() {
+            "light" => Ok(Self::Light),
+            "full" => Ok(Self::Full),
+            "dataonly" => Ok(Self::DataOnly),
+            _ => Err(Error::custom(format!("invalid staking mode {}", v))),
+        }
+    }
 }
 
 pub mod log_level {

@@ -1,3 +1,4 @@
+use crate::state_channel;
 use std::net;
 use thiserror::Error;
 
@@ -20,7 +21,7 @@ pub enum Error {
     #[error("service error")]
     Service(#[from] ServiceError),
     #[error("state channel error")]
-    StateChannel(#[from] StateChannelError),
+    StateChannel(#[from] Box<StateChannelError>),
     #[error("semtech udp error")]
     Semtech(#[from] semtech_udp::server_runtime::Error),
     #[error("time error")]
@@ -63,8 +64,11 @@ pub enum ServiceError {
     Stream,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Error, Debug)]
 pub enum StateChannelError {
+    #[error("ignored state channel")]
+    Ignored { sc: state_channel::StateChannel },
     #[error("inactive state channel")]
     Inactive,
     #[error("invalid owner for state channel")]
@@ -74,12 +78,18 @@ pub enum StateChannelError {
     #[error("state channel not found")]
     NotFound,
     #[error("state channel causal conflict")]
-    CausalConflict,
+    CausalConflict {
+        sc: state_channel::StateChannel,
+        conflicts_with: state_channel::StateChannel,
+    },
     #[error("state channel overpaid")]
-    Overpaid,
+    Overpaid {
+        sc: state_channel::StateChannel,
+        original_dc_amount: u64,
+    },
     #[error("state channel underpaid for a packet")]
-    Underpaid,
-    #[error("state channel low balance too low")]
+    Underpaid { sc: state_channel::StateChannel },
+    #[error("state channel balance too low")]
     LowBalance,
 }
 
@@ -129,35 +139,45 @@ from_err!(DecodeError, semtech_udp::data_rate::ParseError);
 // State Channel Errors
 impl StateChannelError {
     pub fn invalid_owner() -> Error {
-        Error::StateChannel(Self::InvalidOwner)
+        Error::StateChannel(Box::new(Self::InvalidOwner))
     }
 
     pub fn invalid_summary(err: StateChannelSummaryError) -> Error {
-        Error::StateChannel(Self::Summary(err))
+        Error::StateChannel(Box::new(Self::Summary(err)))
     }
 
     pub fn inactive() -> Error {
-        Error::StateChannel(Self::Inactive)
+        Error::StateChannel(Box::new(Self::Inactive))
+    }
+
+    pub fn ignored(sc: state_channel::StateChannel) -> Error {
+        Error::StateChannel(Box::new(Self::Ignored { sc }))
     }
 
     pub fn not_found() -> Error {
-        Error::StateChannel(Self::NotFound)
+        Error::StateChannel(Box::new(Self::NotFound))
     }
 
-    pub fn causal_conflict() -> Error {
-        Error::StateChannel(Self::CausalConflict)
+    pub fn causal_conflict(
+        sc: state_channel::StateChannel,
+        conflicts_with: state_channel::StateChannel,
+    ) -> Error {
+        Error::StateChannel(Box::new(Self::CausalConflict { sc, conflicts_with }))
     }
 
-    pub fn overpaid() -> Error {
-        Error::StateChannel(Self::Overpaid)
+    pub fn overpaid(sc: state_channel::StateChannel, original_dc_amount: u64) -> Error {
+        Error::StateChannel(Box::new(Self::Overpaid {
+            sc,
+            original_dc_amount,
+        }))
     }
 
-    pub fn underpaid() -> Error {
-        Error::StateChannel(Self::Underpaid)
+    pub fn underpaid(sc: state_channel::StateChannel) -> Error {
+        Error::StateChannel(Box::new(Self::Underpaid { sc }))
     }
 
     pub fn low_balance() -> Error {
-        Error::StateChannel(Self::LowBalance)
+        Error::StateChannel(Box::new(Self::LowBalance))
     }
 }
 
