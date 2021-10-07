@@ -383,11 +383,13 @@ impl RouterClient {
         }
     }
 
-    async fn send_packet(&mut self, _logger: &Logger, packet: Option<&QuePacket>) -> Result {
+    async fn send_packet(&mut self, logger: &Logger, packet: Option<&QuePacket>) -> Result {
         if packet.is_none() {
             return Ok(());
         }
         let packet = packet.unwrap();
+        debug!(logger, "sending packet"; 
+            "packet_hash" => packet.hash_str());
         match StateChannelMessage::packet(
             packet.packet().clone(),
             &self.keypair,

@@ -149,6 +149,10 @@ impl Packet {
         Sha256::digest(&self.0.payload).to_vec()
     }
 
+    pub fn hash_str(&self) -> String {
+        base64::encode_config(&self.hash(), base64::URL_SAFE_NO_PAD)
+    }
+
     pub fn dc_payload(&self) -> u64 {
         const DC_PAYLOAD_SIZE: usize = 24;
         let payload_size = self.payload().len();

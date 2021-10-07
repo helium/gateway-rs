@@ -106,8 +106,8 @@ impl StateChannel {
         self.sc.credits
     }
 
-    pub fn hash_key(&self) -> String {
-        base64::encode_config(self.hash(), base64::URL_SAFE_NO_PAD)
+    pub fn hash_str(&self) -> String {
+        base64::encode_config(&self.hash(), base64::URL_SAFE_NO_PAD)
     }
 
     pub fn hash(&self) -> Vec<u8> {
