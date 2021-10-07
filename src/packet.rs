@@ -1,4 +1,4 @@
-use crate::{Error, Result};
+use crate::{hash_str, Error, Result};
 use helium_proto::{
     packet::PacketType, routing_information::Data as RoutingData, BlockchainStateChannelResponseV1,
     Eui, RoutingInformation,
@@ -150,7 +150,7 @@ impl Packet {
     }
 
     pub fn hash_str(&self) -> String {
-        base64::encode_config(&self.hash(), base64::URL_SAFE_NO_PAD)
+        hash_str(&self.hash())
     }
 
     pub fn dc_payload(&self) -> u64 {

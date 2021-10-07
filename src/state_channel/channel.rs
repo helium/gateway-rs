@@ -1,5 +1,6 @@
 use crate::{
     error::{StateChannelError, StateChannelSummaryError},
+    hash_str,
     router::{store::StateChannelEntry, RouterStore},
     service::gateway::GatewayService,
     Error, MsgVerify, Result,
@@ -99,7 +100,7 @@ impl StateChannel {
     }
 
     pub fn id_str(&self) -> String {
-        base64::encode_config(&self.sc.id, base64::URL_SAFE_NO_PAD)
+        hash_str(&self.sc.id)
     }
 
     pub fn amount(&self) -> u64 {
@@ -107,7 +108,7 @@ impl StateChannel {
     }
 
     pub fn hash_str(&self) -> String {
-        base64::encode_config(&self.hash(), base64::URL_SAFE_NO_PAD)
+        hash_str(&self.hash())
     }
 
     pub fn hash(&self) -> Vec<u8> {

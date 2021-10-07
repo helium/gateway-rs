@@ -1,5 +1,6 @@
 use crate::{
     error::{Error, StateChannelError},
+    hash_str,
     router::{Dispatch, QuePacket, RouterStore, StateChannelEntry},
     service::gateway::{GatewayService, StateChannelFollowService},
     service::router::{RouterService, StateChannelService},
@@ -339,8 +340,10 @@ impl RouterClient {
                     Ok(())
                 }
             }
-            Msg::Reject(_) => {
-                debug!(logger, "packet rejected");
+            Msg::Reject(rejection) => {
+                debug!(logger, "packet rejected"; 
+                    "packet_hash" => hash_str(&rejection.packet_hash));
+                self.store.dequeue_packet(&rejection.packet_hash);
                 // We do not receive the hash of the packet that was rejected so
                 // we rely on the store cleanup to remove the implied packet.
                 // Try to send offers again in case we have space
