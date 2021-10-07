@@ -99,10 +99,13 @@ impl RouterClient {
                     Ok(Some(message)) =>  {
                         match self.handle_state_channel_close_message(&logger, message).await {
                             Ok(()) => (),
-                            Err(err) => warn!(logger, "ignoring gateway handling error {:?}", err),
+                            Err(err) => warn!(logger, "ignoring gateway service handling error {:?}", err),
                         }
                     },
-                    Ok(None) => return Ok(()),
+                    Ok(None) => {
+                        warn!(logger, "gateway service closed");
+                        return Ok(());
+                    },
                     Err(err) => {
                         warn!(logger, "gateway service error {:?}", err);
                         return Ok(())

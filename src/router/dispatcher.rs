@@ -125,11 +125,14 @@ impl Dispatcher {
                 },
                 routing = routing_stream.message() => match routing {
                     Ok(Some(response)) => self.handle_routing_update(&response, &shutdown, logger).await,
-                    Ok(None) => {return Ok(())},
+                    Ok(None) => {
+                        warn!(logger, "gateway stream closed");
+                        return Ok(());
+                    },
                     Err(err) => {
-                        info!(logger, "gateway error: {:?}", err);
+                        warn!(logger, "gateway stream error: {:?}", err);
                         return Ok(())
-                    }
+                    },
                 },
                 uplink = self.uplinks.recv() => match uplink {
                     Some(packet) => self.handle_uplink(&packet, logger).await,
@@ -159,7 +162,7 @@ impl Dispatcher {
                     .await
                 {
                     Ok(()) => (),
-                    Err(_) => warn!(logger, "ignoring router dispatch error"),
+                    Err(err) => warn!(logger, "ignoring router dispatch error: {:?}", err),
                 }
                 handled = true;
             }
