@@ -12,10 +12,10 @@ use std::{sync::Arc, time::Duration};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
-type ServiceClient = services::gateway::Client<Channel>;
+type GatewayClient = services::gateway::Client<Channel>;
 
 pub struct Streaming {
-    streaming: tonic::codec::Streaming<GatewayRespV1>,
+    streaming: tonic::Streaming<GatewayRespV1>,
     verifier: Arc<PublicKey>,
 }
 
@@ -58,7 +58,7 @@ pub struct StateChannelFollowService {
 }
 
 impl StateChannelFollowService {
-    pub async fn new(mut client: ServiceClient) -> Result<Self> {
+    pub async fn new(mut client: GatewayClient) -> Result<Self> {
         let (tx, client_rx) = mpsc::channel(3);
         let rx = client
             .follow_sc(ReceiverStream::new(client_rx))
@@ -95,7 +95,7 @@ impl StateChannelFollowService {
 #[derive(Debug, Clone)]
 pub struct GatewayService {
     pub uri: KeyedUri,
-    client: ServiceClient,
+    client: GatewayClient,
 }
 
 impl GatewayService {
@@ -105,7 +105,7 @@ impl GatewayService {
             .connect_lazy()?;
         Ok(Self {
             uri: keyed_uri,
-            client: ServiceClient::new(channel),
+            client: GatewayClient::new(channel),
         })
     }
 

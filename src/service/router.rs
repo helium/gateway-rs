@@ -1,11 +1,9 @@
 use crate::{service::CONNECT_TIMEOUT, KeyedUri, Result};
 use helium_proto::{
-    blockchain_state_channel_message_v1::Msg,
     services::{self, Channel, Endpoint},
-    BlockchainStateChannelBannerV1, BlockchainStateChannelMessageV1,
+    BlockchainStateChannelMessageV1,
 };
-use std::time::Duration;
-use tokio::sync::mpsc;
+use tokio::{sync::mpsc, time::Duration};
 use tokio_stream::wrappers::ReceiverStream;
 
 type RouterClient = services::router::RouterClient<Channel>;
@@ -21,7 +19,6 @@ pub struct RouterService {
 #[derive(Debug)]
 pub struct StateChannelService {
     client: StateChannelClient,
-    received_banner: bool,
     conduit: Option<(
         mpsc::Sender<BlockchainStateChannelMessageV1>,
         tonic::Streaming<BlockchainStateChannelMessageV1>,
@@ -46,10 +43,6 @@ impl StateChannelService {
             .unwrap_or(CONDUIT_CAPACITY)
     }
 
-    pub fn has_received_banner(&self) -> bool {
-        self.received_banner
-    }
-
     pub async fn message(&mut self) -> Result<Option<BlockchainStateChannelMessageV1>> {
         if self.conduit.is_none() {
             let () = futures::future::pending().await;
@@ -57,15 +50,7 @@ impl StateChannelService {
         }
         let (_, rx) = self.conduit.as_mut().unwrap();
         match rx.message().await {
-            Ok(Some(msg)) => match msg {
-                BlockchainStateChannelMessageV1 {
-                    msg: Some(Msg::Banner(BlockchainStateChannelBannerV1 { .. })),
-                } if !self.received_banner => {
-                    self.received_banner = true;
-                    Ok(Some(msg))
-                }
-                _ => Ok(Some(msg)),
-            },
+            Ok(Some(msg)) => Ok(Some(msg)),
             Ok(None) => {
                 self.disconnect();
                 Ok(None)
@@ -79,14 +64,17 @@ impl StateChannelService {
 
     pub async fn connect(&mut self) -> Result {
         if self.conduit.is_none() {
-            self.conduit = Some(self.mk_conduit().await?)
+            self.conduit = Some(self.mk_conduit().await?);
         }
         Ok(())
     }
 
+    pub fn is_connected(&self) -> bool {
+        self.conduit.is_some()
+    }
+
     pub fn disconnect(&mut self) {
         self.conduit = None;
-        self.received_banner = false;
     }
 
     pub async fn reconnect(&mut self) -> Result {
@@ -134,7 +122,6 @@ impl RouterService {
         Ok(StateChannelService {
             client: self.state_channel_client.clone(),
             conduit: None,
-            received_banner: false,
         })
     }
 }

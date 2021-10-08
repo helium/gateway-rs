@@ -47,7 +47,6 @@ bytes = "*"
 xxhash-c = "0.8"
 xorf = "0.7"
 sha2 = "0"
-async-trait = "0"
 angry-purple-tiger = "0"
 lorawan = { package = "lorawan", path = "lorawan" }
 semtech-udp = { version = ">=0.7,<1", default-features=false, features=["server"] }
