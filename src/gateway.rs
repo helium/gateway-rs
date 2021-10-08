@@ -1,7 +1,8 @@
 use crate::{Packet, Result, Settings};
 use semtech_udp::{
+    push_data::CRC,
     server_runtime::{Error as SemtechError, Event, UdpRuntime},
-    tx_ack, MacAddress, push_data::CRC,
+    tx_ack, MacAddress,
 };
 use slog::{info, o, warn, Logger};
 use std::{convert::TryFrom, time::Duration};
@@ -79,7 +80,7 @@ impl Gateway {
                         }
                     }
                 }
-            },
+            }
             Event::NoClientWithMac(_packet, mac) => {
                 info!(logger, "ignoring send to client with unknown MAC: {}", mac)
             }
