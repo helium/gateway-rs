@@ -76,7 +76,7 @@ impl PHYPayload {
             MType::UnconfirmedUp
             | MType::UnconfirmedDown
             | MType::ConfirmedUp
-            | MType::ConfirmedDown => phy_len > DATA_MIN_LEN,
+            | MType::ConfirmedDown => phy_len < DATA_MIN_LEN,
             MType::Invalid(_) => false,
         };
         if invalid {
