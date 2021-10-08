@@ -52,6 +52,8 @@ pub enum DecodeError {
     LfcError(#[from] longfi::LfcError),
     #[error("semtech decode")]
     Semtech(#[from] semtech_udp::data_rate::ParseError),
+    #[error("crc must be OK")]
+    InvalidCrc,
 }
 
 #[derive(Error, Debug)]

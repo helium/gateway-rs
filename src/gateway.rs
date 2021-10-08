@@ -1,6 +1,5 @@
 use crate::{Packet, Result, Settings};
 use semtech_udp::{
-    push_data::CRC,
     server_runtime::{Error as SemtechError, Event, UdpRuntime},
     tx_ack, MacAddress,
 };
@@ -68,19 +67,15 @@ impl Gateway {
             Event::UpdateClient((mac, addr)) => {
                 info!(logger, "mac existed, but IP updated: {}, {}", mac, addr)
             }
-            Event::PacketReceived(rxpk, _gateway_mac) => {
-                if rxpk.get_crc_status() == &CRC::OK {
-                    match Packet::try_from(rxpk) {
-                        Ok(packet) if packet.is_longfi() => {
-                            info!(logger, "ignoring longfi packet");
-                        }
-                        Ok(packet) => self.handle_uplink(logger, packet).await,
-                        Err(err) => {
-                            warn!(logger, "ignoring push_data: {:?}", err);
-                        }
-                    }
+            Event::PacketReceived(rxpk, _gateway_mac) => match Packet::try_from(rxpk) {
+                Ok(packet) if packet.is_longfi() => {
+                    info!(logger, "ignoring longfi packet");
                 }
-            }
+                Ok(packet) => self.handle_uplink(logger, packet).await,
+                Err(err) => {
+                    warn!(logger, "ignoring push_data: {:?}", err);
+                }
+            },
             Event::NoClientWithMac(_packet, mac) => {
                 info!(logger, "ignoring send to client with unknown MAC: {}", mac)
             }

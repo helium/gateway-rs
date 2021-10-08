@@ -1,10 +1,14 @@
-use crate::{hash_str, Error, Result};
+use crate::{error::DecodeError, hash_str, Error, Result};
 use helium_proto::{
     packet::PacketType, routing_information::Data as RoutingData, BlockchainStateChannelResponseV1,
     Eui, RoutingInformation,
 };
 use lorawan::PHYPayloadFrame;
-use semtech_udp::{pull_resp, push_data, CodingRate, DataRate, Modulation, StringOrNum};
+use semtech_udp::{
+    pull_resp,
+    push_data::{self, CRC},
+    CodingRate, DataRate, Modulation, StringOrNum,
+};
 use sha2::{Digest, Sha256};
 use std::{convert::TryFrom, fmt, ops::Deref, str::FromStr};
 
@@ -35,26 +39,30 @@ impl fmt::Display for Packet {
 impl TryFrom<push_data::RxPk> for Packet {
     type Error = Error;
 
-    fn try_from(push_data: push_data::RxPk) -> Result<Self> {
-        let rssi = push_data
-            .get_signal_rssi()
-            .unwrap_or_else(|| push_data.get_channel_rssi());
-        let packet = helium_proto::Packet {
-            r#type: PacketType::Lorawan.into(),
-            signal_strength: rssi as f32,
-            snr: push_data.get_snr() as f32,
-            frequency: *push_data.get_frequency() as f32,
-            timestamp: *push_data.get_timestamp() as u64,
-            datarate: push_data.get_datarate().to_string(),
-            routing: Self::routing_information(&Self::parse_frame(
-                lorawan::Direction::Uplink,
-                push_data.get_data(),
-            )?)?,
-            payload: push_data.get_data().to_vec(),
-            rx2_window: None,
-            oui: 0,
-        };
-        Ok(Self(packet))
+    fn try_from(rxpk: push_data::RxPk) -> Result<Self> {
+        if rxpk.get_crc_status() == &CRC::OK {
+            let rssi = rxpk
+                .get_signal_rssi()
+                .unwrap_or_else(|| rxpk.get_channel_rssi());
+            let packet = helium_proto::Packet {
+                r#type: PacketType::Lorawan.into(),
+                signal_strength: rssi as f32,
+                snr: rxpk.get_snr() as f32,
+                frequency: *rxpk.get_frequency() as f32,
+                timestamp: *rxpk.get_timestamp() as u64,
+                datarate: rxpk.get_datarate().to_string(),
+                routing: Self::routing_information(&Self::parse_frame(
+                    lorawan::Direction::Uplink,
+                    rxpk.get_data(),
+                )?)?,
+                payload: rxpk.get_data().to_vec(),
+                rx2_window: None,
+                oui: 0,
+            };
+            Ok(Self(packet))
+        } else {
+            Err(Error::Decode(DecodeError::InvalidCrc))
+        }
     }
 }
 
