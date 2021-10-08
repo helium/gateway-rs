@@ -57,12 +57,34 @@ pub struct PHYPayload {
     pub mic: [u8; 4],
 }
 
+const JOIN_REQUEST_LEN: usize = 23;
+const JOIN_ACCEPT_LEN_0: usize = 17;
+const JOIN_ACCEPT_LEN_1: usize = 33;
+const DATA_MIN_LEN: usize = 12;
+
 impl PHYPayload {
     pub fn read(direction: Direction, reader: &mut dyn io::Read) -> Result<Self, LoraWanError> {
         let mhdr = MHDR::read(reader)?;
         let packet_type = mhdr.mtype();
         let mut data = vec![];
         reader.read_to_end(&mut data)?;
+
+        let invalid = match packet_type {
+            MType::JoinRequest => data.len() != JOIN_REQUEST_LEN,
+            MType::JoinAccept => data.len() != JOIN_ACCEPT_LEN_0 && data.len() != JOIN_ACCEPT_LEN_1,
+            MType::UnconfirmedUp
+            | MType::UnconfirmedDown
+            | MType::ConfirmedUp
+            | MType::ConfirmedDown => data.len() > DATA_MIN_LEN,
+            MType::Invalid(_) => false,
+        };
+        if invalid {
+            return Err(LoraWanError::InvalidPacketSize(packet_type, data.len()));
+        } else if let MType::Invalid(s) = packet_type {
+            return Err(LoraWanError::InvalidPacketType(s));
+        }
+
+        // indexing with subtraction won't fail because of length checks above
         let mic = data.split_off(data.len() - 4);
         let mut payload = &data[..];
         let mut res = Self {
