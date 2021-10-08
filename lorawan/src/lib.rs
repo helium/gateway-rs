@@ -69,17 +69,18 @@ impl PHYPayload {
         let mut data = vec![];
         reader.read_to_end(&mut data)?;
 
+        let phy_len = data.len() + 1;
         let invalid = match packet_type {
-            MType::JoinRequest => data.len() != JOIN_REQUEST_LEN,
-            MType::JoinAccept => data.len() != JOIN_ACCEPT_LEN_0 && data.len() != JOIN_ACCEPT_LEN_1,
+            MType::JoinRequest => phy_len != JOIN_REQUEST_LEN,
+            MType::JoinAccept => phy_len != JOIN_ACCEPT_LEN_0 && phy_len != JOIN_ACCEPT_LEN_1,
             MType::UnconfirmedUp
             | MType::UnconfirmedDown
             | MType::ConfirmedUp
-            | MType::ConfirmedDown => data.len() > DATA_MIN_LEN,
+            | MType::ConfirmedDown => phy_len > DATA_MIN_LEN,
             MType::Invalid(_) => false,
         };
         if invalid {
-            return Err(LoraWanError::InvalidPacketSize(packet_type, data.len()));
+            return Err(LoraWanError::InvalidPacketSize(packet_type, phy_len));
         } else if let MType::Invalid(s) = packet_type {
             return Err(LoraWanError::InvalidPacketType(s));
         }
