@@ -26,8 +26,6 @@ pub enum Error {
     Semtech(#[from] semtech_udp::server_runtime::Error),
     #[error("time error")]
     Time(#[from] std::time::SystemTimeError),
-    #[error("received frame with bad CRC")]
-    InvalidCrc,
 }
 
 #[derive(Error, Debug)]
@@ -54,6 +52,8 @@ pub enum DecodeError {
     LfcError(#[from] longfi::LfcError),
     #[error("semtech decode")]
     Semtech(#[from] semtech_udp::data_rate::ParseError),
+    #[error("crc must be OK")]
+    InvalidCrc,
 }
 
 #[derive(Error, Debug)]

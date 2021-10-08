@@ -1,4 +1,4 @@
-use crate::{hash_str, Error, Result};
+use crate::{error::DecodeError, hash_str, Error, Result};
 use helium_proto::{
     packet::PacketType, routing_information::Data as RoutingData, BlockchainStateChannelResponseV1,
     Eui, RoutingInformation,
@@ -61,7 +61,7 @@ impl TryFrom<push_data::RxPk> for Packet {
             };
             Ok(Self(packet))
         } else {
-            Err(Error::InvalidCrc)
+            Err(Error::Decode(DecodeError::InvalidCrc))
         }
     }
 }
