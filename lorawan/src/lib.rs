@@ -59,7 +59,7 @@ pub struct PHYPayload {
 
 const JOIN_REQUEST_LEN: usize = 23;
 const JOIN_ACCEPT_LEN_0: usize = 17;
-const JOIN_ACCEPT_LEN_1: usize = 17;
+const JOIN_ACCEPT_LEN_1: usize = 33;
 const DATA_MIN_LEN: usize = 12;
 
 impl PHYPayload {
