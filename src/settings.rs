@@ -15,8 +15,8 @@ pub fn version() -> semver::Version {
 pub struct Settings {
     /// The listen address to use for listening for the semtech UDP packet forwarder.
     /// Default "127.0.0.1:1680"
-    #[serde(default = "default_listen_addr")]
-    pub listen_addr: String,
+    #[serde(default = "default_listen")]
+    pub listen: String,
     /// The location of the keypair binary file for the gateway. Defaults to
     /// "/etc/helium_gateway/keypair.bin". If the keyfile is not found there a new
     /// one is generated and saved in that location.
@@ -111,7 +111,7 @@ impl Settings {
     }
 }
 
-fn default_listen_addr() -> String {
+fn default_listen() -> String {
     "127.0.0.1:1680".to_string()
 }
 

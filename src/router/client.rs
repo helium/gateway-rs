@@ -73,7 +73,7 @@ impl RouterClient {
     ) -> Result {
         let logger = logger.new(o!(
             "module" => "router",
-            "public_key" => self.router.uri.public_key.to_string(),
+            "pubkey" => self.router.uri.pubkey.to_string(),
             "uri" => self.router.uri.uri.to_string(),
             "oui" => self.oui,
         ));

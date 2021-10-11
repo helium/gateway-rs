@@ -220,7 +220,7 @@ command = "/etc/helium_gateway/install_update"
 # The location of the cache store for the great gateway service
 store = "/etc/helium_gateway/cache"
 ```
-The default gateways / router `uri` and `public_key` parameters can be changed, but this is only if you are using non-Helium routers. For general use with Helium you should leave these the same.
+The default gateways / router `uri` and `pubkey` parameters can be changed, but this is only if you are using non-Helium routers. For general use with Helium you should leave these the same.
 
 ### Envrionment variables
 

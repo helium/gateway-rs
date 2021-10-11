@@ -60,7 +60,7 @@ impl Routing {
                         PublicKey::try_from(address.pub_key.as_ref())
                             .map(|public_key| KeyedUri {
                                 uri,
-                                public_key: Arc::new(public_key),
+                                pubkey: Arc::new(public_key),
                             })
                             .map_err(|err| {
                                 warn!(
