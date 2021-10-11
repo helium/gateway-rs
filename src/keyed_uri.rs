@@ -9,12 +9,12 @@ pub struct KeyedUri {
     #[serde(with = "http_serde::uri")]
     pub uri: Uri,
     #[serde(deserialize_with = "deserialize_pubkey")]
-    pub public_key: Arc<PublicKey>,
+    pub pubkey: Arc<PublicKey>,
 }
 
 impl PartialEq for KeyedUri {
     fn eq(&self, other: &Self) -> bool {
-        self.uri.eq(&other.uri) && self.public_key.eq(&other.public_key)
+        self.uri.eq(&other.uri) && self.pubkey.eq(&other.pubkey)
     }
 }
 
@@ -22,7 +22,7 @@ impl fmt::Debug for KeyedUri {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("KeyedUri")
             .field("uri", &self.uri)
-            .field("public_key", &self.public_key.to_string())
+            .field("pubkey", &self.pubkey.to_string())
             .finish()
     }
 }
@@ -34,10 +34,7 @@ where
     let key_string = String::deserialize(d)?;
     match key_string.parse() {
         Ok(key) => Ok(Arc::new(key)),
-        Err(err) => Err(de::Error::custom(format!(
-            "invalid public key: \"{}\"",
-            err
-        ))),
+        Err(err) => Err(de::Error::custom(format!("invalid pubkey: \"{}\"", err))),
     }
 }
 
@@ -49,6 +46,6 @@ impl AsRef<Uri> for KeyedUri {
 
 impl AsRef<PublicKey> for KeyedUri {
     fn as_ref(&self) -> &PublicKey {
-        &self.public_key
+        &self.pubkey
     }
 }

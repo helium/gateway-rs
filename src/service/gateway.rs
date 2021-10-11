@@ -120,7 +120,7 @@ impl GatewayService {
         let stream = self.client.routing(GatewayRoutingReqV1 { height }).await?;
         Ok(Streaming {
             streaming: stream.into_inner(),
-            verifier: self.uri.public_key.clone(),
+            verifier: self.uri.pubkey.clone(),
         })
     }
 

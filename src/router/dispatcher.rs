@@ -75,13 +75,13 @@ impl Dispatcher {
         info!(logger, "starting");
 
         info!(logger, "default router";
-            "public_key" => self.default_router.public_key.to_string(),
+            "pubkey" => self.default_router.pubkey.to_string(),
             "uri" => self.default_router.uri.to_string());
 
         loop {
             let mut gateway = GatewayService::random_new(&self.gateways)?;
             info!(logger, "using gateway";
-                "public_key" => gateway.uri.public_key.to_string(),
+                "pubkey" => gateway.uri.pubkey.to_string(),
                 "uri" => gateway.uri.uri.to_string());
             tokio::select! {
                 _ = shutdown.clone() => {

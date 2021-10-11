@@ -5,7 +5,7 @@
 ##   settings that need to be changed there.  
 
 keypair = "/etc/helium_gateway/gateway_key.bin"
-listen_addr = "127.0.0.1:1680"
+listen = "127.0.0.1:1680"
 region = "US915"
 
 [log]
@@ -35,44 +35,44 @@ max_packets = 20
 # A list of gateway service keys and urls (note https is not supported
 [[gateways]]
 # lgw-ireland
-public_key = "11tk4zzbyfMPYYHYda255ACoqfYFVdrUSoCWrCYfn8BoyuYrERK"
+pubkey = "11tk4zzbyfMPYYHYda255ACoqfYFVdrUSoCWrCYfn8BoyuYrERK"
 uri = "http://52.49.199.40:8080"
 
 [[gateways]]
 # lgw-ohio
-public_key = "115PmCR6fpFihdjw626JXYdUEdzwjh66yoWzWkMvB9CRGEx1U6G"
+pubkey = "115PmCR6fpFihdjw626JXYdUEdzwjh66yoWzWkMvB9CRGEx1U6G"
 uri = "http://3.132.190.192:8080"
 
 [[gateways]]
 # lgw-oregon
-public_key = "11pUovhssQdXzrfcYMTUrNNTQossgny8WqhfdbprrAVFyHcmvAN"
+pubkey = "11pUovhssQdXzrfcYMTUrNNTQossgny8WqhfdbprrAVFyHcmvAN"
 uri = "http://35.84.173.125:8080"
 
 [[gateways]]
 # lgw-seoul
-public_key = "11yJXQPG9deHqvw2ac6VWtNP7gZj8X3t3Qb3Gqm9j729p4AsdaA"
+pubkey = "11yJXQPG9deHqvw2ac6VWtNP7gZj8X3t3Qb3Gqm9j729p4AsdaA"
 uri = "http://3.38.70.101:8080"
 
 [[gateways]]
 # lgw-singapore
-public_key = "11Gx2yPEmBGUrbHUiUWQs9vV7JDHQLZSddQs6e3WB2uvqSMUDBW"
+pubkey = "11Gx2yPEmBGUrbHUiUWQs9vV7JDHQLZSddQs6e3WB2uvqSMUDBW"
 uri = "http://54.251.77.229:8080"
 
 ## Default routers for various release channels
 [router.alpha]
 # staging: oui 4
-# public_key = "11263KvqW3GZPAvag5sQYtBJSjb25azSTSwoi5Tza9kboaLRxcsv"
+# pubkey = "11263KvqW3GZPAvag5sQYtBJSjb25azSTSwoi5Tza9kboaLRxcsv"
 # uri = "http://54.193.165.228:8080"
 # dev: oui 2
-public_key = "1124CJ9yJaHq4D6ugyPCDnSBzQik61C1BqD9VMh1vsUmjwt16HNB"
+pubkey = "1124CJ9yJaHq4D6ugyPCDnSBzQik61C1BqD9VMh1vsUmjwt16HNB"
 uri = "http://54.176.88.149:8080"
 
 [router.beta]
 # production
-public_key = "112qB3YaH5bZkCnKA5uRH7tBtGNv2Y5B4smv1jsmvGUzgKT71QpE"
+pubkey = "112qB3YaH5bZkCnKA5uRH7tBtGNv2Y5B4smv1jsmvGUzgKT71QpE"
 uri = "http://52.8.80.146:8080"
 
 [router.release]
 # production: oui 1
-public_key = "112qB3YaH5bZkCnKA5uRH7tBtGNv2Y5B4smv1jsmvGUzgKT71QpE"
+pubkey = "112qB3YaH5bZkCnKA5uRH7tBtGNv2Y5B4smv1jsmvGUzgKT71QpE"
 uri = "http://52.8.80.146:8080"

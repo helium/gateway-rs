@@ -28,7 +28,7 @@ impl Gateway {
             uplinks,
             downlink_mac: MacAddress::new(&[0u8; 8]),
             downlinks,
-            udp_runtime: UdpRuntime::new(&settings.listen_addr).await?,
+            udp_runtime: UdpRuntime::new(&settings.listen).await?,
         };
         Ok(gateway)
     }
