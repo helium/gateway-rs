@@ -1,6 +1,6 @@
 use crate::{state_channel::StateChannel, CacheSettings, Packet, Result};
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::{hash_map::Values, HashMap, VecDeque},
     ops::Deref,
     time::{Duration, Instant},
 };
@@ -86,7 +86,7 @@ impl RouterStore {
     }
 
     pub fn packet_queue_full(&self) -> bool {
-        self.packet_queue_len() > self.max_packets as usize
+        self.packet_queue_len() >= self.max_packets as usize
     }
 
     pub fn packet_queue_len(&self) -> usize {
@@ -119,6 +119,10 @@ impl RouterStore {
 
     pub fn get_state_channel_entry_mut(&mut self, sk: &[u8]) -> Option<&mut StateChannelEntry> {
         self.state_channels.get_mut(&sk.to_vec())
+    }
+
+    pub fn state_channel_entries(&self) -> Values<'_, Vec<u8>, StateChannelEntry> {
+        self.state_channels.values()
     }
 
     pub fn store_conflicting_state_channel(

@@ -17,7 +17,7 @@ use tokio_stream::{self as stream, StreamExt};
 #[derive(Debug, Clone)]
 pub enum Dispatch {
     Packet(Packet),
-    Gateway(GatewayService),
+    GatewayChanged,
 }
 
 pub struct Dispatcher {
@@ -27,7 +27,6 @@ pub struct Dispatcher {
     uplinks: mpsc::Receiver<Packet>,
     gateways: Vec<KeyedUri>,
     routing_height: u64,
-    gateway: GatewayService,
     default_router: KeyedUri,
     cache_settings: CacheSettings,
     routers: HashMap<RouterKey, RouterEntry>,
@@ -58,14 +57,12 @@ impl Dispatcher {
         let routers = HashMap::with_capacity(5);
         let default_router = settings.default_router().clone();
         let cache_settings = settings.cache.clone();
-        let gateway = GatewayService::random_new(&gateways)?;
         Ok(Self {
             keypair: settings.keypair.clone(),
             region: settings.region.clone(),
             uplinks,
             downlinks,
             gateways,
-            gateway,
             routers,
             routing_height: 0,
             default_router,
@@ -82,35 +79,36 @@ impl Dispatcher {
             "uri" => self.default_router.uri.to_string());
 
         loop {
+            let mut gateway = GatewayService::random_new(&self.gateways)?;
             info!(logger, "using gateway";
-                "public_key" => self.gateway.uri.public_key.to_string(),
-                "uri" => self.gateway.uri.uri.to_string());
+                "public_key" => gateway.uri.public_key.to_string(),
+                "uri" => gateway.uri.uri.to_string());
             tokio::select! {
-                    _ = shutdown.clone() => {
-                        info!(logger, "shutting down");
-                        return Ok(())
-                    },
-                    routing_stream = self.gateway.routing(self.routing_height) => {
-                        match routing_stream {
-                            Ok(stream) => self.run_with_routing_stream(stream, shutdown.clone(), &logger).await?,
-                            Err(err) => warn!(logger, "gateway error: {:?}", err)
-                        }
-                        // Check if trigger happened in run_with_routing_stream
-                        if shutdown.is_triggered() {
-                            return Ok(())
-                        } else {
-                            // Wait a bit before trying another gateway service
-                            time::sleep(Duration::from_secs(5)).await;
-                        }
+                _ = shutdown.clone() => {
+                    info!(logger, "shutting down");
+                    return Ok(())
+                },
+                routing_stream = gateway.routing(self.routing_height) => {
+                    match routing_stream {
+                        Ok(stream) => self.run_with_routing_stream(gateway, stream, shutdown.clone(), &logger).await?,
+                        Err(err) => warn!(logger, "gateway error: {:?}", err)
                     }
+                    // Check if trigger happened in run_with_routing_stream
+                    if shutdown.is_triggered() {
+                        return Ok(())
+                    } else {
+                        // Wait a bit before trying another gateway service
+                        self.handle_gateway_change(&logger).await;
+                        time::sleep(Duration::from_secs(5)).await;
+                    }
+                }
             }
-            let gateway = GatewayService::random_new(&self.gateways)?;
-            self.handle_gateway_change(gateway, &logger).await;
         }
     }
 
     async fn run_with_routing_stream(
         &mut self,
+        mut gateway: GatewayService,
         mut routing_stream: gateway::Streaming,
         shutdown: triggered::Listener,
         logger: &Logger,
@@ -124,7 +122,7 @@ impl Dispatcher {
                     return Ok(())
                 },
                 routing = routing_stream.message() => match routing {
-                    Ok(Some(response)) => self.handle_routing_update(&response, &shutdown, logger).await,
+                    Ok(Some(response)) => self.handle_routing_update(&mut gateway, &response, &shutdown, logger).await,
                     Ok(None) => {
                         warn!(logger, "gateway stream closed");
                         return Ok(());
@@ -142,14 +140,12 @@ impl Dispatcher {
         }
     }
 
-    async fn handle_gateway_change(&mut self, gateway: GatewayService, _logger: &Logger) {
-        self.gateway = gateway.to_owned();
-        for router_entry in self.routers.values() {
-            let _ = router_entry
-                .dispatch
-                .send(Dispatch::Gateway(gateway.clone()))
-                .await;
+    async fn handle_gateway_change(&mut self, _logger: &Logger) {
+        for (_, router_entry) in self.routers.drain() {
+            let _ = router_entry.dispatch.send(Dispatch::GatewayChanged).await;
         }
+        // Reset routing heigth for the next gateway
+        self.routing_height = 0;
     }
 
     async fn handle_uplink(&self, packet: &Packet, logger: &Logger) {
@@ -182,6 +178,7 @@ impl Dispatcher {
 
     async fn handle_routing_update(
         &mut self,
+        gateway: &mut GatewayService,
         response: &gateway::Response,
         shutdown: &triggered::Listener,
         logger: &Logger,
@@ -207,7 +204,7 @@ impl Dispatcher {
         while let Some(proto) = proto_stream.next().await {
             match Routing::from_proto(logger, proto) {
                 Ok(routing) => {
-                    self.handle_oui_routing_update(&routing, shutdown, logger)
+                    self.handle_oui_routing_update(gateway, &routing, shutdown, logger)
                         .await
                 }
                 Err(err) => warn!(logger, "failed to parse routing: {:?}", err),
@@ -223,6 +220,7 @@ impl Dispatcher {
     #[allow(clippy::map_entry)]
     async fn handle_oui_routing_update(
         &mut self,
+        gateway: &mut GatewayService,
         routing: &Routing,
         shutdown: &triggered::Listener,
         logger: &Logger,
@@ -237,7 +235,7 @@ impl Dispatcher {
             // immutable before borrowing as mutable to insert
             if !self.routers.contains_key(&key) {
                 match self
-                    .start_router(shutdown.clone(), routing.clone(), uri.clone())
+                    .start_router(gateway, shutdown.clone(), routing.clone(), uri.clone())
                     .await
                 {
                     Ok(router_entry) => {
@@ -266,6 +264,7 @@ impl Dispatcher {
 
     async fn start_router(
         &self,
+        gateway: &mut GatewayService,
         shutdown: triggered::Listener,
         routing: Routing,
         uri: KeyedUri,
@@ -278,7 +277,7 @@ impl Dispatcher {
             routing.oui,
             self.region.clone(),
             uri,
-            self.gateway.clone(),
+            gateway.clone(),
             self.downlinks.clone(),
             self.keypair.clone(),
             self.cache_settings.clone(),

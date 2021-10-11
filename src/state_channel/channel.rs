@@ -5,7 +5,6 @@ use crate::{
     service::gateway::GatewayService,
     Error, MsgVerify, Result,
 };
-use async_trait::async_trait;
 use bytes::{Buf, BufMut, BytesMut};
 use helium_crypto::PublicKey;
 use helium_proto::{BlockchainStateChannelSummaryV1, BlockchainStateChannelV1, Message};
@@ -99,6 +98,10 @@ impl StateChannel {
         &self.sc.id
     }
 
+    pub fn owner(&self) -> &[u8] {
+        &self.sc.owner
+    }
+
     pub fn id_str(&self) -> String {
         hash_str(&self.sc.id)
     }
@@ -118,14 +121,7 @@ impl StateChannel {
     }
 }
 
-#[async_trait]
 pub trait StateChannelValidation {
-    async fn check_active(
-        self,
-        gateway: &mut GatewayService,
-        store: &RouterStore,
-    ) -> Result<StateChannel>;
-
     fn is_valid_for(&self, public_key: &PublicKey) -> Result;
     fn total_dcs(&self) -> u64;
     fn num_dcs_for(&self, public_key: &PublicKey) -> u64;
@@ -133,46 +129,46 @@ pub trait StateChannelValidation {
     fn causally_compare_for(&self, public_key: &PublicKey, newer: &Self) -> StateChannelCausality;
 }
 
-#[async_trait]
-impl StateChannelValidation for &BlockchainStateChannelV1 {
-    async fn check_active(
-        self,
-        gateway: &mut GatewayService,
-        store: &RouterStore,
-    ) -> Result<StateChannel> {
-        match store.get_state_channel_entry(&self.id) {
-            None => {
-                let resp = gateway.is_active_sc(&self.id, &self.owner).await?;
-                if !resp.active {
-                    return Err(StateChannelError::inactive());
-                }
-                Ok(StateChannel {
-                    sc: self.clone(),
-                    total_dcs: self.total_dcs(),
-                    expiry_at_block: resp.sc_expiry_at_block,
-                    original_dc_amount: resp.sc_original_dc_amount,
-                })
+pub async fn check_active(
+    channel: &BlockchainStateChannelV1,
+    gateway: &mut GatewayService,
+    store: &RouterStore,
+) -> Result<StateChannel> {
+    match store.get_state_channel_entry(&channel.id) {
+        None => {
+            let resp = gateway.is_active_sc(&channel.id, &channel.owner).await?;
+            if !resp.active {
+                return Err(StateChannelError::inactive());
             }
-            Some(entry) => match entry {
-                // If the entry is ignored return an error
-                StateChannelEntry {
-                    ignore: true, sc, ..
-                } => Err(StateChannelError::ignored(sc.clone())),
-                // Next is the conflict check
-                StateChannelEntry {
-                    sc,
-                    conflicts_with: Some(conflicts_with),
-                    ..
-                } => Err(StateChannelError::causal_conflict(
-                    sc.clone(),
-                    conflicts_with.clone(),
-                )),
-                // After which we're ok for a active check
-                StateChannelEntry { sc, .. } => Ok(sc.clone()),
-            },
+            let new_sc = StateChannel {
+                sc: channel.clone(),
+                total_dcs: channel.total_dcs(),
+                expiry_at_block: resp.sc_expiry_at_block,
+                original_dc_amount: resp.sc_original_dc_amount,
+            };
+            Err(StateChannelError::new_channel(new_sc))
         }
+        Some(entry) => match entry {
+            // If the entry is ignored return an error
+            StateChannelEntry {
+                ignore: true, sc, ..
+            } => Err(StateChannelError::ignored(sc.clone())),
+            // Next is the conflict check
+            StateChannelEntry {
+                sc,
+                conflicts_with: Some(conflicts_with),
+                ..
+            } => Err(StateChannelError::causal_conflict(
+                sc.clone(),
+                conflicts_with.clone(),
+            )),
+            // After which we're ok for a active check
+            StateChannelEntry { sc, .. } => Ok(sc.clone()),
+        },
     }
+}
 
+impl StateChannelValidation for &BlockchainStateChannelV1 {
     fn is_valid_for(&self, public_key: &PublicKey) -> Result {
         PublicKey::try_from(&self.owner[..])
             .map_err(|_| StateChannelError::invalid_owner())

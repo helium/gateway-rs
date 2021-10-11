@@ -46,6 +46,9 @@ impl_txn_fee!(
     gateway_signature
 );
 
+// TODO: Transaction fees are hard coded the default implementation,
+// specifically whether txn fees are enabled and what the dc multiplier is
+// supposed to be.
 #[derive(Clone, Deserialize, Debug)]
 pub struct TxnFeeConfig {
     // whether transaction fees are active

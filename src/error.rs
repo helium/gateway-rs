@@ -52,7 +52,7 @@ pub enum DecodeError {
     LfcError(#[from] longfi::LfcError),
     #[error("semtech decode")]
     Semtech(#[from] semtech_udp::data_rate::ParseError),
-    #[error("crc must be OK")]
+    #[error("packet crc")]
     InvalidCrc,
 }
 
@@ -77,8 +77,8 @@ pub enum StateChannelError {
     InvalidOwner,
     #[error("state channel summary error")]
     Summary(#[from] StateChannelSummaryError),
-    #[error("state channel not found")]
-    NotFound,
+    #[error("new state channel error")]
+    NewChannel { sc: state_channel::StateChannel },
     #[error("state channel causal conflict")]
     CausalConflict {
         sc: state_channel::StateChannel,
@@ -156,8 +156,8 @@ impl StateChannelError {
         Error::StateChannel(Box::new(Self::Ignored { sc }))
     }
 
-    pub fn not_found() -> Error {
-        Error::StateChannel(Box::new(Self::NotFound))
+    pub fn new_channel(sc: state_channel::StateChannel) -> Error {
+        Error::StateChannel(Box::new(Self::NewChannel { sc }))
     }
 
     pub fn causal_conflict(
