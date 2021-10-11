@@ -22,7 +22,7 @@ RUN cargo build --release --target x86_64-unknown-linux-musl
 # ------------------------------------------------------------------------------
 FROM alpine:latest
 ENV GW_UPDATE_ENABLED=false
-ENV GW_LISTEN_ADDR="0.0.0.0:1680"
+ENV GW_LISTEN="0.0.0.0:1680"
 COPY --from=cargo-build /tmp/helium_gateway/target/x86_64-unknown-linux-musl/release/helium_gateway /usr/local/bin/helium_gateway
 RUN mkdir /etc/helium_gateway
 COPY config/default.toml /etc/helium_gateway/default.toml
