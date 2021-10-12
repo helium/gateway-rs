@@ -1,7 +1,9 @@
-use crate::*;
+pub mod releases;
+
+use crate::{settings, Result, Settings};
 use futures::TryStreamExt;
 use http::Uri;
-use releases::{self, Channel};
+use releases::Channel;
 use slog::{error, info, o, warn, Logger};
 use std::{
     env, io,
