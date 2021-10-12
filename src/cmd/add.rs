@@ -1,8 +1,8 @@
 use crate::{
-    cmd::*, settings::StakingMode, MsgSign, PublicKey, Result, Settings, TxnEnvelope, TxnFee,
-    TxnFeeConfig,
+    api::GatewayClient, cmd::*, settings::StakingMode, PublicKey, Result, Settings, TxnEnvelope,
+    TxnFee, TxnFeeConfig,
 };
-use helium_proto::BlockchainTxnAddGatewayV1;
+use helium_proto::{BlockchainTxnAddGatewayV1, Message};
 use serde_json::json;
 use structopt::StructOpt;
 
@@ -23,9 +23,11 @@ pub struct Cmd {
 }
 
 impl Cmd {
-    pub async fn run(&self, settings: Settings) -> Result {
-        let public_key = &settings.keypair.public_key();
-        let config = TxnFeeConfig::for_address(public_key).await?;
+    pub async fn run(&self, _settings: Settings) -> Result {
+        let mut client = GatewayClient::new().await?;
+        let public_key = client.pubkey().await?;
+
+        let config = TxnFeeConfig::for_address(&public_key).await?;
         let mut txn = BlockchainTxnAddGatewayV1 {
             gateway: public_key.to_vec(),
             owner: self.owner.to_vec(),
@@ -38,7 +40,7 @@ impl Cmd {
         };
 
         txn.fee = txn.txn_fee(&config)?;
-        txn.gateway_signature = txn.sign(&settings.keypair)?;
+        txn.gateway_signature = client.sign(&txn.encode_to_vec()).await?;
 
         print_txn(&self.mode, &txn)
     }

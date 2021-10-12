@@ -1,4 +1,4 @@
-use crate::{cmd::*, *};
+use crate::{api::GatewayClient, cmd::*, Settings};
 use angry_purple_tiger::AnimalName;
 use serde_json::json;
 use structopt::StructOpt;
@@ -22,8 +22,10 @@ impl Cmd {
 }
 
 impl Info {
-    pub async fn run(&self, settings: Settings) -> Result {
-        let key = settings.keypair.public_key().to_string();
+    pub async fn run(&self, _settings: Settings) -> Result {
+        let mut client = GatewayClient::new().await?;
+        let public_key = client.pubkey().await?;
+        let key = public_key.to_string();
         let table = json!({
             "address": key,
             "name": key.parse::<AnimalName>().unwrap().to_string(),

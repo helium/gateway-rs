@@ -13,6 +13,7 @@ pub mod settings;
 pub mod state_channel;
 pub mod updater;
 
+mod api;
 mod traits;
 
 pub use error::{Error, Result};

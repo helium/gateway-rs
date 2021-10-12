@@ -517,7 +517,7 @@ name = "gateway-rs"
 version = "1.0.0-alpha.19"
 dependencies = [
  "angry-purple-tiger",
- "base64 0.12.3",
+ "base64 0.13.0",
  "bytes",
  "config",
  "daemonize",
@@ -526,7 +526,7 @@ dependencies = [
  "helium-proto",
  "http",
  "http-serde",
- "log 0.3.9",
+ "log 0.4.14",
  "longfi",
  "lorawan",
  "prost",
@@ -548,6 +548,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tonic",
+ "tonic-build",
  "triggered",
  "xorf",
  "xxhash-c",

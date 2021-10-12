@@ -15,10 +15,9 @@ macro_rules! impl_msg_sign {
     ($txn_type:ty, $( $sig: ident ),+ ) => {
         impl MsgSign for $txn_type {
             fn sign(&self, keypair: &Keypair) -> Result<Vec<u8>> {
-                let mut buf = vec![];
                 let mut txn = self.clone();
                 $(txn.$sig = vec![];)+
-                txn.encode(& mut buf)?;
+                let buf = txn.encode_to_vec();
                 keypair.sign(&buf).map_err(Error::from)
             }
         }

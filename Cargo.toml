@@ -62,3 +62,6 @@ panic = "abort"
 #debug = true
 #strip = "debuginfo"
 strip = "symbols"
+
+[build-dependencies]
+tonic-build = {version = "0"}
