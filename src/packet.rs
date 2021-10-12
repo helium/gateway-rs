@@ -26,11 +26,12 @@ impl Deref for Packet {
 impl fmt::Display for Packet {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_fmt(format_args!(
-            "@{} us, {:.2} MHz, {:?}, snr: {}, len: {}",
+            "@{} us, {:.2} MHz, {:?}, snr: {}, rssi: {}, len: {}",
             self.0.timestamp,
             self.0.frequency,
             DataRate::from_str(&self.0.datarate),
             self.0.snr,
+            self.0.signal_strength,
             self.0.payload.len()
         ))
     }
