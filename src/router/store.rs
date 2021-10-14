@@ -12,6 +12,7 @@ pub struct RouterStore {
     max_packets: u16,
 }
 
+#[derive(Clone)]
 pub struct StateChannelEntry {
     pub(crate) ignore: bool,
     pub(crate) sc: StateChannel,
