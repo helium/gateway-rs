@@ -529,7 +529,6 @@ dependencies = [
  "log 0.3.9",
  "longfi",
  "lorawan",
- "prost",
  "rand",
  "semtech-udp",
  "semver",
@@ -647,7 +646,7 @@ dependencies = [
 [[package]]
 name = "helium-proto"
 version = "0.1.0"
-source = "git+https://github.com/helium/proto?branch=master#b25c996b1f58719c1dcf699ceacc25de0efba242"
+source = "git+https://github.com/helium/proto?branch=lthiery/pub-use-prost-errors#c591a373ee82246cd748565ef3670143dd1eb308"
 dependencies = [
  "bytes",
  "prost",

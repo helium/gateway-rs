@@ -40,7 +40,7 @@ impl TryFrom<&[u8]> for StateChannel {
         let mut buf = v;
         if buf.len() < (mem::size_of::<u64>() * 3) {
             return Err(Error::Decode(
-                prost::DecodeError::new("not enough data").into(),
+                helium_proto::DecodeError::new("not enough data").into(),
             ));
         }
         let expiry_at_block = buf.get_u64();

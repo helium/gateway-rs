@@ -31,7 +31,7 @@ pub enum Error {
 #[derive(Error, Debug)]
 pub enum EncodeError {
     #[error("protobuf encode")]
-    Prost(#[from] prost::EncodeError),
+    Prost(#[from] helium_proto::EncodeError),
 }
 
 #[derive(Error, Debug)]
@@ -45,7 +45,7 @@ pub enum DecodeError {
     #[error("network address decode")]
     Addr(#[from] net::AddrParseError),
     #[error("protobuf decode")]
-    Prost(#[from] prost::DecodeError),
+    Prost(#[from] helium_proto::DecodeError),
     #[error("lorawan decode")]
     LoraWan(#[from] lorawan::LoraWanError),
     #[error("longfi error")]
@@ -126,14 +126,14 @@ impl<T> From<tokio::sync::mpsc::error::SendError<T>> for Error {
 }
 
 // Encode Errors
-from_err!(EncodeError, prost::EncodeError);
+from_err!(EncodeError, helium_proto::EncodeError);
 
 // Decode Errors
 from_err!(DecodeError, http::uri::InvalidUri);
 from_err!(DecodeError, base64::DecodeError);
 from_err!(DecodeError, serde_json::Error);
 from_err!(DecodeError, net::AddrParseError);
-from_err!(DecodeError, prost::DecodeError);
+from_err!(DecodeError, helium_proto::DecodeError);
 from_err!(DecodeError, lorawan::LoraWanError);
 from_err!(DecodeError, longfi::LfcError);
 from_err!(DecodeError, semtech_udp::data_rate::ParseError);
