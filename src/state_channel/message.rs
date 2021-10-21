@@ -3,14 +3,15 @@ use helium_proto::{
     blockchain_state_channel_message_v1::Msg, BlockchainStateChannelMessageV1,
     BlockchainStateChannelOfferV1, BlockchainStateChannelPacketV1,
 };
+use std::sync::Arc;
 
 #[derive(Debug)]
 pub struct StateChannelMessage(pub(crate) Msg);
 
 impl StateChannelMessage {
-    pub fn packet(
+    pub async fn packet(
         packet: Packet,
-        keypair: &Keypair,
+        keypair: Arc<Keypair>,
         region: Region,
         hold_time: u64,
     ) -> Result<Self> {
@@ -21,11 +22,11 @@ impl StateChannelMessage {
             region: region.into(),
             hold_time,
         };
-        packet.signature = packet.sign(keypair)?;
+        packet.signature = packet.sign(keypair).await?;
         Ok(StateChannelMessage::from(packet))
     }
 
-    pub fn offer(packet: Packet, keypair: &Keypair, region: Region) -> Result<Self> {
+    pub async fn offer(packet: Packet, keypair: Arc<Keypair>, region: Region) -> Result<Self> {
         let frame = Packet::parse_frame(lorawan::Direction::Uplink, packet.payload())?;
         let mut offer = BlockchainStateChannelOfferV1 {
             packet_hash: packet.hash(),
@@ -36,7 +37,7 @@ impl StateChannelMessage {
             routing: Packet::routing_information(&frame)?,
             signature: vec![],
         };
-        offer.signature = offer.sign(keypair)?;
+        offer.signature = offer.sign(keypair).await?;
         Ok(Self::from(offer))
     }
 

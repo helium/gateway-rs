@@ -1,4 +1,4 @@
-use crate::*;
+use crate::{curl, releases, settings, Error, Future, Result, Stream};
 use futures::{future, stream, FutureExt, StreamExt, TryFutureExt};
 use semver::{Identifier, Version};
 use serde::{de, Deserialize, Deserializer};

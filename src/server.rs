@@ -1,4 +1,5 @@
 use crate::*;
+use api::GatewayServer;
 use gateway::Gateway;
 use router::Dispatcher;
 use slog::{info, Logger};
@@ -11,6 +12,7 @@ pub async fn run(shutdown: &triggered::Listener, settings: &Settings, logger: &L
     let mut dispatcher = Dispatcher::new(downlink_sender, uplink_receiver, settings)?;
     let mut gateway = Gateway::new(uplink_sender, downlink_receiver, settings).await?;
     let updater = Updater::new(settings)?;
+    let api = GatewayServer::new(settings);
     info!(logger,
         "starting server";
         "version" => settings::version().to_string(),
@@ -19,7 +21,8 @@ pub async fn run(shutdown: &triggered::Listener, settings: &Settings, logger: &L
     tokio::try_join!(
         gateway.run(shutdown.clone(), logger),
         dispatcher.run(shutdown.clone(), logger),
-        updater.run(shutdown.clone(), logger)
+        updater.run(shutdown.clone(), logger),
+        api.run(shutdown.clone(), logger),
     )
     .map(|_| ())
 }

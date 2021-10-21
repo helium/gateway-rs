@@ -6,7 +6,6 @@ pub mod keyed_uri;
 pub mod keypair;
 pub mod packet;
 pub mod region;
-pub mod releases;
 pub mod router;
 pub mod server;
 pub mod service;
@@ -14,21 +13,17 @@ pub mod settings;
 pub mod state_channel;
 pub mod updater;
 
-mod msg_sign;
-mod msg_verify;
-mod txn_envelope;
-mod txn_fee;
+mod api;
+mod traits;
 
 pub use error::{Error, Result};
 pub use keyed_uri::KeyedUri;
 pub use keypair::{Keypair, PublicKey};
-pub use msg_sign::MsgSign;
-pub use msg_verify::MsgVerify;
 pub use packet::Packet;
 pub use region::Region;
 pub use settings::{CacheSettings, Settings};
-pub use txn_envelope::TxnEnvelope;
-pub use txn_fee::{TxnFee, TxnFeeConfig};
+pub use traits::*;
+pub use updater::{releases, Updater};
 
 use futures::{Future as StdFuture, Stream as StdStream};
 use std::pin::Pin;

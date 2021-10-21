@@ -9,7 +9,7 @@ use crate::{
     },
     CacheSettings, KeyedUri, Keypair, MsgSign, Packet, Region, Result, TxnFee, TxnFeeConfig,
 };
-use futures::{future, TryFutureExt};
+use futures::{future::OptionFuture, TryFutureExt};
 use helium_proto::{
     blockchain_state_channel_message_v1::Msg, BlockchainTxnStateChannelCloseV1, CloseState,
     GatewayScFollowStreamedRespV1,
@@ -180,38 +180,44 @@ impl RouterClient {
         logger: &Logger,
         message: GatewayScFollowStreamedRespV1,
     ) -> Result {
-        let (txn, remove) =
-            if let Some(entry) = self.store.get_state_channel_entry_mut(&message.sc_id) {
-                let keypair = &self.keypair;
-                match CloseState::from_i32(message.close_state).unwrap() {
-                    // File a dispute as soon as we hit the expiration time
-                    CloseState::Closable => (
-                        entry.in_conflict().then(|| mk_close_txn(keypair, entry)),
-                        entry.in_conflict(),
-                    ),
-                    // This is after the router had it's time to close at the
-                    // beginning of the grace period. Close non disputed
-                    // state channels
-                    CloseState::Closing => (
-                        (!entry.in_conflict()).then(|| mk_close_txn(keypair, entry)),
-                        !entry.in_conflict(),
-                    ),
-                    // Done with the state channel, get it out of the cache
-                    CloseState::Closed => (None, true),
-                    // A state channel was disputed. If we disputed it it would
-                    // already have been sent and removed as part of Closing
-                    // handling. If it was disputed by someone else we'll file
-                    // our close here too to get in on the dispute
-                    CloseState::Dispute => (Some(mk_close_txn(keypair, entry)), true),
-                }
-            } else {
-                (None, false)
-            };
-        if let Some(txn) = txn {
-            match self.gateway.close_sc(txn).await {
-                Ok(()) => (),
-                Err(err) => warn!(logger, "ignoring gateway close_sc error: {:?}", err),
+        let (txn, remove): (OptionFuture<_>, bool) = if let Some(entry) =
+            self.store.get_state_channel_entry_mut(&message.sc_id)
+        {
+            let keypair = self.keypair.clone();
+            match CloseState::from_i32(message.close_state).unwrap() {
+                // File a dispute as soon as we hit the expiration time
+                CloseState::Closable => (
+                    (entry.in_conflict())
+                        .then(|| mk_close_txn(keypair, entry.clone()))
+                        .into(),
+                    entry.in_conflict(),
+                ),
+                // This is after the router had it's time to close at the
+                // beginning of the grace period. Close non disputed
+                // state channels
+                CloseState::Closing => (
+                    (!entry.in_conflict())
+                        .then(|| mk_close_txn(keypair, entry.clone()))
+                        .into(),
+                    !entry.in_conflict(),
+                ),
+                // Done with the state channel, get it out of the cache
+                CloseState::Closed => (None.into(), true),
+                // A state channel was disputed. If we disputed it it would
+                // already have been sent and removed as part of Closing
+                // handling. If it was disputed by someone else we'll file
+                // our close here too to get in on the dispute
+                CloseState::Dispute => (Some(mk_close_txn(keypair, entry.clone())).into(), true),
             }
+        } else {
+            (None.into(), false)
+        };
+        if let Some(txn) = txn.await {
+            let _ = self
+                .gateway
+                .close_sc(txn)
+                .inspect_err(|err| warn!(logger, "ignoring gateway close_sc error: {:?}", err))
+                .await;
         }
         if remove {
             self.store.remove_state_channel(&message.sc_id);
@@ -390,9 +396,11 @@ impl RouterClient {
     async fn send_offer(&mut self, _logger: &Logger, packet: &QuePacket) -> Result {
         match StateChannelMessage::offer(
             packet.packet().clone(),
-            &self.keypair,
+            self.keypair.clone(),
             self.region.clone(),
-        ) {
+        )
+        .await
+        {
             Ok(message) => Ok(self.state_channel.send(message.to_message()).await?),
             Err(err) => Err(err),
         }
@@ -405,30 +413,33 @@ impl RouterClient {
         let packet = packet.unwrap();
         debug!(logger, "sending packet"; 
             "packet_hash" => packet.hash_str());
-        future::ready(StateChannelMessage::packet(
+        StateChannelMessage::packet(
             packet.packet().clone(),
-            &self.keypair,
+            self.keypair.clone(),
             self.region.clone(),
             packet.hold_time().as_millis() as u64,
-        ))
+        )
         .and_then(|message| self.state_channel.send(message.to_message()))
         .await
     }
 }
 
-fn mk_close_txn(keypair: &Keypair, entry: &StateChannelEntry) -> BlockchainTxnStateChannelCloseV1 {
+async fn mk_close_txn(
+    keypair: Arc<Keypair>,
+    entry: StateChannelEntry,
+) -> BlockchainTxnStateChannelCloseV1 {
     let mut txn = BlockchainTxnStateChannelCloseV1 {
-        state_channel: Some(entry.sc.sc.clone()),
+        state_channel: Some(entry.sc.sc),
         closer: keypair.public_key().into(),
         conflicts_with: None,
         fee: 0,
         signature: vec![],
     };
-    if let Some(conflicts_with) = &entry.conflicts_with {
-        txn.conflicts_with = Some(conflicts_with.sc.clone());
+    if let Some(conflicts_with) = entry.conflicts_with {
+        txn.conflicts_with = Some(conflicts_with.sc);
     }
     let fee_config = TxnFeeConfig::default();
     txn.fee = txn.txn_fee(&fee_config).expect("close txn fee");
-    txn.signature = txn.sign(keypair).expect("close txn signature");
+    txn.signature = txn.sign(keypair).await.expect("signature");
     txn
 }
