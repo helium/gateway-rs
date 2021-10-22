@@ -226,7 +226,7 @@ The default gateways / router `uri` and `pubkey` parameters can be changed, but 
 
 If your gateway is enabled with an ECC608 crypto chip which is set up correctly, you can configure helium_gateway to use the crypto chip for secure key storage and crypto operations.  
 
-To use In your `settings.toml` override the `keypair` seting to reflect the use of the ECC and specify the bus address and slot to use. For example: 
+To use In your `settings.toml` override the `keypair` setting to reflect the use of the ECC and specify the bus address and slot to use. For example: 
 
 ```
 keypair = "ecc://i2c-1:96&slot=0"
