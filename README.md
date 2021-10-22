@@ -222,6 +222,20 @@ store = "/etc/helium_gateway/cache"
 ```
 The default gateways / router `uri` and `pubkey` parameters can be changed, but this is only if you are using non-Helium routers. For general use with Helium you should leave these the same.
 
+### Using the ECC crypto chip
+
+If your gateway is enabled with an ECC608 crypto chip which is set up correctly, you can configure helium_gateway to use the crypto chip for secure key storage and crypto operations.  
+
+To use In your `settings.toml` override the `keypair` setting to reflect the use of the ECC and specify the bus address and slot to use. For example: 
+
+```
+keypair = "ecc://i2c-1:96&slot=0"
+```
+
+will have helium_gateway use the ECC at the `/dev/i2c-1` device driver location, use bus address `96` (which is hex `0x60`) and slot `0` for it's crypto operations. Note that the file based keypair will no longer be used once the ECC is configured for use. 
+
+See the [gateway-mfr-rs repo](https://github.com/helium/gateway-mfr-rs) for instructions on configuring, locking, and testing an ECC chip.
+
 ### Envrionment variables
 
 Instead of overriding paramaters in the [default.toml](https://github.com/helium/gateway-rs/blob/main/config/default.toml) file using a `settings.toml` file as described above, you can instead use environment variables. The environment variable name will be the same name as the entries in the settings file in uppercase and prefixed with "GW_". For example, following on from the above example where we change the region using `region = "EU868"` in the settings file, setting an environment variable of `GW_REGION="EU868"` will override the region setting. If the settings are in one of the lower sections such as the `[update]` or `[log]` sections then you need to also include that in the environment variable name such as `GW_LOG_LEVEL` or `GW_UPDATE_PLATFORM`.
@@ -322,7 +336,7 @@ helium-wallet hotspots add CrkBCiEBrlImpYLbJ0z0hw5b4g9isRyPrgbXs9X+RrJ4pJJc9MkSI
 
 ### Gateway keys subcommand
 
-This subcommand can be used to get the address and animal name of the gateway from the keys file as shown in the help output below.
+This subcommand can be used to get the address and animal name of the gateway from the keys file as shown in the help output below. Note that the helium_gateway server has to be running for this command to work. 
 
 ```
 Commands on gateway keys
