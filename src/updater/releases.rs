@@ -174,7 +174,7 @@ impl Release {
     }
 
     pub fn asset_for_platform(&self, platform: &str) -> Option<&ReleaseAsset> {
-        let package_name = format!("helium-gateway-v{}-{}", self.version.to_string(), platform);
+        let package_name = format!("helium-gateway-v{}-{}", self.version, platform);
         self.asset_named(&package_name)
     }
 
