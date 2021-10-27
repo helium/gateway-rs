@@ -1,5 +1,5 @@
 [config]
-additional_profiles = ["klkgw", "ramips_24kec", "smartharvest", "dragino", "mtcdt", "raspi01", "raspi234", "resiot", "cotx", "raspi_64"]
+additional_profiles = ["klkgw", "ramips_24kec", "smartharvest", "dragino", "mtcdt", "raspi01", "raspi234", "resiot", "cotx", "raspi_64", "mipsel_24kc"]
 default_to_workspace = false
 
 [env]
@@ -30,6 +30,11 @@ PKG = "ipk"
 IPK_USE_AR = false
 
 [env.ramips_24kec]
+CROSS_TARGET = "mipsel-unknown-linux-musl"
+PKG = "ipk"
+IPK_USE_AR = false
+
+[env.mipsel_24kc]
 CROSS_TARGET = "mipsel-unknown-linux-musl"
 PKG = "ipk"
 IPK_USE_AR = false
