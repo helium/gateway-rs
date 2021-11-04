@@ -102,7 +102,7 @@ impl RouterService {
     pub fn new(keyed_uri: KeyedUri) -> Result<Self> {
         let router_channel = Endpoint::from(keyed_uri.uri.clone())
             .timeout(Duration::from_secs(CONNECT_TIMEOUT))
-            .connect_lazy()?;
+            .connect_lazy();
         let state_channel = router_channel.clone();
         Ok(Self {
             uri: keyed_uri,
