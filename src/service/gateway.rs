@@ -3,9 +3,9 @@ use helium_crypto::PublicKey;
 use helium_proto::{
     gateway_resp_v1,
     services::{self, Channel, Endpoint},
-    BlockchainTxnStateChannelCloseV1, GatewayRespV1, GatewayRoutingReqV1, GatewayScCloseReqV1,
-    GatewayScFollowReqV1, GatewayScFollowStreamedRespV1, GatewayScIsActiveReqV1,
-    GatewayScIsActiveRespV1, Routing,
+    BlockchainTxnStateChannelCloseV1, BlockchainVarV1, GatewayConfigReqV1, GatewayConfigRespV1,
+    GatewayRespV1, GatewayRoutingReqV1, GatewayScCloseReqV1, GatewayScFollowReqV1,
+    GatewayScFollowStreamedRespV1, GatewayScIsActiveReqV1, GatewayScIsActiveRespV1, Routing,
 };
 use rand::{rngs::OsRng, seq::SliceRandom};
 use std::{sync::Arc, time::Duration};
@@ -169,5 +169,25 @@ impl GatewayService {
             })
             .await?;
         Ok(())
+    }
+
+    pub async fn config(&mut self, keys: Vec<String>) -> Result<Vec<BlockchainVarV1>> {
+        let resp = self
+            .client
+            .config(GatewayConfigReqV1 { keys })
+            .await?
+            .into_inner();
+        resp.verify(&self.uri.pubkey)?;
+        match resp.msg {
+            Some(gateway_resp_v1::Msg::ConfigResp(resp)) => {
+                let GatewayConfigRespV1 { result } = resp;
+                Ok(result)
+            }
+            Some(other) => Err(Error::custom(format!(
+                "invalid config response {:?}",
+                other
+            ))),
+            None => Err(Error::custom("empty config response")),
+        }
     }
 }

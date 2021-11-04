@@ -141,11 +141,8 @@ mod tests {
                 appeui: 0,
                 deveui: 0,
             }));
-            for [deveui, appeui] in SOME_KEYS.iter() {
-                assert!(filter.contains(&Eui {
-                    appeui: *appeui,
-                    deveui: *deveui,
-                }))
+            for [deveui, appeui] in SOME_KEYS.into_iter() {
+                assert!(filter.contains(&Eui { appeui, deveui }))
             }
         }
     }

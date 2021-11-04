@@ -1,33 +1,56 @@
-use crate::{Packet, Result, Settings};
+use crate::{router::dispatcher, Error, Packet, Result, Settings};
+use futures::TryFutureExt;
 use semtech_udp::{
     server_runtime::{Error as SemtechError, Event, UdpRuntime},
     tx_ack, MacAddress,
 };
 use slog::{info, o, warn, Logger};
 use std::{convert::TryFrom, time::Duration};
-use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::sync::mpsc;
 
 pub const DOWNLINK_TIMEOUT_SECS: u64 = 5;
 pub const UPLINK_TIMEOUT_SECS: u64 = 6;
 
 #[derive(Debug)]
+pub enum Message {
+    Downlink(Packet),
+}
+
+#[derive(Clone, Debug)]
+pub struct MessageSender(mpsc::Sender<Message>);
+pub type MessageReceiver = mpsc::Receiver<Message>;
+
+pub fn message_channel(size: usize) -> (MessageSender, MessageReceiver) {
+    let (tx, rx) = mpsc::channel(size);
+    (MessageSender(tx), rx)
+}
+
+impl MessageSender {
+    pub async fn downlink(&self, packet: Packet) -> Result {
+        self.0
+            .send(Message::Downlink(packet))
+            .map_err(|_| Error::channel())
+            .await
+    }
+}
+
 pub struct Gateway {
-    uplinks: Sender<Packet>,
+    uplinks: dispatcher::MessageSender,
+    messages: MessageReceiver,
     downlink_mac: MacAddress,
-    downlinks: Receiver<Packet>,
     udp_runtime: UdpRuntime,
 }
 
 impl Gateway {
     pub async fn new(
-        uplinks: Sender<Packet>,
-        downlinks: Receiver<Packet>,
+        uplinks: dispatcher::MessageSender,
+        messages: MessageReceiver,
         settings: &Settings,
     ) -> Result<Self> {
         let gateway = Gateway {
             uplinks,
             downlink_mac: MacAddress::new(&[0u8; 8]),
-            downlinks,
+            messages,
             udp_runtime: UdpRuntime::new(&settings.listen).await?,
         };
         Ok(gateway)
@@ -44,8 +67,8 @@ impl Gateway {
                 },
                 event = self.udp_runtime.recv() =>
                     self.handle_udp_event(&logger, event).await?,
-                downlink = self.downlinks.recv() => match downlink {
-                    Some(packet) => self.handle_downlink(&logger, packet).await,
+                message = self.messages.recv() => match message {
+                    Some(message) => self.handle_message(&logger, message).await,
                     None => {
                         warn!(logger, "ignoring closed downlinks channel");
                         continue;
@@ -85,9 +108,15 @@ impl Gateway {
 
     async fn handle_uplink(&mut self, logger: &Logger, packet: Packet) {
         info!(logger, "uplink {} from {}", packet, self.downlink_mac);
-        match self.uplinks.send(packet).await {
+        match self.uplinks.uplink(packet).await {
             Ok(()) => (),
             Err(err) => warn!(logger, "ignoring uplink error {:?}", err),
+        }
+    }
+
+    async fn handle_message(&mut self, logger: &Logger, message: Message) {
+        match message {
+            Message::Downlink(packet) => self.handle_downlink(logger, packet).await,
         }
     }
 

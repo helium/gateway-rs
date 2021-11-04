@@ -1,13 +1,14 @@
-use super::service::{Client, PubkeyReq, SignReq, CONNECT_URI};
+use super::{ConfigReq, ConfigValue, PubkeyReq, SignReq, CONNECT_URI};
 use crate::{PublicKey, Result};
+use helium_proto::services::local::Client;
 use std::convert::TryFrom;
 use tonic::transport::{Channel, Endpoint};
 
-pub struct GatewayClient {
+pub struct LocalClient {
     client: Client<Channel>,
 }
 
-impl GatewayClient {
+impl LocalClient {
     pub async fn new() -> Result<Self> {
         let addr = Endpoint::from_static(CONNECT_URI);
         let client = Client::connect(addr).await?;
@@ -24,5 +25,11 @@ impl GatewayClient {
         let response = self.client.sign(SignReq { data: data.into() }).await?;
         let signature = response.into_inner().signature;
         Ok(signature)
+    }
+
+    pub async fn config(&mut self, keys: &[&str]) -> Result<Vec<ConfigValue>> {
+        let keys = keys.iter().map(|s| s.to_string()).collect();
+        let response = self.client.config(ConfigReq { keys }).await?.into_inner();
+        Ok(response.values)
     }
 }

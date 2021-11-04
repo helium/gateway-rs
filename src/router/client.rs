@@ -1,7 +1,7 @@
 use crate::{
     error::{Error, StateChannelError},
-    hash_str,
-    router::{Dispatch, QuePacket, RouterStore, StateChannelEntry},
+    gateway, hash_str,
+    router::{QuePacket, RouterStore, StateChannelEntry},
     service::gateway::{GatewayService, StateChannelFollowService},
     service::router::{RouterService, StateChannelService},
     state_channel::{
@@ -24,12 +24,40 @@ use tokio::{
 pub const STORE_GC_INTERVAL: Duration = Duration::from_secs(60);
 pub const STATE_CHANNEL_CONNECT_INTERVAL: Duration = Duration::from_secs(60);
 
+#[derive(Debug)]
+pub enum Message {
+    Uplink(Packet),
+    GatewayChanged,
+}
+
+#[derive(Clone, Debug)]
+pub struct MessageSender(pub(crate) mpsc::Sender<Message>);
+pub type MessageReceiver = mpsc::Receiver<Message>;
+
+pub fn message_channel(size: usize) -> (MessageSender, MessageReceiver) {
+    let (tx, rx) = mpsc::channel(size);
+    (MessageSender(tx), rx)
+}
+
+impl MessageSender {
+    pub async fn gateway_changed(&self) {
+        let _ = self.0.send(Message::GatewayChanged).await;
+    }
+
+    pub async fn uplink(&self, packet: Packet) -> Result {
+        self.0
+            .send(Message::Uplink(packet))
+            .map_err(|_| Error::channel())
+            .await
+    }
+}
+
 pub struct RouterClient {
     router: RouterService,
     oui: u32,
     region: Region,
     keypair: Arc<Keypair>,
-    downlinks: mpsc::Sender<Packet>,
+    downlinks: gateway::MessageSender,
     gateway: GatewayService,
     state_channel_follower: StateChannelFollowService,
     store: RouterStore,
@@ -43,7 +71,7 @@ impl RouterClient {
         region: Region,
         uri: KeyedUri,
         mut gateway: GatewayService,
-        downlinks: mpsc::Sender<Packet>,
+        downlinks: gateway::MessageSender,
         keypair: Arc<Keypair>,
         settings: CacheSettings,
     ) -> Result<Self> {
@@ -67,7 +95,7 @@ impl RouterClient {
 
     pub async fn run(
         &mut self,
-        mut uplinks: mpsc::Receiver<Dispatch>,
+        mut messages: MessageReceiver,
         shutdown: triggered::Listener,
         logger: &Logger,
     ) -> Result {
@@ -91,13 +119,13 @@ impl RouterClient {
                     info!(logger, "shutting down");
                     return Ok(())
                 },
-                uplink = uplinks.recv() => match uplink {
-                    Some(Dispatch::Packet(packet)) => {
+                message = messages.recv() => match message {
+                    Some(Message::Uplink(packet)) => {
                         self.handle_uplink(&logger, packet)
                             .unwrap_or_else(|err| warn!(logger, "ignoring failed uplink {:?}", err))
                             .await;
                     },
-                    Some(Dispatch::GatewayChanged) => {
+                    Some(Message::GatewayChanged) => {
                         info!(logger, "gateway changed, shutting down");
                         return Ok(())
                     },
@@ -233,7 +261,7 @@ impl RouterClient {
         match message.msg() {
             Msg::Response(response) => {
                 if let Some(packet) = Packet::from_state_channel_response(response.to_owned()) {
-                    self.handle_downlink(logger, &packet).await;
+                    self.handle_downlink(logger, packet).await;
                 }
                 Ok(())
             }
@@ -368,10 +396,10 @@ impl RouterClient {
         }
     }
 
-    async fn handle_downlink(&mut self, logger: &Logger, packet: &helium_proto::Packet) {
+    async fn handle_downlink(&mut self, logger: &Logger, packet: Packet) {
         let _ = self
             .downlinks
-            .send(packet.clone().into())
+            .downlink(packet)
             .inspect_err(|_| warn!(logger, "failed to push downlink"))
             .await;
     }

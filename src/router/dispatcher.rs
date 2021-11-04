@@ -1,30 +1,64 @@
-use super::{RouterClient, Routing};
 use crate::{
-    service::gateway::{self, GatewayService},
-    CacheSettings, KeyedUri, Keypair, Packet, Region, Result, Settings,
+    gateway,
+    router::{self, RouterClient, Routing},
+    service::{self, gateway::GatewayService},
+    sync, CacheSettings, Error, KeyedUri, Keypair, Packet, Region, Result, Settings,
 };
 use futures::{
     future::join_all,
     task::{Context, Poll},
+    TryFutureExt,
 };
+use helium_proto::BlockchainVarV1;
 use http::uri::Uri;
 use slog::{debug, info, o, warn, Logger};
 use slog_scope;
 use std::{collections::HashMap, pin::Pin, sync::Arc, time::Duration};
-use tokio::{sync::mpsc, task::JoinHandle, time};
+use tokio::{task::JoinHandle, time};
 use tokio_stream::{self as stream, StreamExt};
 
-#[derive(Debug, Clone)]
-pub enum Dispatch {
-    Packet(Packet),
-    GatewayChanged,
+#[derive(Debug)]
+pub enum Message {
+    Uplink(Packet),
+    Config {
+        keys: Vec<String>,
+        response: sync::ResponseSender<Result<Vec<BlockchainVarV1>>>,
+    },
+}
+
+pub type MessageSender = sync::MessageSender<Message>;
+pub type MessageReceiver = sync::MessageReceiver<Message>;
+
+pub fn message_channel(size: usize) -> (MessageSender, MessageReceiver) {
+    sync::message_channel(size)
+}
+
+impl MessageSender {
+    pub async fn config(&self, keys: &[String]) -> Result<Vec<BlockchainVarV1>> {
+        let (tx, rx) = sync::response_channel();
+        let _ = self
+            .0
+            .send(Message::Config {
+                keys: keys.to_vec(),
+                response: tx,
+            })
+            .await;
+        rx.recv().await?
+    }
+
+    pub async fn uplink(&self, packet: Packet) -> Result {
+        self.0
+            .send(Message::Uplink(packet))
+            .map_err(|_| Error::channel())
+            .await
+    }
 }
 
 pub struct Dispatcher {
     keypair: Arc<Keypair>,
     region: Region,
-    downlinks: mpsc::Sender<Packet>,
-    uplinks: mpsc::Receiver<Packet>,
+    messages: MessageReceiver,
+    downlinks: gateway::MessageSender,
     gateways: Vec<KeyedUri>,
     routing_height: u64,
     default_router: KeyedUri,
@@ -41,7 +75,7 @@ struct RouterKey {
 #[derive(Debug)]
 struct RouterEntry {
     routing: Routing,
-    dispatch: mpsc::Sender<Dispatch>,
+    dispatch: router::client::MessageSender,
     join_handle: JoinHandle<Result>,
 }
 
@@ -49,8 +83,8 @@ impl Dispatcher {
     // Allow mutable key type for HashMap with Uri in the key
     #[allow(clippy::mutable_key_type)]
     pub fn new(
-        downlinks: mpsc::Sender<Packet>,
-        uplinks: mpsc::Receiver<Packet>,
+        messages: MessageReceiver,
+        downlinks: gateway::MessageSender,
         settings: &Settings,
     ) -> Result<Self> {
         let gateways = settings.gateways.clone();
@@ -60,7 +94,7 @@ impl Dispatcher {
         Ok(Self {
             keypair: settings.keypair.clone(),
             region: settings.region.clone(),
-            uplinks,
+            messages,
             downlinks,
             gateways,
             routers,
@@ -109,7 +143,7 @@ impl Dispatcher {
     async fn run_with_routing_stream(
         &mut self,
         mut gateway: GatewayService,
-        mut routing_stream: gateway::Streaming,
+        mut routing_stream: service::gateway::Streaming,
         shutdown: triggered::Listener,
         logger: &Logger,
     ) -> Result {
@@ -132,31 +166,41 @@ impl Dispatcher {
                         return Ok(())
                     },
                 },
-                uplink = self.uplinks.recv() => match uplink {
-                    Some(packet) => self.handle_uplink(&packet, logger).await,
-                    None => warn!(logger, "ignoring closed uplinks channel"),
-                },
+                message = self.messages.recv() => match message {
+                    Some(message) => self.handle_message(message, &mut gateway, logger).await,
+                    None => warn!(logger, "ignoring closed messages channel"),
+                }
             }
         }
     }
 
     async fn handle_gateway_change(&mut self, _logger: &Logger) {
         for (_, router_entry) in self.routers.drain() {
-            let _ = router_entry.dispatch.send(Dispatch::GatewayChanged).await;
+            router_entry.dispatch.gateway_changed().await;
         }
         // Reset routing heigth for the next gateway
         self.routing_height = 0;
+    }
+
+    async fn handle_message(
+        &self,
+        message: Message,
+        gateway: &mut GatewayService,
+        logger: &Logger,
+    ) {
+        match message {
+            Message::Uplink(packet) => self.handle_uplink(&packet, logger).await,
+            Message::Config { keys, response } => {
+                response.send_response(gateway.config(keys).await, logger)
+            }
+        }
     }
 
     async fn handle_uplink(&self, packet: &Packet, logger: &Logger) {
         let mut handled = false;
         for router_entry in self.routers.values() {
             if router_entry.routing.matches_routing_info(packet.routing()) {
-                match router_entry
-                    .dispatch
-                    .send(Dispatch::Packet(packet.clone()))
-                    .await
-                {
+                match router_entry.dispatch.uplink(packet.clone()).await {
                     Ok(()) => (),
                     Err(err) => warn!(logger, "ignoring router dispatch error: {:?}", err),
                 }
@@ -167,10 +211,7 @@ impl Dispatcher {
             for (router_key, router_entry) in &self.routers {
                 if router_key.uri == self.default_router.uri {
                     debug!(logger, "sending to default router");
-                    let _ = router_entry
-                        .dispatch
-                        .send(Dispatch::Packet(packet.clone()))
-                        .await;
+                    let _ = router_entry.dispatch.uplink(packet.clone()).await;
                 }
             }
         }
@@ -179,7 +220,7 @@ impl Dispatcher {
     async fn handle_routing_update(
         &mut self,
         gateway: &mut GatewayService,
-        response: &gateway::Response,
+        response: &service::gateway::Response,
         shutdown: &triggered::Listener,
         logger: &Logger,
     ) {
@@ -272,7 +313,7 @@ impl Dispatcher {
         // We start the router scope at the root logger to avoid picking up the
         // previously set KV pairs (which causes dupes)
         let logger = slog_scope::logger();
-        let (dispatch, dispatch_receiver) = mpsc::channel(10);
+        let (client_tx, client_rx) = router::client::message_channel(10);
         let mut client = RouterClient::new(
             routing.oui,
             self.region.clone(),
@@ -284,10 +325,10 @@ impl Dispatcher {
         )
         .await?;
         let join_handle =
-            tokio::spawn(async move { client.run(dispatch_receiver, shutdown, &logger).await });
+            tokio::spawn(async move { client.run(client_rx, shutdown, &logger).await });
         Ok(RouterEntry {
             routing,
-            dispatch,
+            dispatch: client_tx,
             join_handle,
         })
     }

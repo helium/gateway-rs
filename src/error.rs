@@ -64,6 +64,8 @@ pub enum ServiceError {
     Rpc(#[from] tonic::Status),
     #[error("stream closed error")]
     Stream,
+    #[error("channel closed error")]
+    Channel,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -188,5 +190,9 @@ impl Error {
     /// error
     pub fn custom<T: ToString>(msg: T) -> Error {
         Error::Custom(msg.to_string())
+    }
+
+    pub fn channel() -> Error {
+        Error::Service(ServiceError::Channel)
     }
 }
