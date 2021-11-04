@@ -1,13 +1,10 @@
-use super::service::{
-    api_server::{Api, ApiServer},
-    PubkeyReq, PubkeyRes, SignReq, SignRes, LISTEN_ADDR,
-};
+use super::service::{Api, PubkeyReq, PubkeyRes, Server, SignReq, SignRes, LISTEN_ADDR};
 use crate::{Error, Keypair, Result, Settings};
 use futures::TryFutureExt;
 use helium_crypto::Sign;
 use slog::{info, o, Logger};
 use std::sync::Arc;
-use tonic::{self, transport::Server, Request, Response, Status};
+use tonic::{self, transport::Server as TransportServer, Request, Response, Status};
 
 pub type ApiResult<T> = std::result::Result<Response<T>, Status>;
 
@@ -26,8 +23,8 @@ impl GatewayServer {
         let addr = LISTEN_ADDR.parse().unwrap();
         let logger = logger.new(o!("module" => "api", "listen" => addr));
         info!(logger, "starting");
-        Server::builder()
-            .add_service(ApiServer::new(self))
+        TransportServer::builder()
+            .add_service(Server::new(self))
             .serve_with_shutdown(addr, shutdown)
             .map_err(Error::from)
             .await

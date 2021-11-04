@@ -36,6 +36,7 @@ impl StateChannelMessage {
             region: region.into(),
             routing: Packet::routing_information(&frame)?,
             signature: vec![],
+            req_diff: false,
         };
         offer.signature = offer.sign(keypair).await?;
         Ok(Self::from(offer))

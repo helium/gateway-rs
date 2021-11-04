@@ -1,16 +1,16 @@
-use super::service::{api_client::ApiClient, PubkeyReq, SignReq, CONNECT_URI};
+use super::service::{Client, PubkeyReq, SignReq, CONNECT_URI};
 use crate::{PublicKey, Result};
 use std::convert::TryFrom;
 use tonic::transport::{Channel, Endpoint};
 
 pub struct GatewayClient {
-    client: ApiClient<Channel>,
+    client: Client<Channel>,
 }
 
 impl GatewayClient {
     pub async fn new() -> Result<Self> {
         let addr = Endpoint::from_static(CONNECT_URI);
-        let client = ApiClient::connect(addr).await?;
+        let client = Client::connect(addr).await?;
         Ok(Self { client })
     }
 

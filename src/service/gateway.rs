@@ -102,7 +102,7 @@ impl GatewayService {
     pub fn new(keyed_uri: KeyedUri) -> Result<Self> {
         let channel = Endpoint::from(keyed_uri.uri.clone())
             .timeout(Duration::from_secs(CONNECT_TIMEOUT))
-            .connect_lazy()?;
+            .connect_lazy();
         Ok(Self {
             uri: keyed_uri,
             client: GatewayClient::new(channel),
