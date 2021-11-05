@@ -1,5 +1,5 @@
 use crate::{
-    api::GatewayClient, cmd::*, settings::StakingMode, PublicKey, Result, Settings, TxnEnvelope,
+    api::LocalClient, cmd::*, settings::StakingMode, PublicKey, Result, Settings, TxnEnvelope,
     TxnFee, TxnFeeConfig,
 };
 use helium_proto::{BlockchainTxnAddGatewayV1, Message};
@@ -24,10 +24,9 @@ pub struct Cmd {
 
 impl Cmd {
     pub async fn run(&self, _settings: Settings) -> Result {
-        let mut client = GatewayClient::new().await?;
+        let mut client = LocalClient::new().await?;
         let public_key = client.pubkey().await?;
-
-        let config = TxnFeeConfig::for_address(&public_key).await?;
+        let config = TxnFeeConfig::from_client(&mut client).await?;
         let mut txn = BlockchainTxnAddGatewayV1 {
             gateway: public_key.to_vec(),
             owner: self.owner.to_vec(),

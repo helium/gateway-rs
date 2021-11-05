@@ -1,18 +1,17 @@
 use crate::*;
-use api::GatewayServer;
-use gateway::Gateway;
-use router::Dispatcher;
+use api::LocalServer;
+use gateway;
+use router::{dispatcher, Dispatcher};
 use slog::{info, Logger};
-use tokio::sync::mpsc;
 use updater::Updater;
 
 pub async fn run(shutdown: &triggered::Listener, settings: &Settings, logger: &Logger) -> Result {
-    let (uplink_sender, uplink_receiver) = mpsc::channel(20);
-    let (downlink_sender, downlink_receiver) = mpsc::channel(10);
-    let mut dispatcher = Dispatcher::new(downlink_sender, uplink_receiver, settings)?;
-    let mut gateway = Gateway::new(uplink_sender, downlink_receiver, settings).await?;
+    let (gateway_tx, gateway_rx) = gateway::message_channel(10);
+    let (dispatcher_tx, dispatcher_rx) = dispatcher::message_channel(20);
+    let mut dispatcher = Dispatcher::new(dispatcher_rx, gateway_tx, settings)?;
+    let mut gateway = gateway::Gateway::new(dispatcher_tx.clone(), gateway_rx, settings).await?;
     let updater = Updater::new(settings)?;
-    let api = GatewayServer::new(settings);
+    let api = LocalServer::new(dispatcher_tx, settings);
     info!(logger,
         "starting server";
         "version" => settings::version().to_string(),

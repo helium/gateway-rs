@@ -1,21 +1,26 @@
-use super::service::{Api, PubkeyReq, PubkeyRes, Server, SignReq, SignRes, LISTEN_ADDR};
-use crate::{Error, Keypair, Result, Settings};
+use super::{
+    ConfigReq, ConfigRes, ConfigValue, PubkeyReq, PubkeyRes, SignReq, SignRes, LISTEN_ADDR,
+};
+use crate::{router::dispatcher, Error, Keypair, Result, Settings};
 use futures::TryFutureExt;
 use helium_crypto::Sign;
+use helium_proto::services::local::{Api, Server};
 use slog::{info, o, Logger};
 use std::sync::Arc;
 use tonic::{self, transport::Server as TransportServer, Request, Response, Status};
 
 pub type ApiResult<T> = std::result::Result<Response<T>, Status>;
 
-pub struct GatewayServer {
+pub struct LocalServer {
+    dispatcher: dispatcher::MessageSender,
     keypair: Arc<Keypair>,
 }
 
-impl GatewayServer {
-    pub fn new(settings: &Settings) -> Self {
+impl LocalServer {
+    pub fn new(dispatcher: dispatcher::MessageSender, settings: &Settings) -> Self {
         Self {
             keypair: settings.keypair.clone(),
+            dispatcher,
         }
     }
 
@@ -32,7 +37,7 @@ impl GatewayServer {
 }
 
 #[tonic::async_trait]
-impl Api for GatewayServer {
+impl Api for LocalServer {
     async fn pubkey(&self, _request: Request<PubkeyReq>) -> ApiResult<PubkeyRes> {
         let reply = PubkeyRes {
             address: self.keypair.public_key().to_vec(),
@@ -48,5 +53,16 @@ impl Api for GatewayServer {
             .map_err(|_err| Status::internal("Failed signing data"))?;
         let reply = SignRes { signature };
         Ok(Response::new(reply))
+    }
+
+    async fn config(&self, request: Request<ConfigReq>) -> ApiResult<ConfigRes> {
+        let keys = request.into_inner().keys;
+        let reply = self
+            .dispatcher
+            .config(&keys)
+            .map_err(|_err| Status::internal("Failed to get config"))
+            .await?;
+        let values = reply.into_iter().map(ConfigValue::from).collect();
+        Ok(Response::new(ConfigRes { values }))
     }
 }

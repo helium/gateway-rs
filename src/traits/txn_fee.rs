@@ -1,4 +1,8 @@
-use crate::{service::api, settings::StakingMode, PublicKey, Result, TxnEnvelope};
+use crate::{
+    api::{ConfigValue, LocalClient},
+    settings::StakingMode,
+    Error, Result, TxnEnvelope,
+};
 use helium_proto::{BlockchainTxnAddGatewayV1, BlockchainTxnStateChannelCloseV1, Message};
 use serde_derive::Deserialize;
 
@@ -92,10 +96,16 @@ impl TxnFeeConfig {
         4000000
     }
 
-    pub async fn for_address(address: &PublicKey) -> Result<Self> {
-        let client = api::Service::blockchain(address.network);
-        let config: Self = client.get("/vars").await?;
-        Ok(config)
+    pub async fn from_client(client: &mut LocalClient) -> Result<Self> {
+        let keys = vec![
+            "txn_fees",
+            "txn_fee_multiplier",
+            "staking_fee_txn_add_gateway_v1",
+            "staking_fee_txn_add_light_gateway_v1",
+            "staking_fee_txn_add_dataonly_gateway_v1",
+        ];
+        let values = client.config(&keys).await?;
+        Ok(Self::try_from(values)?)
     }
 
     pub fn get_staking_fee(&self, staking_mode: &StakingMode) -> u64 {
@@ -115,5 +125,63 @@ impl TxnFeeConfig {
             ((payload_size + dc_payload_size - 1) / dc_payload_size) as u64
         };
         fee * self.txn_fee_multiplier
+    }
+}
+
+impl TryFrom<Vec<ConfigValue>> for TxnFeeConfig {
+    type Error = Error;
+
+    fn try_from(v: Vec<ConfigValue>) -> Result<Self> {
+        let mut result = Self::default();
+        for var in v.iter() {
+            match var.name.as_ref() {
+                "txn_fees" => result.txn_fees = var.to_value()?,
+                "txn_fee_multiplier" => result.txn_fee_multiplier = var.to_value()?,
+                "staking_fee_txn_add_gateway_v1" => {
+                    result.staking_fee_txn_add_gateway_v1 = var.to_value()?
+                }
+                "staking_fee_txn_add_light_gateway_v1" => {
+                    result.staking_fee_txn_add_light_gateway_v1 = var.to_value()?
+                }
+                "staking_fee_txn_add_dataonly_gateway_v1" => {
+                    result.staking_fee_txn_add_dataonly_gateway_v1 = var.to_value()?
+                }
+                _ => (),
+            }
+        }
+        Ok(result)
+    }
+}
+
+trait ToValue<T> {
+    fn to_value(&self) -> Result<T>;
+}
+
+impl ToValue<bool> for ConfigValue {
+    fn to_value(&self) -> Result<bool> {
+        if self.r#type != "atom" {
+            return Err(Error::custom(format!(
+                "not a boolean variable: {}",
+                self.name
+            )));
+        }
+        let value = std::str::from_utf8(&self.value)
+            .map_err(|_| Error::custom(format!("not a boolean value: {}", self.name)))?;
+        Ok(value == "true")
+    }
+}
+
+impl ToValue<u64> for ConfigValue {
+    fn to_value(&self) -> Result<u64> {
+        if self.r#type != "int" {
+            return Err(Error::custom(format!("not an int variable: {}", self.name)));
+        }
+        let value = std::str::from_utf8(&self.value)
+            .map_err(|_| Error::custom(format!("not an valid value: {}", self.name)))
+            .and_then(|v| {
+                v.parse::<u64>()
+                    .map_err(|_| Error::custom(format!("not a valid int value: {}", self.name)))
+            })?;
+        Ok(value)
     }
 }
