@@ -10,8 +10,6 @@ RUN apt-get update && \
 
 RUN rustup default nightly
 RUN rustup target add x86_64-unknown-linux-musl
-# for some reason the proto build script requires this...?
-RUN rustup component add rustfmt
 
 WORKDIR /tmp/helium_gateway
 COPY . .
