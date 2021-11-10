@@ -555,7 +555,7 @@ version = "1.0.0-alpha.21"
 dependencies = [
  "angry-purple-tiger",
  "async-trait",
- "base64 0.12.3",
+ "base64 0.13.0",
  "bytes",
  "config",
  "daemonize",
@@ -1331,13 +1331,12 @@ checksum = "71d301d4193d031abdd79ff7e3dd721168a9572ef3fe51a1517aba235bd8f86e"
 
 [[package]]
 name = "semtech-udp"
-version = "0.7.2"
+version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "90935b06c2f2eb012a339e0a6bf1497c94ad2c07de77a8714d274c13c5b2b1b0"
+checksum = "72cca2d25ca92de1e3de8173a945f69992edb64ab8c9846bf4910a992ec4da99"
 dependencies = [
  "arrayref",
  "base64 0.13.0",
- "log",
  "num_enum",
  "rand",
  "serde",
