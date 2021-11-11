@@ -24,6 +24,16 @@ pub enum Message {
         keys: Vec<String>,
         response: sync::ResponseSender<Result<Vec<BlockchainVarV1>>>,
     },
+    Height {
+        response: sync::ResponseSender<Result<HeightResponse>>,
+    },
+}
+
+#[derive(Debug)]
+pub struct HeightResponse {
+    pub gateway: KeyedUri,
+    pub height: u64,
+    pub block_age: u64,
 }
 
 pub type MessageSender = sync::MessageSender<Message>;
@@ -51,6 +61,12 @@ impl MessageSender {
             .send(Message::Uplink(packet))
             .map_err(|_| Error::channel())
             .await
+    }
+
+    pub async fn height(&self) -> Result<HeightResponse> {
+        let (tx, rx) = sync::response_channel();
+        let _ = self.0.send(Message::Height { response: tx }).await;
+        rx.recv().await?
     }
 }
 
@@ -190,8 +206,17 @@ impl Dispatcher {
     ) {
         match message {
             Message::Uplink(packet) => self.handle_uplink(&packet, logger).await,
-            Message::Config { keys, response } => {
-                response.send_response(gateway.config(keys).await, logger)
+            Message::Config { keys, response } => response.send(gateway.config(keys).await, logger),
+            Message::Height { response } => {
+                let reply = gateway
+                    .height()
+                    .await
+                    .map(|(height, block_age)| HeightResponse {
+                        gateway: gateway.uri.clone(),
+                        height,
+                        block_age,
+                    });
+                response.send(reply, logger)
             }
         }
     }

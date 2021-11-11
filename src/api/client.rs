@@ -1,4 +1,4 @@
-use super::{ConfigReq, ConfigValue, PubkeyReq, SignReq, CONNECT_URI};
+use super::{ConfigReq, ConfigValue, HeightReq, HeightRes, PubkeyReq, SignReq, CONNECT_URI};
 use crate::{PublicKey, Result};
 use helium_proto::services::local::Client;
 use std::convert::TryFrom;
@@ -31,5 +31,10 @@ impl LocalClient {
         let keys = keys.iter().map(|s| s.to_string()).collect();
         let response = self.client.config(ConfigReq { keys }).await?.into_inner();
         Ok(response.values)
+    }
+
+    pub async fn height(&mut self) -> Result<HeightRes> {
+        let response = self.client.height(HeightReq {}).await?.into_inner();
+        Ok(response)
     }
 }

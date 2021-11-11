@@ -33,7 +33,7 @@ pub fn response_channel<T>() -> (ResponseSender<T>, ResponseReceiver<T>) {
 }
 
 impl<T: std::fmt::Debug> ResponseSender<T> {
-    pub fn send_response(self, msg: T, logger: &Logger) {
+    pub fn send(self, msg: T, logger: &Logger) {
         match self.0.send(msg) {
             Ok(()) => (),
             Err(err) => warn!(logger, "ignoring channel error: {:?}", err),
