@@ -1,6 +1,7 @@
-use crate::{api::LocalClient, cmd::*, Settings};
-use angry_purple_tiger::AnimalName;
-use serde_json::json;
+use crate::{
+    cmd::info::{self, InfoKey, InfoKeys},
+    Result, Settings,
+};
 use structopt::StructOpt;
 
 /// Commands on gateway keys
@@ -22,14 +23,10 @@ impl Cmd {
 }
 
 impl Info {
-    pub async fn run(&self, _settings: Settings) -> Result {
-        let mut client = LocalClient::new().await?;
-        let public_key = client.pubkey().await?;
-        let key = public_key.to_string();
-        let table = json!({
-            "address": key,
-            "name": key.parse::<AnimalName>().unwrap().to_string(),
-        });
-        print_json(&table)
+    pub async fn run(&self, settings: Settings) -> Result {
+        let cmd = info::Cmd {
+            keys: InfoKeys(vec![InfoKey::Name, InfoKey::Key]),
+        };
+        cmd.run(settings).await
     }
 }

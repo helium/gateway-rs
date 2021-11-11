@@ -171,23 +171,29 @@ impl GatewayService {
         Ok(())
     }
 
-    pub async fn config(&mut self, keys: Vec<String>) -> Result<Vec<BlockchainVarV1>> {
+    async fn get_config(&mut self, keys: Vec<String>) -> Result<GatewayRespV1> {
         let resp = self
             .client
             .config(GatewayConfigReqV1 { keys })
             .await?
             .into_inner();
         resp.verify(&self.uri.pubkey)?;
-        match resp.msg {
-            Some(gateway_resp_v1::Msg::ConfigResp(resp)) => {
-                let GatewayConfigRespV1 { result } = resp;
-                Ok(result)
-            }
+        Ok(resp)
+    }
+
+    pub async fn config(&mut self, keys: Vec<String>) -> Result<Vec<BlockchainVarV1>> {
+        match self.get_config(keys).await?.msg {
+            Some(gateway_resp_v1::Msg::ConfigResp(GatewayConfigRespV1 { result })) => Ok(result),
             Some(other) => Err(Error::custom(format!(
                 "invalid config response {:?}",
                 other
             ))),
             None => Err(Error::custom("empty config response")),
         }
+    }
+
+    pub async fn height(&mut self) -> Result<(u64, u64)> {
+        let resp = self.get_config(vec![]).await?;
+        Ok((resp.height, resp.block_age))
     }
 }

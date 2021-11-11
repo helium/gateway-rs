@@ -1,5 +1,6 @@
 use super::{
-    ConfigReq, ConfigRes, ConfigValue, PubkeyReq, PubkeyRes, SignReq, SignRes, LISTEN_ADDR,
+    ConfigReq, ConfigRes, ConfigValue, HeightReq, HeightRes, PubkeyReq, PubkeyRes, SignReq,
+    SignRes, LISTEN_ADDR,
 };
 use crate::{router::dispatcher, Error, Keypair, Result, Settings};
 use futures::TryFutureExt;
@@ -64,5 +65,18 @@ impl Api for LocalServer {
             .await?;
         let values = reply.into_iter().map(ConfigValue::from).collect();
         Ok(Response::new(ConfigRes { values }))
+    }
+
+    async fn height(&self, _request: Request<HeightReq>) -> ApiResult<HeightRes> {
+        let reply = self
+            .dispatcher
+            .height()
+            .map_err(|_err| Status::internal("Failed to get config"))
+            .await?;
+        Ok(Response::new(HeightRes {
+            height: reply.height,
+            block_age: reply.block_age,
+            gateway: Some(reply.gateway.into()),
+        }))
     }
 }
