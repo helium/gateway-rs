@@ -1,0 +1,13 @@
+version: "3.9"
+services:
+  gateway-rs:
+    image: gateway-rs:1.0.0
+    container_name: gateway-rs
+    ports:
+      - "1680:1680/udp"
+    environment:
+      - GW_LOG_LEVEL=info
+      - GW_LOG_METHOD=stdio
+      - GW_REGION=EU868
+      - GW_TZ=Europe/Amsterdam
+    restart: unless-stopped
