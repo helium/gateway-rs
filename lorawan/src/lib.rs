@@ -58,8 +58,8 @@ pub struct PHYPayload {
 }
 
 const JOIN_REQUEST_LEN: usize = 23;
-const JOIN_ACCEPT_LEN_0: usize = 17;
-const JOIN_ACCEPT_LEN_1: usize = 33;
+const JOIN_ACCEPT_LEN: usize = 17;
+const JOIN_ACCEPT_WITH_CFLIST_LEN: usize = 33;
 const DATA_MIN_LEN: usize = 12;
 
 impl PHYPayload {
@@ -72,7 +72,9 @@ impl PHYPayload {
         let phy_len = data.len() + 1;
         let invalid = match packet_type {
             MType::JoinRequest => phy_len != JOIN_REQUEST_LEN,
-            MType::JoinAccept => phy_len != JOIN_ACCEPT_LEN_0 && phy_len != JOIN_ACCEPT_LEN_1,
+            MType::JoinAccept => {
+                phy_len != JOIN_ACCEPT_LEN && phy_len != JOIN_ACCEPT_WITH_CFLIST_LEN
+            }
             MType::UnconfirmedUp
             | MType::UnconfirmedDown
             | MType::ConfirmedUp
