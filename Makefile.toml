@@ -34,6 +34,11 @@ CROSS_TARGET = "mipsel-unknown-linux-musl"
 PKG = "ipk"
 IPK_USE_AR = false
 
+[env.mipsel_24kc]
+CROSS_TARGET = "mipsel-unknown-linux-musl"
+PKG = "ipk"
+IPK_USE_AR = false
+
 [env.smartharvest]
 CROSS_TARGET = "mipsel-unknown-linux-musl"
 PKG = "ipk"
