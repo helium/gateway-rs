@@ -8,6 +8,7 @@ services:
     environment:
       - GW_LOG_LEVEL=info
       - GW_LOG_METHOD=stdio
-      - GW_REGION=EU868
-      - GW_TZ=Europe/Amsterdam
+      - GW_LOG_TIMESTAMP=false # Change this to true in a debug/tcpdump situation
+      - GW_REGION=EU868 # Change this to your current location. Possible values are : US915|EU868|EU433|CN470|CN779|AU915|AS923_1|AS923_2|AS923_3|AS923_4|KR920|IN865
+      - GW_TZ=Europe/Amsterdam # Change this to your current location
     restart: unless-stopped
