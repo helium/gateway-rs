@@ -422,12 +422,8 @@ impl RouterClient {
     }
 
     async fn send_offer(&mut self, _logger: &Logger, packet: &QuePacket) -> Result {
-        match StateChannelMessage::offer(
-            packet.packet().clone(),
-            self.keypair.clone(),
-            self.region.clone(),
-        )
-        .await
+        match StateChannelMessage::offer(packet.packet().clone(), self.keypair.clone(), self.region)
+            .await
         {
             Ok(message) => Ok(self.state_channel.send(message.to_message()).await?),
             Err(err) => Err(err),
@@ -439,12 +435,12 @@ impl RouterClient {
             return Ok(());
         }
         let packet = packet.unwrap();
-        debug!(logger, "sending packet"; 
+        debug!(logger, "sending packet";
             "packet_hash" => packet.hash_str());
         StateChannelMessage::packet(
             packet.packet().clone(),
             self.keypair.clone(),
-            self.region.clone(),
+            self.region,
             packet.hold_time().as_millis() as u64,
         )
         .and_then(|message| self.state_channel.send(message.to_message()))
