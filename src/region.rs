@@ -2,7 +2,7 @@ use helium_proto::Region as ProtoRegion;
 use serde::{de, Deserialize, Deserializer};
 use std::fmt;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Region(ProtoRegion);
 
 impl From<Region> for ProtoRegion {

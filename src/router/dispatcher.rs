@@ -109,7 +109,7 @@ impl Dispatcher {
         let cache_settings = settings.cache.clone();
         Ok(Self {
             keypair: settings.keypair.clone(),
-            region: settings.region.clone(),
+            region: settings.region,
             messages,
             downlinks,
             gateways,
@@ -341,7 +341,7 @@ impl Dispatcher {
         let (client_tx, client_rx) = router::client::message_channel(10);
         let mut client = RouterClient::new(
             routing.oui,
-            self.region.clone(),
+            self.region,
             uri,
             gateway.clone(),
             self.downlinks.clone(),
