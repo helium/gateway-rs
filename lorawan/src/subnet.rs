@@ -1,25 +1,23 @@
 pub fn is_local_devaddr(devaddr: u32, netid_list: Vec<u32>) -> bool {
     let netid = the_netid(devaddr);
-    is_local_netid(netid, netid_list.clone())
+    is_local_netid(netid, netid_list)
 }
 
 pub fn devaddr_from_subnet(subnetaddr: u32, netid_list: Vec<u32>) -> u32 {
     let netid = subnet_addr_to_netid(subnetaddr, netid_list.clone());
-    let (lower, _upper) = netid_addr_range(netid, netid_list.clone());
-    let devaddr = devaddr(netid, subnetaddr - lower);
-    return devaddr;
+    let (lower, _upper) = netid_addr_range(netid, netid_list);
+    devaddr(netid, subnetaddr - lower)
 }
 
 pub fn subnet_from_devaddr(devaddr: u32, netid_list: Vec<u32>) -> u32 {
     let netid = the_netid(devaddr);
     let (lower, _upper) = netid_addr_range(netid, netid_list);
-    let subnet_addr: u32 = lower + nwk_addr(devaddr);
-    return subnet_addr;
+    lower + nwk_addr(devaddr)
 }
 
 fn netid_class(netid: u32) -> u32 {
     let result: u32 = netid >> 21;
-    return result;
+    result
 }
 
 fn addr_len(netclass: u32) -> u32 {
@@ -34,7 +32,7 @@ fn addr_len(netclass: u32) -> u32 {
         7 => 7,
         _ => 0,
     };
-    return result;
+    result
 }
 
 #[allow(dead_code)]
@@ -55,7 +53,7 @@ fn id_len(netclass: u32) -> u32 {
         7 => 17,
         _ => 0,
     };
-    return result;
+    result
 }
 
 fn subnet_addr_to_netid(subnetaddr: u32, netid_list: Vec<u32>) -> u32 {
@@ -64,7 +62,7 @@ fn subnet_addr_to_netid(subnetaddr: u32, netid_list: Vec<u32>) -> u32 {
             return item;
         }
     }
-    return 0;
+    0
 }
 
 fn subnet_addr_within_range(subnetaddr: u32, netid: u32, netid_list: Vec<u32>) -> bool {
@@ -85,7 +83,7 @@ fn var_net_class(netclass: u32) -> u32 {
         7 => 0b11111110u32 << idlen,
         _ => 0,
     };
-    return result;
+    result
 }
 
 fn var_netid(netclass: u32, netid: u32) -> u32 {
@@ -96,8 +94,7 @@ fn devaddr(netid: u32, nwkaddr: u32) -> u32 {
     let netclass = netid_class(netid);
     let id = netid & 0b111111111111111111111;
     let addr = var_net_class(netclass) | id;
-    let devaddr = var_netid(netclass, addr) | nwkaddr;
-    return devaddr;
+    var_netid(netclass, addr) | nwkaddr
 }
 
 fn is_local_netid(netid: u32, netid_list: Vec<u32>) -> bool {
@@ -106,23 +103,23 @@ fn is_local_netid(netid: u32, netid_list: Vec<u32>) -> bool {
             return true;
         }
     }
-    return false;
+    false
 }
 
 fn netid_type(devaddr: u32) -> u32 {
     fn netid_shift_prefix(prefix: u8, index: u32) -> u32 {
         if (prefix & (1 << index)) == 0 {
-            return 7 - index;
+            7 - index
         } else if index > 0 {
-            return netid_shift_prefix(prefix, index - 1);
+            netid_shift_prefix(prefix, index - 1)
         } else {
-            return 0;
+            0
         }
     }
 
     let n_bytes = devaddr.to_be_bytes();
     let first = n_bytes[0];
-    return netid_shift_prefix(first, 7);
+    netid_shift_prefix(first, 7)
 }
 
 fn get_netid(devaddr: u32, prefix_len: u32, nwkidbits: u32) -> u32 {
@@ -168,7 +165,7 @@ fn nwk_addr(devaddr: u32) -> u32 {
     let netid = the_netid(devaddr);
     let len = addr_len(netid_class(netid));
     let mask = (1 << len) - 1;
-    return devaddr & mask;
+    devaddr & mask
 }
 
 fn netid_size(netid: u32) -> u32 {
