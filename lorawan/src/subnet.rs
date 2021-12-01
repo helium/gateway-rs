@@ -21,39 +21,15 @@ fn netid_class(netid: u32) -> u8 {
 }
 
 fn addr_len(netclass: u8) -> u32 {
-    let result: u32 = match netclass {
-        0 => 25,
-        1 => 24,
-        2 => 20,
-        3 => 17,
-        4 => 15,
-        5 => 13,
-        6 => 10,
-        7 => 7,
-        _ => 0,
-    };
-    result
-}
-
-#[allow(dead_code)]
-fn addr_bit_len(devaddr: u32) -> u32 {
-    let netid = parse_netid(devaddr);
-    addr_len(netid_class(netid))
+    *[25, 24, 20, 17, 15, 13, 10, 7]
+        .get(netclass as usize)
+        .unwrap_or(&0)
 }
 
 fn id_len(netclass: u8) -> u32 {
-    let result: u32 = match netclass {
-        0 => 6,
-        1 => 6,
-        2 => 9,
-        3 => 11,
-        4 => 12,
-        5 => 13,
-        6 => 15,
-        7 => 17,
-        _ => 0,
-    };
-    result
+    *[6, 6, 9, 11, 12, 13, 15, 17]
+        .get(netclass as usize)
+        .unwrap_or(&0)
 }
 
 fn subnet_addr_to_netid(subnetaddr: u32, netid_list: Vec<u32>) -> u32 {
@@ -169,6 +145,11 @@ fn netid_size(netid: u32) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn addr_bit_len(devaddr: u32) -> u32 {
+        let netid = parse_netid(devaddr);
+        addr_len(netid_class(netid))
+    }
 
     #[allow(non_snake_case)]
     #[test]
