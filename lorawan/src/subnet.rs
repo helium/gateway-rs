@@ -122,15 +122,17 @@ fn netid_type(devaddr: u32) -> u8 {
     netid_shift_prefix(first, 7)
 }
 
-fn get_netid(devaddr: u32, prefix_len: u8, nwkidbits: u32) -> u32 {
-    println!(
-        "get_netid: devaddr={:#04X?} prefix_len={} nwkidbits={}",
-        devaddr, prefix_len, nwkidbits
-    );
-    (devaddr << (prefix_len - 1)) >> (31 - nwkidbits)
-}
+
 
 fn parse_netid(devaddr: u32) -> u32 {
+    fn get_netid(devaddr: u32, prefix_len: u8, nwkidbits: u32) -> u32 {
+        println!(
+            "get_netid: devaddr={:#04X?} prefix_len={} nwkidbits={}",
+            devaddr, prefix_len, nwkidbits
+        );
+        (devaddr << (prefix_len - 1)) >> (31 - nwkidbits)
+    }
+
     println!("devaddr is: {:#04X?}", devaddr);
     let net_type = netid_type(devaddr);
     println!("net_type is: {:#04X?}", net_type);
