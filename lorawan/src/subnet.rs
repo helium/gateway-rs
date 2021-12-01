@@ -72,7 +72,7 @@ fn subnet_addr_within_range(subnetaddr: u32, netid: u32, netid_list: Vec<u32>) -
 
 fn var_net_class(netclass: u8) -> u32 {
     let idlen = id_len(netclass);
-    let result: u32 = match netclass {
+    match netclass {
         0 => 0,
         1 => 0b10u32 << idlen,
         2 => 0b110u32 << idlen,
@@ -81,9 +81,8 @@ fn var_net_class(netclass: u8) -> u32 {
         5 => 0b111110u32 << idlen,
         6 => 0b1111110u32 << idlen,
         7 => 0b11111110u32 << idlen,
-        _ => 0,
-    };
-    result
+        _ => 0
+    }
 }
 
 fn var_netid(netclass: u8, netid: u32) -> u32 {
