@@ -122,8 +122,6 @@ fn netid_type(devaddr: u32) -> u8 {
     netid_shift_prefix(first, 7)
 }
 
-
-
 fn parse_netid(devaddr: u32) -> u32 {
     fn get_netid(devaddr: u32, prefix_len: u8, nwkidbits: u32) -> u32 {
         println!(
