@@ -1,19 +1,34 @@
+/// Does this LoRaWAN devaddr belong to the Helium network?
+/// netid_list contains Helium's ordered list of assigned NetIDs
+///
 pub fn is_local_devaddr(devaddr: u32, netid_list: Vec<u32>) -> bool {
     let netid = parse_netid(devaddr);
     is_local_netid(netid, netid_list)
 }
 
+/// Translate from a LoRaWAN devaddr to a Helium subnet address.
+/// netid_list contains Helium's ordered list of assigned NetIDs
+///
 pub fn devaddr_from_subnet(subnetaddr: u32, netid_list: Vec<u32>) -> u32 {
     let netid = subnet_addr_to_netid(subnetaddr, netid_list.clone());
     let (lower, _upper) = netid_addr_range(netid, netid_list);
     devaddr(netid, subnetaddr - lower)
 }
 
+/// Translate from a Helium subnet address to a LoRaWAN devaddr.
+/// netid_list contains Helium's ordered list of assigned NetIDs
+///
 pub fn subnet_from_devaddr(devaddr: u32, netid_list: Vec<u32>) -> u32 {
     let netid = parse_netid(devaddr);
     let (lower, _upper) = netid_addr_range(netid, netid_list);
     lower + nwk_addr(devaddr)
 }
+
+//
+// Internal functions
+//
+// Note - function and var names correspond closely to the LoRaWAN spec.
+//
 
 fn netid_class(netid: u32) -> u8 {
     let netclass: u8 = (netid >> 21) as u8;
