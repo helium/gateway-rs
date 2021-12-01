@@ -6,7 +6,7 @@ pub fn is_local_devaddr(devaddr: u32, netid_list: Vec<u32>) -> bool {
     is_local_netid(netid, netid_list)
 }
 
-/// Translate from a LoRaWAN devaddr to a Helium subnet address.
+/// Translate from a Helium subnet address to a LoRaWAN devaddr.
 /// netid_list contains Helium's ordered list of assigned NetIDs
 ///
 pub fn devaddr_from_subnet(subnetaddr: u32, netid_list: Vec<u32>) -> u32 {
@@ -15,7 +15,7 @@ pub fn devaddr_from_subnet(subnetaddr: u32, netid_list: Vec<u32>) -> u32 {
     devaddr(netid, subnetaddr - lower)
 }
 
-/// Translate from a Helium subnet address to a LoRaWAN devaddr.
+/// Translate from a LoRaWAN devaddr to a Helium subnet address.
 /// netid_list contains Helium's ordered list of assigned NetIDs
 ///
 pub fn subnet_from_devaddr(devaddr: u32, netid_list: Vec<u32>) -> u32 {
