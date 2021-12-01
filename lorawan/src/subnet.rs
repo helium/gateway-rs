@@ -1,5 +1,3 @@
-use std::convert::TryInto;
-
 pub fn is_local_devaddr(devaddr: u32, netid_list: Vec<u32>) -> bool {
     let netid = parse_netid(devaddr);
     is_local_netid(netid, netid_list)
@@ -18,7 +16,7 @@ pub fn subnet_from_devaddr(devaddr: u32, netid_list: Vec<u32>) -> u32 {
 }
 
 fn netid_class(netid: u32) -> u8 {
-    let netclass: u8 = ((netid >> 21) as u8).try_into().unwrap();
+    let netclass: u8 = (netid >> 21) as u8;
     netclass
 }
 
