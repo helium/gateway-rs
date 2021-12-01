@@ -1,3 +1,5 @@
+use std::convert::TryInto;
+
 pub fn is_local_devaddr(devaddr: u32, netid_list: Vec<u32>) -> bool {
     let netid = parse_netid(devaddr);
     is_local_netid(netid, netid_list)
@@ -15,11 +17,12 @@ pub fn subnet_from_devaddr(devaddr: u32, netid_list: Vec<u32>) -> u32 {
     lower + nwk_addr(devaddr)
 }
 
-fn netid_class(netid: u32) -> u32 {
-    netid >> 21
+fn netid_class(netid: u32) -> u8 {
+    let netclass: u8 = ((netid >> 21) as u8).try_into().unwrap();
+    netclass
 }
 
-fn addr_len(netclass: u32) -> u32 {
+fn addr_len(netclass: u8) -> u32 {
     let result: u32 = match netclass {
         0 => 25,
         1 => 24,
@@ -40,7 +43,7 @@ fn addr_bit_len(devaddr: u32) -> u32 {
     addr_len(netid_class(netid))
 }
 
-fn id_len(netclass: u32) -> u32 {
+fn id_len(netclass: u8) -> u32 {
     let result: u32 = match netclass {
         0 => 6,
         1 => 6,
@@ -69,7 +72,7 @@ fn subnet_addr_within_range(subnetaddr: u32, netid: u32, netid_list: Vec<u32>) -
     (subnetaddr >= lower) && (subnetaddr < upper)
 }
 
-fn var_net_class(netclass: u32) -> u32 {
+fn var_net_class(netclass: u8) -> u32 {
     let idlen = id_len(netclass);
     let result: u32 = match netclass {
         0 => 0,
@@ -85,7 +88,7 @@ fn var_net_class(netclass: u32) -> u32 {
     result
 }
 
-fn var_netid(netclass: u32, netid: u32) -> u32 {
+fn var_netid(netclass: u8, netid: u32) -> u32 {
     netid << addr_len(netclass)
 }
 
@@ -105,8 +108,8 @@ fn is_local_netid(netid: u32, netid_list: Vec<u32>) -> bool {
     false
 }
 
-fn netid_type(devaddr: u32) -> u32 {
-    fn netid_shift_prefix(prefix: u8, index: u32) -> u32 {
+fn netid_type(devaddr: u32) -> u8 {
+    fn netid_shift_prefix(prefix: u8, index: u8) -> u8 {
         if (prefix & (1 << index)) == 0 {
             7 - index
         } else if index > 0 {
@@ -121,7 +124,7 @@ fn netid_type(devaddr: u32) -> u32 {
     netid_shift_prefix(first, 7)
 }
 
-fn get_netid(devaddr: u32, prefix_len: u32, nwkidbits: u32) -> u32 {
+fn get_netid(devaddr: u32, prefix_len: u8, nwkidbits: u32) -> u32 {
     println!(
         "get_netid: devaddr={:#04X?} prefix_len={} nwkidbits={}",
         devaddr, prefix_len, nwkidbits
@@ -135,7 +138,7 @@ fn parse_netid(devaddr: u32) -> u32 {
     println!("net_type is: {:#04X?}", net_type);
     let id = get_netid(devaddr, net_type + 1, id_len(net_type));
     println!("ID is: {:#04X?}", id);
-    id | (net_type << 21)
+    id | ((net_type as u32) << 21)
 }
 
 fn netid_addr_range(netid: u32, netid_list: Vec<u32>) -> (u32, u32) {
