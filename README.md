@@ -21,7 +21,7 @@ In turn, the Helium Gateway application does two things:
                                                                  +-----------+
 ```
 
-The current gateway project forwards packets to the router but does **not** yet use state channels which means forwarded packets are not yet rewarded by the blockchain.
+The current gateway project forwards packets to the router via state channels and is eligible for data rewards __only-_. Proof of coverage is not yet possible.
 
 ### Releases
 
