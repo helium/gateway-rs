@@ -39,6 +39,7 @@ pub struct Gateway {
     messages: MessageReceiver,
     downlink_mac: MacAddress,
     udp_runtime: UdpRuntime,
+    listen_address: String,
 }
 
 impl Gateway {
@@ -51,6 +52,7 @@ impl Gateway {
             uplinks,
             downlink_mac: MacAddress::new(&[0u8; 8]),
             messages,
+            listen_address: settings.listen.clone(),
             udp_runtime: UdpRuntime::new(&settings.listen).await?,
         };
         Ok(gateway)
@@ -58,7 +60,7 @@ impl Gateway {
 
     pub async fn run(&mut self, shutdown: triggered::Listener, logger: &Logger) -> Result {
         let logger = logger.new(o!("module" => "gateway"));
-        info!(logger, "starting");
+        info!(logger, "starting"; "listen" => &self.listen_address);
         loop {
             tokio::select! {
                 _ = shutdown.clone() => {

@@ -3,7 +3,7 @@ use gateway_rs::{
     error::Result,
     settings::{LogMethod, Settings},
 };
-use slog::{self, o, Drain, Logger};
+use slog::{self, debug, o, Drain, Logger};
 use std::{io, path::PathBuf};
 use structopt::StructOpt;
 
@@ -106,6 +106,7 @@ pub async fn run(
     shutdown_listener: &triggered::Listener,
     logger: Logger,
 ) -> Result {
+    debug!(logger, "starting"; "settings" => &cli.config.to_str());
     match cli.cmd {
         Cmd::Key(cmd) => cmd.run(settings).await,
         Cmd::Info(cmd) => cmd.run(settings).await,
