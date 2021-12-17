@@ -21,7 +21,7 @@ In turn, the Helium Gateway application does two things:
                                                                  +-----------+
 ```
 
-The current gateway project forwards packets to the router via state channels and is eligible for data rewards __only-_. Proof of coverage is not yet possible.
+The current gateway project forwards packets to the router via state channels and is eligible for data rewards __only__. Proof of coverage is not yet possible.
 
 ### Releases
 
