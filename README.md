@@ -81,23 +81,24 @@ The following platforms have already been tested by Helium and our community. Ou
 Note that platforms will be tested much faster if you join the development process!
 
 
-| Platform       | Target                         | Products                                                 |
-| -------------- | ------------------------------ | -------------------------------------------------------- |
-| [ramips_24kec] | mipsel-unknown-linux-musl      | :white_check_mark: [RAK833] EVB Kit                      |
-|                |                                | :white_check_mark: [RAK7258] (WisGate Edge Lite)         |
-|                |                                | :grey_question: [RAK7249] (WisGate Edge Max)             |
-|                |                                | :white_check_mark: [RAK7240] (WisGate Edge Prime)           |
-| smartharvest   | mipsel-unknown-linux-musl      | :white_check_mark: Smart Harvest Instruments Light Gateway  |
-| klkgw          | armv7-unknown-linux-musleabihf | :white_check_mark: Kerlink [Wirnet iFemtoCell Evolution] |
-| dragino        | mips-unknown-linux-musl        | :white_check_mark: Dragino [LPS8]                        |
-|                |                                | :grey_question: Dragino [DLOS8]                          |
-| mtcdt          | armv5te-unknown-linux-musleabi | :white_check_mark: Multitech Conduit [MTCDT] (mLinux)    |
-| resiot         | armv7-unknown-linux-gnueabihf  | :white_check_mark: ResIOT X gateways [resiot]            |
-| cotx           | aarch64-unknown-linux-gnu      | :white_check_mark: Cotx gateways [cotx]                  |
-| x86_64         | x86_64-unknown-linux-gnu       | :white_check_mark: Debian x86_64                         |
-| raspi01        | arm-unknown-linux-gnueabihf    | :white_check_mark: Raspberry Pi 0 or 1 running Raspian / Raspberry Pi OS or another Debian-based Linux distro        |
-| raspi234       | armv7-unknown-linux-gnueabihf  | :white_check_mark: Raspberry Pi 2, 3, or 4 running Raspian / Raspberry Pi OS or another Debian-based Linux distro    |
-| raspi_64       | aarch64-unknown-linux-gnu      | :white_check_mark: Raspberry Pi 3 or 4 running Raspian / Raspberry Pi OS 64 bit or another 64 bit Debian-based Linux distro |
+| Platform         | Target                         | Products                                                                                                                    |
+|------------------| ------------------------------ |-----------------------------------------------------------------------------------------------------------------------------|
+| [ramips_24kec]   | mipsel-unknown-linux-musl      | :white_check_mark: [RAK833] EVB Kit                                                                                         |
+|                  |                                | :white_check_mark: [RAK7258] (WisGate Edge Lite)                                                                            |
+|                  |                                | :grey_question: [RAK7249] (WisGate Edge Max)                                                                                |
+|                  |                                | :white_check_mark: [RAK7240] (WisGate Edge Prime)                                                                           |
+| smartharvest     | mipsel-unknown-linux-musl      | :white_check_mark: Smart Harvest Instruments Light Gateway                                                                  |
+| klkgw            | armv7-unknown-linux-musleabihf | :white_check_mark: Kerlink [Wirnet iFemtoCell Evolution]                                                                    |
+| dragino          | mips-unknown-linux-musl        | :white_check_mark: Dragino [LPS8]                                                                                           |
+|                  |                                | :grey_question: Dragino [DLOS8]                                                                                             |
+| mtcdt            | armv5te-unknown-linux-musleabi | :white_check_mark: Multitech Conduit [MTCDT] (mLinux)                                                                       |
+| resiot           | armv7-unknown-linux-gnueabihf  | :white_check_mark: ResIOT X gateways [resiot]                                                                               |
+| cotx             | aarch64-unknown-linux-gnu      | :white_check_mark: Cotx gateways [cotx]                                                                                     |
+| longap_pro_atecc | mipsel-unknown-linux-musl      | :white_check_mark: LongAP Pro (using ATECC608)                                                                              |
+| x86_64           | x86_64-unknown-linux-gnu       | :white_check_mark: Debian x86_64                                                                                            |
+| raspi01          | arm-unknown-linux-gnueabihf    | :white_check_mark: Raspberry Pi 0 or 1 running Raspian / Raspberry Pi OS or another Debian-based Linux distro               |
+| raspi234         | armv7-unknown-linux-gnueabihf  | :white_check_mark: Raspberry Pi 2, 3, or 4 running Raspian / Raspberry Pi OS or another Debian-based Linux distro           |
+| raspi_64         | aarch64-unknown-linux-gnu      | :white_check_mark: Raspberry Pi 3 or 4 running Raspian / Raspberry Pi OS 64 bit or another 64 bit Debian-based Linux distro |
 
 [ramips_24kec]: https://downloads.rakwireless.com/WIFI/RAK634/Hardware%20Specification/RAK634_Module_Specification_V1.0.pdf
 [RAK833]: https://github.com/RAKWireless/RAK2247-RAK833-LoRaGateway-OpenWRT-MT7628
