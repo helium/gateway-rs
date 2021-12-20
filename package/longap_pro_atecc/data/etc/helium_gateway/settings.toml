@@ -1,0 +1,11 @@
+keypair = "ecc://i2c-0:96&slot=0"
+
+[log]
+method = "stdio"
+level = "info"
+timestamp = false
+
+[update]
+# LongAP manages updates using a external release process.
+enabled = false
+platform = "longap_pro_atecc"

@@ -94,7 +94,7 @@ Note that platforms will be tested much faster if you join the development proce
 | mtcdt            | armv5te-unknown-linux-musleabi | :white_check_mark: Multitech Conduit [MTCDT] (mLinux)                                                                       |
 | resiot           | armv7-unknown-linux-gnueabihf  | :white_check_mark: ResIOT X gateways [resiot]                                                                               |
 | cotx             | aarch64-unknown-linux-gnu      | :white_check_mark: Cotx gateways [cotx]                                                                                     |
-| longap_pro_atecc | mipsel-unknown-linux-musl      | :white_check_mark: LongAP Pro (using ATECC608)                                                                              |
+| longap_pro_atecc | mipsel-unknown-linux-musl      | :white_check_mark: [LongAP Pro] (using ATECC608 security IC)                                                                |
 | x86_64           | x86_64-unknown-linux-gnu       | :white_check_mark: Debian x86_64                                                                                            |
 | raspi01          | arm-unknown-linux-gnueabihf    | :white_check_mark: Raspberry Pi 0 or 1 running Raspian / Raspberry Pi OS or another Debian-based Linux distro               |
 | raspi234         | armv7-unknown-linux-gnueabihf  | :white_check_mark: Raspberry Pi 2, 3, or 4 running Raspian / Raspberry Pi OS or another Debian-based Linux distro           |
@@ -111,6 +111,7 @@ Note that platforms will be tested much faster if you join the development proce
 [MTCDT]: https://www.multitech.com/brands/multiconnect-conduit
 [resiot]: https://www.resiot.io/en/resiot-gateways/
 [cotx]: https://www.cotxnetworks.com/product/service_one
+[LongAP Pro]: https://longap.com/product/longap-pro/
 
 ## Building
 
