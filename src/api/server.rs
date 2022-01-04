@@ -1,8 +1,8 @@
 use super::{
-    ConfigReq, ConfigRes, ConfigValue, HeightReq, HeightRes, PubkeyReq, PubkeyRes, SignReq,
-    SignRes, LISTEN_ADDR,
+    ConfigReq, ConfigRes, ConfigValue, EcdhReq, EcdhRes, HeightReq, HeightRes, PubkeyReq,
+    PubkeyRes, SignReq, SignRes, LISTEN_ADDR,
 };
-use crate::{router::dispatcher, Error, Keypair, Result, Settings};
+use crate::{router::dispatcher, Error, Keypair, PublicKey, Result, Settings};
 use futures::TryFutureExt;
 use helium_crypto::Sign;
 use helium_proto::services::local::{Api, Server};
@@ -53,6 +53,19 @@ impl Api for LocalServer {
             .sign(&data)
             .map_err(|_err| Status::internal("Failed signing data"))?;
         let reply = SignRes { signature };
+        Ok(Response::new(reply))
+    }
+
+    async fn ecdh(&self, request: Request<EcdhReq>) -> ApiResult<EcdhRes> {
+        let public_key = PublicKey::from_bytes(request.into_inner().address)
+            .map_err(|_err| Status::internal("Invalid public key"))?;
+        let secret = self
+            .keypair
+            .ecdh(&public_key)
+            .map_err(|_err| Status::internal("Failed ecdh"))?;
+        let reply = EcdhRes {
+            secret: secret.as_bytes().to_vec(),
+        };
         Ok(Response::new(reply))
     }
 
