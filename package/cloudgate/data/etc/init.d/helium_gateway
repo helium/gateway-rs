@@ -1,0 +1,16 @@
+#!/bin/sh /etc/rc.common
+# Copyright (C) 2006 OpenWrt.org
+STOP=80
+
+start() {
+	/rom/mnt/cust/usr/bin/monit -g helium restart all
+}
+
+stop() {
+	/rom/mnt/cust/usr/bin/monit -g helium stop all
+}
+
+restart() {
+	/rom/mnt/cust/usr/bin/monit restart helium_cg
+}
+

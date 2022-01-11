@@ -51,6 +51,7 @@ jobs:
           - x86_64
           - cotx
           - raspi_64
+          - cloudgate
     steps:
       - uses: actions-rs/toolchain@v1
         with:

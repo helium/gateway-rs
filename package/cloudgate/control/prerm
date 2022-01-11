@@ -1,0 +1,4 @@
+#!/bin/sh
+
+rm -f /etc/rc.d/K80helium_gateway
+

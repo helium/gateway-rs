@@ -1,0 +1,7 @@
+Package: helium_gateway
+Version: ${CARGO_MAKE_CRATE_VERSION}
+Architecture: ${CARGO_MAKE_PROFILE}
+Maintainer: info@helium.com
+Description: The Helium Gateway to attach your LoRa gateway to the Helium Blockchain
+Priority: optional
+Depends: curl monit-nossl

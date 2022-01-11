@@ -98,6 +98,7 @@ Note that platforms will be tested much faster if you join the development proce
 | raspi01        | arm-unknown-linux-gnueabihf    | :white_check_mark: Raspberry Pi 0 or 1 running Raspian / Raspberry Pi OS or another Debian-based Linux distro        |
 | raspi234       | armv7-unknown-linux-gnueabihf  | :white_check_mark: Raspberry Pi 2, 3, or 4 running Raspian / Raspberry Pi OS or another Debian-based Linux distro    |
 | raspi_64       | aarch64-unknown-linux-gnu      | :white_check_mark: Raspberry Pi 3 or 4 running Raspian / Raspberry Pi OS 64 bit or another 64 bit Debian-based Linux distro |
+| cloudgate      | armv5te-unknown-linux-musleabi | :white_check_mark: CloudGate |
 
 [ramips_24kec]: https://downloads.rakwireless.com/WIFI/RAK634/Hardware%20Specification/RAK634_Module_Specification_V1.0.pdf
 [RAK833]: https://github.com/RAKWireless/RAK2247-RAK833-LoRaGateway-OpenWRT-MT7628
@@ -110,6 +111,7 @@ Note that platforms will be tested much faster if you join the development proce
 [MTCDT]: https://www.multitech.com/brands/multiconnect-conduit
 [resiot]: https://www.resiot.io/en/resiot-gateways/
 [cotx]: https://www.cotxnetworks.com/product/service_one
+[CloudGate]: https://www.option.com/
 
 ## Building
 
