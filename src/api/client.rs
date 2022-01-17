@@ -1,17 +1,21 @@
-use super::{ConfigReq, ConfigValue, HeightReq, HeightRes, PubkeyReq, SignReq, CONNECT_URI};
+use super::{ConfigReq, ConfigValue, HeightReq, HeightRes, PubkeyReq, SignReq};
 use crate::{PublicKey, Result};
 use helium_proto::services::local::Client;
 use std::convert::TryFrom;
 use tonic::transport::{Channel, Endpoint};
+
+const CONNECT_PREFIX: &str = "http://";
 
 pub struct LocalClient {
     client: Client<Channel>,
 }
 
 impl LocalClient {
-    pub async fn new() -> Result<Self> {
-        let addr = Endpoint::from_static(CONNECT_URI);
-        let client = Client::connect(addr).await?;
+    pub async fn new(listen_addr: String) -> Result<Self> {
+        let mut uri = CONNECT_PREFIX.to_string();
+        uri += &listen_addr;
+        let endpoint = Endpoint::from_shared(uri);
+        let client = Client::connect(endpoint.unwrap()).await?;
         Ok(Self { client })
     }
 
