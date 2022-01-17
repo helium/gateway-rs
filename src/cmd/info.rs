@@ -35,10 +35,7 @@ pub struct Cmd {
 
 impl Cmd {
     pub async fn run(&self, settings: Settings) -> Result {
-        let mut info_cache = InfoCache::new(
-            settings.update.platform.clone(),
-            settings.api_listen.clone(),
-        );
+        let mut info_cache = InfoCache::new(settings.update.platform.clone(), settings.api.clone());
         let mut info: HashMap<String, serde_json::Value> = HashMap::new();
         for key in &self.keys.0 {
             info.insert(key.to_string(), key.to_status(&mut info_cache).await?);

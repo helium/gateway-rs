@@ -22,7 +22,7 @@ impl LocalServer {
     pub fn new(dispatcher: dispatcher::MessageSender, settings: &Settings) -> Self {
         Self {
             keypair: settings.keypair.clone(),
-            listen_addr: settings.api_listen.clone(),
+            listen_addr: settings.api.clone(),
             dispatcher,
         }
     }
