@@ -14,8 +14,8 @@ impl LocalClient {
     pub async fn new(listen_addr: String) -> Result<Self> {
         let mut uri = CONNECT_PREFIX.to_string();
         uri += &listen_addr;
-        let endpoint = Endpoint::from_shared(uri);
-        let client = Client::connect(endpoint.unwrap()).await?;
+        let endpoint = Endpoint::from_shared(uri).unwrap();
+        let client = Client::connect(endpoint).await?;
         Ok(Self { client })
     }
 
