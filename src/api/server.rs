@@ -1,6 +1,6 @@
 use super::{
-    ConfigReq, ConfigRes, ConfigValue, EcdhReq, EcdhRes, HeightReq, HeightRes, PubkeyReq,
-    PubkeyRes, SignReq, SignRes,
+    listen_addr, ConfigReq, ConfigRes, ConfigValue, EcdhReq, EcdhRes, HeightReq, HeightRes,
+    PubkeyReq, PubkeyRes, SignReq, SignRes,
 };
 use crate::{router::dispatcher, Error, Keypair, PublicKey, Result, Settings};
 use futures::TryFutureExt;
@@ -15,20 +15,20 @@ pub type ApiResult<T> = std::result::Result<Response<T>, Status>;
 pub struct LocalServer {
     dispatcher: dispatcher::MessageSender,
     keypair: Arc<Keypair>,
-    listen_addr: String,
+    listen_port: u16,
 }
 
 impl LocalServer {
     pub fn new(dispatcher: dispatcher::MessageSender, settings: &Settings) -> Self {
         Self {
             keypair: settings.keypair.clone(),
-            listen_addr: settings.api.clone(),
+            listen_port: settings.api,
             dispatcher,
         }
     }
 
     pub async fn run(self, shutdown: triggered::Listener, logger: &Logger) -> Result {
-        let addr = self.listen_addr.parse().unwrap();
+        let addr = listen_addr(self.listen_port).parse().unwrap();
         let logger = logger.new(o!("module" => "api", "listen" => addr));
         info!(logger, "starting");
         TransportServer::builder()
