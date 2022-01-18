@@ -1,6 +1,6 @@
 use super::{
-    ConfigReq, ConfigRes, ConfigValue, EcdhReq, EcdhRes, HeightReq, HeightRes, PubkeyReq,
-    PubkeyRes, SignReq, SignRes, listen_addr,
+    listen_addr, ConfigReq, ConfigRes, ConfigValue, EcdhReq, EcdhRes, HeightReq, HeightRes,
+    PubkeyReq, PubkeyRes, SignReq, SignRes,
 };
 use crate::{router::dispatcher, Error, Keypair, PublicKey, Result, Settings};
 use futures::TryFutureExt;

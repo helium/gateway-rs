@@ -1,4 +1,4 @@
-use super::{ConfigReq, ConfigValue, HeightReq, HeightRes, PubkeyReq, SignReq, connect_uri};
+use super::{connect_uri, ConfigReq, ConfigValue, HeightReq, HeightRes, PubkeyReq, SignReq};
 use crate::{PublicKey, Result};
 use helium_proto::services::local::Client;
 use std::convert::TryFrom;
