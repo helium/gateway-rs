@@ -35,7 +35,7 @@ pub struct Cmd {
 
 impl Cmd {
     pub async fn run(&self, settings: Settings) -> Result {
-        let mut info_cache = InfoCache::new(settings.update.platform.clone());
+        let mut info_cache = InfoCache::new(settings.update.platform.clone(), settings.api.clone());
         let mut info: HashMap<String, serde_json::Value> = HashMap::new();
         for key in &self.keys.0 {
             info.insert(key.to_string(), key.to_status(&mut info_cache).await?);
@@ -98,14 +98,16 @@ impl std::str::FromStr for InfoKeys {
 
 struct InfoCache {
     platform: String,
+    api_addr: String,
     public_key: Option<PublicKey>,
     height: Option<HeightRes>,
 }
 
 impl InfoCache {
-    fn new(platform: String) -> Self {
+    fn new(platform: String, api_addr: String) -> Self {
         Self {
             platform,
+            api_addr,
             public_key: None,
             height: None,
         }
@@ -115,7 +117,7 @@ impl InfoCache {
         if let Some(public_key) = &self.public_key {
             return Ok(public_key.clone());
         }
-        let mut client = LocalClient::new().await?;
+        let mut client = LocalClient::new(self.api_addr.clone()).await?;
         let public_key = client.pubkey().await?;
         self.public_key = Some(public_key.clone());
         Ok(public_key)
@@ -125,7 +127,7 @@ impl InfoCache {
         if let Some(height) = &self.height {
             return Ok(height.clone());
         }
-        let mut client = LocalClient::new().await?;
+        let mut client = LocalClient::new(self.api_addr.clone()).await?;
         let height = client.height().await?;
         self.height = Some(height.clone());
         Ok(height)
