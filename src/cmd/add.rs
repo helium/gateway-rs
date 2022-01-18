@@ -24,7 +24,7 @@ pub struct Cmd {
 
 impl Cmd {
     pub async fn run(&self, settings: Settings) -> Result {
-        let mut client = LocalClient::new(settings.api.clone()).await?;
+        let mut client = LocalClient::new(settings.api).await?;
         let public_key = client.pubkey().await?;
         let config = TxnFeeConfig::from_client(&mut client).await?;
         let mut txn = BlockchainTxnAddGatewayV1 {
