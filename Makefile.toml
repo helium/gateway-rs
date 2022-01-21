@@ -1,5 +1,5 @@
 [config]
-additional_profiles = ["klkgw", "ramips_24kec", "smartharvest", "dragino", "mtcdt", "raspi01", "raspi234", "resiot", "cotx", "raspi_64"]
+additional_profiles = ["klkgw", "ramips_24kec", "smartharvest", "dragino", "mtcdt", "raspi01", "raspi234", "resiot", "cotx", "raspi_64", "caldigit"]
 default_to_workspace = false
 
 [env]
@@ -57,6 +57,11 @@ IPK_USE_AR = true
 [env.cotx]
 CROSS_TARGET = "aarch64-unknown-linux-gnu"
 PKG = "deb"
+
+[env.caldigit]
+CROSS_TARGET = "mipsel-unknown-linux-musl"
+PKG = "ipk"
+IPK_USE_AR = false
 
 [tasks.cross]
 description = "Runs the cross rust compiler."
