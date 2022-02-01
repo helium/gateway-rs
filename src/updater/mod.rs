@@ -48,7 +48,7 @@ impl Updater {
                     return Ok(())
                 },
                 _ = interval.tick() => {
-                    // Get teh current cersion and find teh first replease
+                    // Get the current version and find the first release
                     // version in the settings channel that is newer than the
                     // package version.
                     let current_version = settings::version();
@@ -81,7 +81,7 @@ impl Updater {
     }
 
     /// Does a platform specific install of the given package. Some platform
-    /// will mvove the package into a staging location and reboot to trigger the
+    /// will remove the package into a staging location and reboot to trigger the
     /// install whereas others may just need a package install and service
     /// restart.
     pub async fn install(&self, download_path: &Path, logger: &Logger) -> Result {

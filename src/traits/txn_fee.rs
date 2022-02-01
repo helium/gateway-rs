@@ -57,7 +57,7 @@ impl_txn_fee!(
 pub struct TxnFeeConfig {
     // whether transaction fees are active
     txn_fees: bool,
-    // a mutliplier which will be applied to the txn fee of all txns, in order
+    // a multiplier which will be applied to the txn fee of all txns, in order
     // to make their DC costs meaningful
     txn_fee_multiplier: u64,
     // the staking fee in DC for adding a gateway
