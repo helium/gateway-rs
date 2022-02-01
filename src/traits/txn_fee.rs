@@ -105,7 +105,7 @@ impl TxnFeeConfig {
             "staking_fee_txn_add_dataonly_gateway_v1",
         ];
         let values = client.config(&keys).await?;
-        Ok(Self::try_from(values)?)
+        Self::try_from(values)
     }
 
     pub fn get_staking_fee(&self, staking_mode: &StakingMode) -> u64 {
