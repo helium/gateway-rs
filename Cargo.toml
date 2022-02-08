@@ -1,5 +1,3 @@
-cargo-features = ["strip"]
-
 [package]
 name = "gateway-rs"
 description = "Helium Gateway for LoRa packet forwarders"
