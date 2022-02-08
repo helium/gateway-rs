@@ -65,11 +65,21 @@ where
                 .query()
                 .map_or_else(
                     || Ok(HashMap::new()),
-                    serde_urlencoded::from_str::<HashMap<String, u8>>,
+                    serde_urlencoded::from_str::<HashMap<String, String>>,
                 )
                 .map_err(|err| de_error!("invalid ecc bus options: {:?}", err))?;
+
             let bus_address = url.port_u16().unwrap_or(96);
-            let slot = *args.get("slot").unwrap_or(&0);
+            let slot = args
+                .get("slot")
+                .unwrap_or(&"0".to_string())
+                .parse::<u8>()
+                .map_err(|err| de_error!("invalid ecc slot: {:?}", err))?;
+            let network = args
+                .get("network")
+                .unwrap_or(&"mainnet".to_string())
+                .parse::<Network>()
+                .map_err(|err| de_error!("invalid network: {:?}", err))?;
             let path = url
                 .host()
                 .map(|dev| Path::new("/dev").join(dev))
@@ -84,7 +94,7 @@ where
                     )
                 })
                 .and_then(|_| {
-                    ecc608::Keypair::from_slot(Network::MainNet, slot).map_err(|err| {
+                    ecc608::Keypair::from_slot(network, slot).map_err(|err| {
                         de_error!("could not load ecc keypair in slot {}: {:?}", slot, err)
                     })
                 })?;
