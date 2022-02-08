@@ -13,21 +13,20 @@
 ## by upgrades. 
 ##
 ## File: 
-keypair = "/etc/helium_gateway/gateway_key.bin"
+#keypair = "/etc/helium_gateway/gateway_key.bin"
 ## ECC608 based
-# keypair = "ecc://i2c-1:96&slot=0"
+keypair = "ecc://ttyO1:0&slot=0"
 listen = "127.0.0.1:1680"
-api = 4467
 region = "US915"
 
 [log]
-method = "stdio"
+method = "syslog"
 level = "info"
 timestamp = false
 
 [update]
-# Enable update checking
-enabled = true
+# Disable update checking
+enabled = false
 # OVERRIDE: Platform to use as part of update check. This MUST be overriden by a
 # local settings file
 platform = "unknown"
@@ -42,6 +41,7 @@ uri = "https://api.github.com/repos/helium/gateway-rs/releases"
 command = "/etc/helium_gateway/install_update"
 
 [cache]
+store = "/etc/helium_gateway/cache"
 max_packets = 20
 
 # A list of gateway service keys and urls (note https is not supported

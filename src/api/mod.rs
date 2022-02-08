@@ -1,11 +1,19 @@
 mod client;
 mod server;
 
-pub const LISTEN_ADDR: &str = "127.0.0.1:4467";
-pub const CONNECT_URI: &str = "http://127.0.0.1:4467";
+const LISTEN_ADDR: &str = "127.0.0.1";
 
 pub use client::LocalClient;
 pub use helium_proto::services::local::{
-    ConfigReq, ConfigRes, ConfigValue, HeightReq, HeightRes, PubkeyReq, PubkeyRes, SignReq, SignRes,
+    ConfigReq, ConfigRes, ConfigValue, EcdhReq, EcdhRes, HeightReq, HeightRes, PubkeyReq,
+    PubkeyRes, SignReq, SignRes,
 };
 pub use server::LocalServer;
+
+pub fn listen_addr(port: u16) -> String {
+    format!("{}:{}", LISTEN_ADDR, port)
+}
+
+pub fn connect_uri(port: u16) -> String {
+    format!("http://{}", listen_addr(port))
+}

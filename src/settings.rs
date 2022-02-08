@@ -17,6 +17,10 @@ pub struct Settings {
     /// Default "127.0.0.1:1680"
     #[serde(default = "default_listen")]
     pub listen: String,
+    /// The listening network port for the grpc / jsonrpc API.
+    /// Default 4467
+    #[serde(default = "default_api")]
+    pub api: u16,
     /// The location of the keypair binary file for the gateway. Defaults to
     /// "/etc/helium_gateway/keypair.bin". If the keyfile is not found there a new
     /// one is generated and saved in that location.
@@ -113,6 +117,10 @@ impl Settings {
 
 fn default_listen() -> String {
     "127.0.0.1:1680".to_string()
+}
+
+fn default_api() -> u16 {
+    4467
 }
 
 #[derive(Debug)]

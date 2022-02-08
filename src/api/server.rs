@@ -1,8 +1,8 @@
 use super::{
-    ConfigReq, ConfigRes, ConfigValue, HeightReq, HeightRes, PubkeyReq, PubkeyRes, SignReq,
-    SignRes, LISTEN_ADDR,
+    listen_addr, ConfigReq, ConfigRes, ConfigValue, EcdhReq, EcdhRes, HeightReq, HeightRes,
+    PubkeyReq, PubkeyRes, SignReq, SignRes,
 };
-use crate::{router::dispatcher, Error, Keypair, Result, Settings};
+use crate::{router::dispatcher, Error, Keypair, PublicKey, Result, Settings};
 use futures::TryFutureExt;
 use helium_crypto::Sign;
 use helium_proto::services::local::{Api, Server};
@@ -15,18 +15,20 @@ pub type ApiResult<T> = std::result::Result<Response<T>, Status>;
 pub struct LocalServer {
     dispatcher: dispatcher::MessageSender,
     keypair: Arc<Keypair>,
+    listen_port: u16,
 }
 
 impl LocalServer {
     pub fn new(dispatcher: dispatcher::MessageSender, settings: &Settings) -> Self {
         Self {
             keypair: settings.keypair.clone(),
+            listen_port: settings.api,
             dispatcher,
         }
     }
 
     pub async fn run(self, shutdown: triggered::Listener, logger: &Logger) -> Result {
-        let addr = LISTEN_ADDR.parse().unwrap();
+        let addr = listen_addr(self.listen_port).parse().unwrap();
         let logger = logger.new(o!("module" => "api", "listen" => addr));
         info!(logger, "starting");
         TransportServer::builder()
@@ -53,6 +55,19 @@ impl Api for LocalServer {
             .sign(&data)
             .map_err(|_err| Status::internal("Failed signing data"))?;
         let reply = SignRes { signature };
+        Ok(Response::new(reply))
+    }
+
+    async fn ecdh(&self, request: Request<EcdhReq>) -> ApiResult<EcdhRes> {
+        let public_key = PublicKey::from_bytes(request.into_inner().address)
+            .map_err(|_err| Status::internal("Invalid public key"))?;
+        let secret = self
+            .keypair
+            .ecdh(&public_key)
+            .map_err(|_err| Status::internal("Failed ecdh"))?;
+        let reply = EcdhRes {
+            secret: secret.as_bytes().to_vec(),
+        };
         Ok(Response::new(reply))
     }
 

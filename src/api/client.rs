@@ -1,4 +1,4 @@
-use super::{ConfigReq, ConfigValue, HeightReq, HeightRes, PubkeyReq, SignReq, CONNECT_URI};
+use super::{connect_uri, ConfigReq, ConfigValue, HeightReq, HeightRes, PubkeyReq, SignReq};
 use crate::{PublicKey, Result};
 use helium_proto::services::local::Client;
 use std::convert::TryFrom;
@@ -9,9 +9,10 @@ pub struct LocalClient {
 }
 
 impl LocalClient {
-    pub async fn new() -> Result<Self> {
-        let addr = Endpoint::from_static(CONNECT_URI);
-        let client = Client::connect(addr).await?;
+    pub async fn new(port: u16) -> Result<Self> {
+        let uri = connect_uri(port);
+        let endpoint = Endpoint::from_shared(uri).unwrap();
+        let client = Client::connect(endpoint).await?;
         Ok(Self { client })
     }
 

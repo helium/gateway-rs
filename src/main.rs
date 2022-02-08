@@ -32,9 +32,9 @@ pub enum Cmd {
     Add(Box<cmd::add::Cmd>),
 }
 
-/// An emptye timestamp function for when timestamp should not be included in
+/// An empty timestamp function for when timestamp should not be included in
 /// the output. This is commonly used with logd on OpenWRT which adds its own
-/// timestamp informatin after capturing stdout.
+/// timestamp information after capturing stdout.
 fn timestamp_none(_io: &mut dyn io::Write) -> io::Result<()> {
     Ok(())
 }

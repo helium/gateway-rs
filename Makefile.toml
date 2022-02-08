@@ -1,5 +1,5 @@
 [config]
-additional_profiles = ["klkgw", "ramips_24kec", "smartharvest", "dragino", "mtcdt", "raspi01", "raspi234", "resiot", "cotx", "raspi_64"]
+additional_profiles = ["klkgw", "ramips_24kec", "smartharvest", "dragino", "mtcdt", "raspi01", "raspi234", "resiot", "cotx", "raspi_64", "caldigit", "tektelic"]
 default_to_workspace = false
 
 [env]
@@ -58,6 +58,16 @@ IPK_USE_AR = true
 CROSS_TARGET = "aarch64-unknown-linux-gnu"
 PKG = "deb"
 
+[env.tektelic]
+CROSS_TARGET = "armv7-unknown-linux-gnueabihf"
+PKG = "ipk"
+IPK_USE_AR = true
+
+[env.caldigit]
+CROSS_TARGET = "mipsel-unknown-linux-musl"
+PKG = "ipk"
+IPK_USE_AR = false
+
 [tasks.cross]
 description = "Runs the cross rust compiler."
 category = "Build"
@@ -108,7 +118,7 @@ script = '''
         envsubst < config/conffiles > ${PKG_BUILD_DIR}/control/conffiles
         chmod +x ${PKG_BUILD_DIR}/control/conffiles
 	for control_file in control preinst postinst prerm; do
-	    envsubst < ${PKG_SRC_DIR}/control/${control_file} > ${PKG_BUILD_DIR}/control/${control_file}
+	    envsubst "$(printf '${%s} ' $(env | sed 's/=.*//'))" < ${PKG_SRC_DIR}/control/${control_file} > ${PKG_BUILD_DIR}/control/${control_file}
 	    chmod +x ${PKG_BUILD_DIR}/control/${control_file}
 	done
 
