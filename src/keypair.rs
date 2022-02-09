@@ -44,15 +44,15 @@ impl KeypairArgs {
         Ok(Self(args))
     }
 
-    pub fn get<T>(&self, name: &str, default: &str) -> std::result::Result<T, String>
+    pub fn get<T>(&self, name: &str, default: T) -> std::result::Result<T, String>
     where
         T: std::str::FromStr,
         <T as std::str::FromStr>::Err: std::fmt::Debug,
     {
         self.0
             .get(name)
-            .unwrap_or(&default.to_string())
-            .parse::<T>()
+            .map(|s| s.parse::<T>())
+            .unwrap_or(Ok(default))
             .map_err(|err| format!("invalid uri argument for {}: {:?}", name, err))
     }
 }
@@ -71,7 +71,7 @@ where
             Err(Error::IO(io_error)) if io_error.kind() == std::io::ErrorKind::NotFound => {
                 let args = KeypairArgs::from_uri(&url).map_err(de::Error::custom)?;
                 let network = args
-                    .get::<Network>("network", "mainnet")
+                    .get::<Network>("network", Network::MainNet)
                     .map_err(de::Error::custom)?;
                 let new_key = Keypair::generate(
                     KeyTag {
@@ -95,8 +95,10 @@ where
             let args = KeypairArgs::from_uri(&url).map_err(de::Error::custom)?;
 
             let bus_address = url.port_u16().unwrap_or(96);
-            let slot = args.get::<u8>("slot", "0").map_err(de::Error::custom)?;
-            let network = args.get("network", "mainnet").map_err(de::Error::custom)?;
+            let slot = args.get::<u8>("slot", 0).map_err(de::Error::custom)?;
+            let network = args
+                .get("network", Network::MainNet)
+                .map_err(de::Error::custom)?;
             let path = url
                 .host()
                 .map(|dev| Path::new("/dev").join(dev))
@@ -118,5 +120,23 @@ where
             Ok(Arc::new(keypair.into()))
         }
         Some(unknown) => Err(de_error!("unkown keypair scheme: \"{}\"", unknown)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn keypair_args() {
+        let args =
+            KeypairArgs::from_uri(&Uri::from_static("ecc://i2c-1:96?slot=0&network=testnet"))
+                .expect("keypair args");
+        assert_eq!(0, args.get::<u8>("slot", 22).expect("slot"));
+        assert_eq!(
+            Network::TestNet,
+            args.get::<Network>("network", Network::MainNet)
+                .expect("network")
+        );
     }
 }

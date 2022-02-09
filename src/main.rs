@@ -6,6 +6,7 @@ use gateway_rs::{
 use slog::{self, o, Drain, Logger};
 use std::{io, path::PathBuf};
 use structopt::StructOpt;
+use tokio::{io::AsyncReadExt, signal};
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = env!("CARGO_BIN_NAME"), version = env!("CARGO_PKG_VERSION"), about = "Helium Light Gateway")]
@@ -91,8 +92,15 @@ pub fn main() -> Result {
         .block_on(async {
             let (shutdown_trigger, shutdown_listener) = triggered::trigger();
             tokio::spawn(async move {
-                let _ = tokio::signal::ctrl_c().await;
-                shutdown_trigger.trigger();
+                let mut in_buf = [0u8; 64];
+                let mut stdin = tokio::io::stdin();
+                loop {
+                    tokio::select!(
+                        _ = signal::ctrl_c() => break,
+                        read = stdin.read(&mut in_buf), if !cli.daemon => if let Ok(0) = read { break },
+                    )
+                }
+                shutdown_trigger.trigger()
             });
             run(cli, settings, &shutdown_listener, run_logger).await
         });
