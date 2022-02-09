@@ -6,7 +6,7 @@ use gateway_rs::{
 use slog::{self, o, Drain, Logger};
 use std::{io, path::PathBuf};
 use structopt::StructOpt;
-use tokio::{io::AsyncReadExt, signal};
+use tokio::{io::AsyncReadExt, signal, time::Duration};
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = env!("CARGO_BIN_NAME"), version = env!("CARGO_PKG_VERSION"), about = "Helium Light Gateway")]
@@ -85,25 +85,28 @@ pub fn main() -> Result {
     let scope_guard = slog_scope::set_global_logger(logger);
     let run_logger = slog_scope::logger().new(o!());
     let _log_guard = slog_stdlog::init().unwrap();
-    // Start the runtime after the daemon fork
-    let res = tokio::runtime::Builder::new_current_thread()
+    let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
-        .build()?
-        .block_on(async {
-            let (shutdown_trigger, shutdown_listener) = triggered::trigger();
-            tokio::spawn(async move {
-                let mut in_buf = [0u8; 64];
-                let mut stdin = tokio::io::stdin();
-                loop {
-                    tokio::select!(
-                        _ = signal::ctrl_c() => break,
-                        read = stdin.read(&mut in_buf), if !cli.daemon => if let Ok(0) = read { break },
-                    )
-                }
-                shutdown_trigger.trigger()
-            });
-            run(cli, settings, &shutdown_listener, run_logger).await
+        .build()?;
+
+    // Start the runtime after the daemon fork
+    let res = runtime.block_on(async {
+        let (shutdown_trigger, shutdown_listener) = triggered::trigger();
+        tokio::spawn(async move {
+            let mut in_buf = [0u8; 64];
+            let mut stdin = tokio::io::stdin();
+            loop {
+                tokio::select!(
+                    _ = signal::ctrl_c() => break,
+                    read = stdin.read(&mut in_buf), if !cli.daemon => if let Ok(0) = read { break },
+                )
+            }
+            shutdown_trigger.trigger()
         });
+        run(cli, settings, &shutdown_listener, run_logger).await
+    });
+    runtime.shutdown_timeout(Duration::from_secs(0));
+
     drop(scope_guard);
     res
 }
