@@ -1,12 +1,12 @@
 use crate::*;
 use helium_crypto::{ecc608, KeyTag, KeyType, Network};
+use http::Uri;
 use rand::rngs::OsRng;
 use serde::{de, Deserialize, Deserializer};
 use std::{collections::HashMap, convert::TryFrom, fs, io, path, path::Path, sync::Arc};
 
 pub type Keypair = helium_crypto::Keypair;
 pub type PublicKey = helium_crypto::PublicKey;
-use http::Uri;
 
 pub fn load_from_file(path: &str) -> error::Result<Keypair> {
     let data = fs::read(path)?;
@@ -30,6 +30,33 @@ macro_rules! de_error {
     };
 }
 
+struct KeypairArgs(HashMap<String, String>);
+
+impl KeypairArgs {
+    pub(crate) fn from_uri(url: &Uri) -> std::result::Result<Self, String> {
+        let args = url
+            .query()
+            .map_or_else(
+                || Ok(HashMap::new()),
+                serde_urlencoded::from_str::<HashMap<String, String>>,
+            )
+            .map_err(|err| format!("invalid keypair url \"{}\": {:?}", url, err))?;
+        Ok(Self(args))
+    }
+
+    pub fn get<T>(&self, name: &str, default: T) -> std::result::Result<T, String>
+    where
+        T: std::str::FromStr,
+        <T as std::str::FromStr>::Err: std::fmt::Debug,
+    {
+        self.0
+            .get(name)
+            .map(|s| s.parse::<T>())
+            .unwrap_or(Ok(default))
+            .map_err(|err| format!("invalid uri argument for {}: {:?}", name, err))
+    }
+}
+
 pub fn deserialize<'de, D>(d: D) -> std::result::Result<Arc<Keypair>, D::Error>
 where
     D: Deserializer<'de>,
@@ -42,9 +69,13 @@ where
         Some("file") | None => match load_from_file(url.path()) {
             Ok(k) => Ok(Arc::new(k)),
             Err(Error::IO(io_error)) if io_error.kind() == std::io::ErrorKind::NotFound => {
+                let args = KeypairArgs::from_uri(&url).map_err(de::Error::custom)?;
+                let network = args
+                    .get::<Network>("network", Network::MainNet)
+                    .map_err(de::Error::custom)?;
                 let new_key = Keypair::generate(
                     KeyTag {
-                        network: Network::MainNet,
+                        network,
                         key_type: KeyType::Ed25519,
                     },
                     &mut OsRng,
@@ -61,15 +92,13 @@ where
             )),
         },
         Some("ecc") => {
-            let args = url
-                .query()
-                .map_or_else(
-                    || Ok(HashMap::new()),
-                    serde_urlencoded::from_str::<HashMap<String, u8>>,
-                )
-                .map_err(|err| de_error!("invalid ecc bus options: {:?}", err))?;
+            let args = KeypairArgs::from_uri(&url).map_err(de::Error::custom)?;
+
             let bus_address = url.port_u16().unwrap_or(96);
-            let slot = *args.get("slot").unwrap_or(&0);
+            let slot = args.get::<u8>("slot", 0).map_err(de::Error::custom)?;
+            let network = args
+                .get("network", Network::MainNet)
+                .map_err(de::Error::custom)?;
             let path = url
                 .host()
                 .map(|dev| Path::new("/dev").join(dev))
@@ -84,12 +113,30 @@ where
                     )
                 })
                 .and_then(|_| {
-                    ecc608::Keypair::from_slot(Network::MainNet, slot).map_err(|err| {
+                    ecc608::Keypair::from_slot(network, slot).map_err(|err| {
                         de_error!("could not load ecc keypair in slot {}: {:?}", slot, err)
                     })
                 })?;
             Ok(Arc::new(keypair.into()))
         }
         Some(unknown) => Err(de_error!("unkown keypair scheme: \"{}\"", unknown)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn keypair_args() {
+        let args =
+            KeypairArgs::from_uri(&Uri::from_static("ecc://i2c-1:96?slot=0&network=testnet"))
+                .expect("keypair args");
+        assert_eq!(0, args.get::<u8>("slot", 22).expect("slot"));
+        assert_eq!(
+            Network::TestNet,
+            args.get::<Network>("network", Network::MainNet)
+                .expect("network")
+        );
     }
 }
