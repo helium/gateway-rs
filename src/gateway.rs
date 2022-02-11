@@ -81,8 +81,10 @@ impl Gateway {
     async fn handle_udp_event(&mut self, logger: &Logger, event: Event) -> Result {
         match event {
             Event::UnableToParseUdpFrame(e, buf) => {
-                info!(logger, "ignoring semtech udp parsing error {e}");
-                info!(logger, "ignoring semtech udp parsing error for {buf:?}");
+                info!(
+                    logger,
+                    "ignoring semtech udp parsing error {e}, raw bytes {buf:?}"
+                );
             }
             Event::NewClient((mac, addr)) => {
                 info!(logger, "new packet forwarder client: {}, {}", mac, addr);
