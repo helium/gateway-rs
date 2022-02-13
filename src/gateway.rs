@@ -154,14 +154,11 @@ impl Gateway {
                                     downlink_rx2.get_destination_mac()
                                 );
                                 downlink_rx2.set_packet(txpk);
-                                match downlink_rx2
+                                if let Err(err) = downlink_rx2
                                     .dispatch(Some(Duration::from_secs(DOWNLINK_TIMEOUT_SECS)))
                                     .await
                                 {
-                                    Err(err) => {
-                                        warn!(logger, "ignoring rx2 downlink error: {:?}", err);
-                                    }
-                                    Ok(()) => (),
+                                    warn!(logger, "ignoring rx2 downlink error: {:?}", err);
                                 }
                             }
                         }
