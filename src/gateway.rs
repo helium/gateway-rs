@@ -49,7 +49,7 @@ impl Gateway {
     ) -> Result<Self> {
         let gateway = Gateway {
             uplinks,
-            downlink_mac: [0u8; 8].into(),
+            downlink_mac: Default::default(),
             messages,
             udp_runtime: UdpRuntime::new(&settings.listen).await?,
         };
