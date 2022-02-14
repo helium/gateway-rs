@@ -976,6 +976,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "macaddr"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "baee0bbc17ce759db233beb01648088061bf678383130602a298e6998eedb2d8"
+
+[[package]]
 name = "mach"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1444,12 +1450,13 @@ dependencies = [
 
 [[package]]
 name = "semtech-udp"
-version = "0.7.3"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72cca2d25ca92de1e3de8173a945f69992edb64ab8c9846bf4910a992ec4da99"
+checksum = "2ed95f0f6217a1fcb524cb285de6f8523a1aeff201c243dc83124a618a984280"
 dependencies = [
  "arrayref",
  "base64",
+ "macaddr",
  "num_enum",
  "rand",
  "serde",
@@ -1457,6 +1464,7 @@ dependencies = [
  "serde_repr",
  "thiserror",
  "tokio",
+ "triggered",
 ]
 
 [[package]]
