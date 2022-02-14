@@ -127,7 +127,7 @@ impl Channel {
     }
 }
 
-/// Represeents a versioned release  with one or more assets
+/// Represents a versioned release  with one or more assets
 #[derive(Debug, Deserialize)]
 pub struct Release {
     /// The version of the release

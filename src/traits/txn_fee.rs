@@ -57,7 +57,7 @@ impl_txn_fee!(
 pub struct TxnFeeConfig {
     // whether transaction fees are active
     txn_fees: bool,
-    // a mutliplier which will be applied to the txn fee of all txns, in order
+    // a multiplier which will be applied to the txn fee of all txns, in order
     // to make their DC costs meaningful
     txn_fee_multiplier: u64,
     // the staking fee in DC for adding a gateway
@@ -105,7 +105,7 @@ impl TxnFeeConfig {
             "staking_fee_txn_add_dataonly_gateway_v1",
         ];
         let values = client.config(&keys).await?;
-        Ok(Self::try_from(values)?)
+        Self::try_from(values)
     }
 
     pub fn get_staking_fee(&self, staking_mode: &StakingMode) -> u64 {

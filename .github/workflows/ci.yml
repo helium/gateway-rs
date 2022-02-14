@@ -52,12 +52,12 @@ jobs:
           - cotx
           - raspi_64
           - cloudgate
+          - caldigit
     steps:
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: nightly
           override: true
-          components: rustfmt
       - uses: davidB/rust-cargo-make@v1
       - uses: actions/checkout@v2
 

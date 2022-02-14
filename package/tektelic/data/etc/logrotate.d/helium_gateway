@@ -1,0 +1,7 @@
+/var/log/helium-gateway.log {
+    size 512k
+    rotate 4
+    compress
+    copytruncate
+    missingok
+}

@@ -68,7 +68,7 @@ impl StateChannel {
 
     ///  Validates this state channel for just the gateway with the given public key
     ///
-    /// This assumes the caller will validatea that the state channel is active.
+    /// This assumes the caller will validate that the state channel is active.
     pub fn is_valid_upgrade_for(
         self,
         public_key: &PublicKey,

@@ -98,6 +98,9 @@ Note that platforms will be tested much faster if you join the development proce
 | raspi01        | arm-unknown-linux-gnueabihf    | :white_check_mark: Raspberry Pi 0 or 1 running Raspian / Raspberry Pi OS or another Debian-based Linux distro        |
 | raspi234       | armv7-unknown-linux-gnueabihf  | :white_check_mark: Raspberry Pi 2, 3, or 4 running Raspian / Raspberry Pi OS or another Debian-based Linux distro    |
 | raspi_64       | aarch64-unknown-linux-gnu      | :white_check_mark: Raspberry Pi 3 or 4 running Raspian / Raspberry Pi OS 64 bit or another 64 bit Debian-based Linux distro |
+| caldigit       | mipsel-unknown-linux-musl      | :white_check_mark: CalDigit Light Hotspot                |
+| tektelic       | armv7-unknown-linux-gnueabihf  | :white_check_mark: [Kona Micro] IoT Gateway              |
+|                |                                | :white_check_mark: [Kona Enterprise] IoT Gateway         |
 | cloudgate      | armv5te-unknown-linux-musleabi | :white_check_mark: CloudGate |
 
 [ramips_24kec]: https://downloads.rakwireless.com/WIFI/RAK634/Hardware%20Specification/RAK634_Module_Specification_V1.0.pdf
@@ -111,6 +114,8 @@ Note that platforms will be tested much faster if you join the development proce
 [MTCDT]: https://www.multitech.com/brands/multiconnect-conduit
 [resiot]: https://www.resiot.io/en/resiot-gateways/
 [cotx]: https://www.cotxnetworks.com/product/service_one
+[Kona Micro]: https://www.tektelic.com/catalog/kona-micro-lorawan-gateway
+[Kona Enterprise]: https://www.tektelic.com/catalog/kona-enterprise-lorawan-gateway
 [CloudGate]: https://www.option.com/
 
 ## Building
@@ -231,10 +236,16 @@ If your gateway is enabled with an ECC608 crypto chip which is set up correctly,
 To use in your `settings.toml` override the `keypair` setting to reflect the use of the ECC and specify the bus address and slot to use. For example: 
 
 ```
-keypair = "ecc://i2c-1:96&slot=0"
+keypair = "ecc://i2c-1:96?slot=0&network=mainnet"
 ```
 
-will have helium_gateway use the ECC at the `/dev/i2c-1` device driver location, use bus address `96` (which is hex `0x60`) and slot `0` for it's crypto operations. Note that the file based keypair will no longer be used once the ECC is configured for use. 
+will have helium_gateway use the ECC at the `/dev/i2c-1` device driver location,
+use bus address `96` (which is hex `0x60`) and slot `0` for it's crypto
+operations. while marking the resulting key as a mainnet key. Buss, slot and
+network are all optional parameters and default to the above values.
+
+Note that the file based keypair will no longer be used once the ECC is
+configured for use. 
 
 See the [gateway-mfr-rs repo](https://github.com/helium/gateway-mfr-rs) for instructions on configuring, locking, and testing an ECC chip.
 
