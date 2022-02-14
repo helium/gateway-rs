@@ -81,7 +81,7 @@ impl Gateway {
     async fn handle_udp_event(&mut self, logger: &Logger, event: Event) -> Result {
         match event {
             Event::UnableToParseUdpFrame(e, buf) => {
-                info!(
+                warn!(
                     logger,
                     "ignoring semtech udp parsing error {e}, raw bytes {buf:?}"
                 );
