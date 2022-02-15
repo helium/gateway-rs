@@ -158,12 +158,12 @@ impl InfoCache {
     }
 
     async fn region(&mut self) -> Result<Region> {
-        if let Some(region) = &self.region {
-            return Ok(region.clone());
+        if let Some(region) = self.region {
+            return Ok(region);
         }
         let mut client = LocalClient::new(self.port).await?;
         let region = client.region().await?;
-        self.region = Some(region.clone());
+        self.region = Some(region);
         Ok(region)
     }
 }
