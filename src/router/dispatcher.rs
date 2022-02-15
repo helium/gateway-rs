@@ -284,11 +284,9 @@ impl Dispatcher {
         logger: &Logger,
     ) {
         let update_height = response.height();
-        if update_height <= self.region_height {
-            warn!(
-                logger,
-                "region returned invalid height {} while at {}", update_height, self.region_height
-            );
+        let region_height = self.region_height;
+        if update_height <= region_height {
+            warn!(logger, "region returned invalid height {update_height} while at {region_height}");
             return;
         }
         match response.region() {
