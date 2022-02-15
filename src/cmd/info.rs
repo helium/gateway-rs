@@ -3,7 +3,7 @@ use crate::{
     cmd::*,
     keyed_uri::KeyedUri,
     settings::{self, Settings},
-    Error, Result,
+    Error, Region, Result,
 };
 use angry_purple_tiger::AnimalName;
 use helium_crypto::PublicKey;
@@ -19,6 +19,7 @@ pub enum InfoKey {
     Key,
     Name,
     Gateway,
+    Region,
 }
 
 #[derive(Debug, Clone)]
@@ -48,6 +49,7 @@ const INFO_FW: &str = "fw";
 const INFO_KEY: &str = "key";
 const INFO_NAME: &str = "name";
 const INFO_GATEWAY: &str = "gateway";
+const INFO_REGION: &str = "region";
 
 impl fmt::Display for InfoKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -56,6 +58,7 @@ impl fmt::Display for InfoKey {
             Self::Key => INFO_KEY,
             Self::Name => INFO_NAME,
             Self::Gateway => INFO_GATEWAY,
+            Self::Region => INFO_REGION,
         };
         f.write_str(s)
     }
@@ -78,6 +81,7 @@ impl FromStr for InfoKey {
             INFO_KEY => Ok(Self::Key),
             INFO_NAME => Ok(Self::Name),
             INFO_GATEWAY => Ok(Self::Gateway),
+            INFO_REGION => Ok(Self::Region),
             invalid => Err(InfoKeyParseError(invalid.to_string())),
         }
     }
@@ -101,6 +105,7 @@ struct InfoCache {
     port: u16,
     public_key: Option<PublicKey>,
     height: Option<HeightRes>,
+    region: Option<Region>,
 }
 
 impl InfoCache {
@@ -110,6 +115,7 @@ impl InfoCache {
             port,
             public_key: None,
             height: None,
+            region: None,
         }
     }
 
@@ -150,6 +156,16 @@ impl InfoCache {
             .ok_or_else(|| Error::custom("No uri for gateway"))
             .and_then(KeyedUri::try_from)
     }
+
+    async fn region(&mut self) -> Result<Region> {
+        if let Some(region) = &self.region {
+            return Ok(region.clone());
+        }
+        let mut client = LocalClient::new(self.port).await?;
+        let region = client.region().await?;
+        self.region = Some(region.clone());
+        Ok(region)
+    }
 }
 
 impl InfoKey {
@@ -174,6 +190,9 @@ impl InfoKey {
                     "height": cache.height().await?,
                     "block_age": cache.block_age().await?,
                 })
+            }
+            Self::Region => {
+                json!(cache.region().await?.to_string())
             }
         };
         Ok(v)

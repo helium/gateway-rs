@@ -1,5 +1,7 @@
-use super::{connect_uri, ConfigReq, ConfigValue, HeightReq, HeightRes, PubkeyReq, SignReq};
-use crate::{PublicKey, Result};
+use super::{
+    connect_uri, ConfigReq, ConfigValue, HeightReq, HeightRes, PubkeyReq, RegionReq, SignReq,
+};
+use crate::{PublicKey, Region, Result};
 use helium_proto::services::local::Client;
 use std::convert::TryFrom;
 use tonic::transport::{Channel, Endpoint};
@@ -37,5 +39,10 @@ impl LocalClient {
     pub async fn height(&mut self) -> Result<HeightRes> {
         let response = self.client.height(HeightReq {}).await?.into_inner();
         Ok(response)
+    }
+
+    pub async fn region(&mut self) -> Result<Region> {
+        let response = self.client.region(RegionReq {}).await?;
+        Region::from_i32(response.into_inner().region)
     }
 }

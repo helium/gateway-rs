@@ -27,6 +27,9 @@ pub enum Message {
     Height {
         response: sync::ResponseSender<Result<HeightResponse>>,
     },
+    Region {
+        response: sync::ResponseSender<Result<Region>>,
+    },
 }
 
 #[derive(Debug)]
@@ -68,6 +71,12 @@ impl MessageSender {
         let _ = self.0.send(Message::Height { response: tx }).await;
         rx.recv().await?
     }
+
+    pub async fn region(&self) -> Result<Region> {
+        let (tx, rx) = sync::response_channel();
+        let _ = self.0.send(Message::Region { response: tx }).await;
+        rx.recv().await?
+    }
 }
 
 pub struct Dispatcher {
@@ -77,6 +86,7 @@ pub struct Dispatcher {
     downlinks: gateway::MessageSender,
     gateways: Vec<KeyedUri>,
     routing_height: u64,
+    region_height: u64,
     default_router: KeyedUri,
     cache_settings: CacheSettings,
     routers: HashMap<RouterKey, RouterEntry>,
@@ -115,6 +125,7 @@ impl Dispatcher {
             gateways,
             routers,
             routing_height: 0,
+            region_height: 0,
             default_router,
             cache_settings,
         })
@@ -129,7 +140,7 @@ impl Dispatcher {
             "uri" => self.default_router.uri.to_string());
 
         loop {
-            let mut gateway = GatewayService::random_new(&self.gateways)?;
+            let gateway = GatewayService::random_new(&self.gateways)?;
             info!(logger, "using gateway";
                 "pubkey" => gateway.uri.pubkey.to_string(),
                 "uri" => gateway.uri.uri.to_string());
@@ -138,10 +149,10 @@ impl Dispatcher {
                     info!(logger, "shutting down");
                     return Ok(())
                 },
-                routing_stream = gateway.routing(self.routing_height) => {
-                    match routing_stream {
-                        Ok(stream) => self.run_with_routing_stream(gateway, stream, shutdown.clone(), &logger).await?,
-                        Err(err) => warn!(logger, "gateway error: {:?}", err)
+                gateway_streams = self.gateway_streams(gateway.clone()) => {
+                    match gateway_streams {
+                        Ok((routing_stream, region_stream)) => self.run_with_gateway_streams(gateway, routing_stream, region_stream, shutdown.clone(), &logger).await?,
+                        Err(err) => warn!(logger, "gateway error: {err:?}")
                     }
                     // Check if trigger happened in run_with_routing_stream
                     if shutdown.is_triggered() {
@@ -156,10 +167,22 @@ impl Dispatcher {
         }
     }
 
-    async fn run_with_routing_stream(
+    async fn gateway_streams(
+        &mut self,
+        gateway: GatewayService,
+    ) -> Result<(service::gateway::Streaming, service::gateway::Streaming)> {
+        let mut routing_gateway = gateway.clone();
+        let routing = routing_gateway.routing(self.routing_height);
+        let mut region_params_gateway = gateway.clone();
+        let region_params = region_params_gateway.region_params(self.keypair.clone());
+        tokio::try_join!(routing, region_params)
+    }
+
+    async fn run_with_gateway_streams(
         &mut self,
         mut gateway: GatewayService,
         mut routing_stream: service::gateway::Streaming,
+        mut region_stream: service::gateway::Streaming,
         shutdown: triggered::Listener,
         logger: &Logger,
     ) -> Result {
@@ -174,11 +197,22 @@ impl Dispatcher {
                 routing = routing_stream.message() => match routing {
                     Ok(Some(response)) => self.handle_routing_update(&mut gateway, &response, &shutdown, logger).await,
                     Ok(None) => {
-                        warn!(logger, "gateway stream closed");
+                        warn!(logger, "gateway routing stream closed");
                         return Ok(());
                     },
                     Err(err) => {
-                        warn!(logger, "gateway stream error: {:?}", err);
+                        warn!(logger, "gateway routing stream error: {:?}", err);
+                        return Ok(())
+                    },
+                },
+                region = region_stream.message() => match region {
+                    Ok(Some(response)) => self.handle_region_update(&response, logger).await,
+                    Ok(None) => {
+                        warn!(logger, "gateway region stream closed");
+                        return Ok(());
+                    },
+                    Err(err) => {
+                        warn!(logger, "gateway region stream error: {:?}", err);
                         return Ok(())
                     },
                 },
@@ -194,8 +228,9 @@ impl Dispatcher {
         for (_, router_entry) in self.routers.drain() {
             router_entry.dispatch.gateway_changed().await;
         }
-        // Reset routing heigth for the next gateway
+        // Reset routing and region heigth for the next gateway
         self.routing_height = 0;
+        self.region_height = 0;
     }
 
     async fn handle_message(
@@ -218,6 +253,7 @@ impl Dispatcher {
                     });
                 response.send(reply, logger)
             }
+            Message::Region { response } => response.send(Ok(self.region), logger),
         }
     }
 
@@ -242,6 +278,30 @@ impl Dispatcher {
         }
     }
 
+    async fn handle_region_update(
+        &mut self,
+        response: &service::gateway::Response,
+        logger: &Logger,
+    ) {
+        let update_height = response.height();
+        if update_height <= self.region_height {
+            warn!(
+                logger,
+                "region returned invalid height {} while at {}", update_height, self.region_height
+            );
+            return;
+        }
+        match response.region() {
+            Ok(region) => {
+                self.region_height = update_height;
+                self.region = region;
+            }
+            Err(err) => {
+                warn!(logger, "error decoding region: {err:?}");
+            }
+        }
+    }
+
     async fn handle_routing_update(
         &mut self,
         gateway: &mut GatewayService,
@@ -253,7 +313,7 @@ impl Dispatcher {
         if update_height <= self.routing_height {
             warn!(
                 logger,
-                "router returned invalid height {:?} while at {:?}",
+                "routing returned invalid height {:?} while at {:?}",
                 update_height,
                 self.routing_height
             );
