@@ -201,7 +201,7 @@ impl Dispatcher {
                         return Ok(());
                     },
                     Err(err) => {
-                        warn!(logger, "gateway routing stream error: {:?}", err);
+                        warn!(logger, "gateway routing stream error: {err:?}");
                         return Ok(())
                     },
                 },
@@ -212,7 +212,7 @@ impl Dispatcher {
                         return Ok(());
                     },
                     Err(err) => {
-                        warn!(logger, "gateway region stream error: {:?}", err);
+                        warn!(logger, "gateway region stream error: {err:?}");
                         return Ok(())
                     },
                 },
@@ -263,7 +263,7 @@ impl Dispatcher {
             if router_entry.routing.matches_routing_info(packet.routing()) {
                 match router_entry.dispatch.uplink(packet.clone()).await {
                     Ok(()) => (),
-                    Err(err) => warn!(logger, "ignoring router dispatch error: {:?}", err),
+                    Err(err) => warn!(logger, "ignoring router dispatch error: {err:?}"),
                 }
                 handled = true;
             }
@@ -295,6 +295,7 @@ impl Dispatcher {
             Ok(region) => {
                 self.region_height = update_height;
                 self.region = region;
+                info!(logger, "updated region to {region}")
             }
             Err(err) => {
                 warn!(logger, "error decoding region: {err:?}");
@@ -310,19 +311,18 @@ impl Dispatcher {
         logger: &Logger,
     ) {
         let update_height = response.height();
+        let current_height = self.routing_height;
         if update_height <= self.routing_height {
             warn!(
                 logger,
-                "routing returned invalid height {:?} while at {:?}",
-                update_height,
-                self.routing_height
+                "routing returned invalid height {update_height} while at {current_height}",
             );
             return;
         }
         let routing_protos = match response.routings() {
             Ok(v) => v,
             Err(err) => {
-                warn!(logger, "error decoding routing {:?}", err);
+                warn!(logger, "error decoding routing {err:?}");
                 return;
             }
         };
@@ -333,14 +333,11 @@ impl Dispatcher {
                     self.handle_oui_routing_update(gateway, &routing, shutdown, logger)
                         .await
                 }
-                Err(err) => warn!(logger, "failed to parse routing: {:?}", err),
+                Err(err) => warn!(logger, "failed to parse routing: {err:?}"),
             }
         }
         self.routing_height = update_height;
-        info!(
-            logger,
-            "updated routing to height {:?}", self.routing_height
-        )
+        info!(logger, "updated routing to height {:?}", update_height)
     }
 
     #[allow(clippy::map_entry)]
@@ -368,7 +365,7 @@ impl Dispatcher {
                         self.routers.insert(key, router_entry);
                     }
                     Err(err) => {
-                        warn!(logger, "faild to construct router: {:?}", err);
+                        warn!(logger, "faild to construct router: {err:?}");
                     }
                 }
             }

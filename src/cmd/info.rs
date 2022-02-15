@@ -172,7 +172,9 @@ impl InfoKey {
     async fn to_status(&self, cache: &mut InfoCache) -> Result<serde_json::Value> {
         let v = match self {
             Self::Fw => {
-                json!(format!("{}-{}", cache.platform, settings::version()))
+                let platform = &cache.platform;
+                let version = settings::version();
+                json!(format!("{platform}-{version}"))
             }
             Self::Key => {
                 json!(cache.public_key().await?.to_string())
