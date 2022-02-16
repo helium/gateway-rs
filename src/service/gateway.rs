@@ -136,7 +136,7 @@ impl GatewayService {
 
     pub async fn region_params(&mut self, keypair: Arc<Keypair>) -> Result<Streaming> {
         let mut req = GatewayRegionParamsUpdateReqV1 {
-            address: self.uri.pubkey.to_vec(),
+            address: keypair.public_key().to_vec(),
             signature: vec![],
         };
         req.signature = req.sign(keypair).await?;

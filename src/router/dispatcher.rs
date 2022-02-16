@@ -133,7 +133,8 @@ impl Dispatcher {
 
     pub async fn run(&mut self, shutdown: triggered::Listener, logger: &Logger) -> Result {
         let logger = logger.new(o!("module" => "dispatcher"));
-        info!(logger, "starting");
+        info!(logger, "starting"; 
+            "region" => self.region.to_string());
 
         info!(logger, "default router";
             "pubkey" => self.default_router.pubkey.to_string(),
@@ -284,16 +285,22 @@ impl Dispatcher {
         logger: &Logger,
     ) {
         let update_height = response.height();
-        let region_height = self.region_height;
-        if update_height <= region_height {
-            warn!(logger, "region returned invalid height {update_height} while at {region_height}");
+        let current_height = self.region_height;
+        if update_height <= self.region_height {
+            warn!(
+                logger,
+                "region returned invalid height {update_height} while at {current_height}"
+            );
             return;
         }
         match response.region() {
             Ok(region) => {
                 self.region_height = update_height;
                 self.region = region;
-                info!(logger, "updated region to {region}")
+                info!(
+                    logger,
+                    "updated region to {region} at height {update_height}"
+                )
             }
             Err(err) => {
                 warn!(logger, "error decoding region: {err:?}");

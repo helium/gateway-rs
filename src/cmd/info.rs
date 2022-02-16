@@ -30,7 +30,12 @@ pub struct InfoKeys(pub(crate) Vec<InfoKey>);
 #[derive(Debug, StructOpt)]
 pub struct Cmd {
     /// Information keys to fetch
-    #[structopt(long, multiple = false, default_value = "fw,key,name,gateway")]
+    #[structopt(
+        long,
+        short,
+        multiple = false,
+        default_value = "fw,key,name,region,gateway"
+    )]
     pub keys: InfoKeys,
 }
 
