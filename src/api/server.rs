@@ -1,6 +1,6 @@
 use super::{
     listen_addr, ConfigReq, ConfigRes, ConfigValue, EcdhReq, EcdhRes, HeightReq, HeightRes,
-    PubkeyReq, PubkeyRes, SignReq, SignRes,
+    PubkeyReq, PubkeyRes, RegionReq, RegionRes, SignReq, SignRes,
 };
 use crate::{router::dispatcher, Error, Keypair, PublicKey, Result, Settings};
 use futures::TryFutureExt;
@@ -46,6 +46,17 @@ impl Api for LocalServer {
             address: self.keypair.public_key().to_vec(),
         };
         Ok(Response::new(reply))
+    }
+
+    async fn region(&self, _request: Request<RegionReq>) -> ApiResult<RegionRes> {
+        let region = self
+            .dispatcher
+            .region()
+            .map_err(|_err| Status::internal("Failed to get region"))
+            .await?;
+        Ok(Response::new(RegionRes {
+            region: region.into(),
+        }))
     }
 
     async fn sign(&self, request: Request<SignReq>) -> ApiResult<SignRes> {

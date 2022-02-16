@@ -1,11 +1,12 @@
-use crate::{service::CONNECT_TIMEOUT, Error, KeyedUri, MsgVerify, Result};
-use helium_crypto::PublicKey;
+use crate::{service::CONNECT_TIMEOUT, Error, KeyedUri, MsgSign, MsgVerify, Region, Result};
+use helium_crypto::{Keypair, PublicKey};
 use helium_proto::{
     gateway_resp_v1,
     services::{self, Channel, Endpoint},
     BlockchainTxnStateChannelCloseV1, BlockchainVarV1, GatewayConfigReqV1, GatewayConfigRespV1,
-    GatewayRespV1, GatewayRoutingReqV1, GatewayScCloseReqV1, GatewayScFollowReqV1,
-    GatewayScFollowStreamedRespV1, GatewayScIsActiveReqV1, GatewayScIsActiveRespV1, Routing,
+    GatewayRegionParamsUpdateReqV1, GatewayRespV1, GatewayRoutingReqV1, GatewayScCloseReqV1,
+    GatewayScFollowReqV1, GatewayScFollowStreamedRespV1, GatewayScIsActiveReqV1,
+    GatewayScIsActiveRespV1, Routing,
 };
 use rand::{rngs::OsRng, seq::SliceRandom};
 use std::{sync::Arc, time::Duration};
@@ -43,10 +44,20 @@ impl Response {
     pub fn routings(&self) -> Result<&[Routing]> {
         match &self.0.msg {
             Some(gateway_resp_v1::Msg::RoutingStreamedResp(routings)) => Ok(&routings.routings),
-            msg => Err(Error::custom(format!(
-                "Unexpected gateway message {:?}",
-                msg
-            ))),
+            msg => Err(Error::custom(
+                format!("Unexpected gateway message {msg:?}",),
+            )),
+        }
+    }
+
+    pub fn region(&self) -> Result<Region> {
+        match &self.0.msg {
+            Some(gateway_resp_v1::Msg::RegionParamsStreamedResp(params)) => {
+                Region::from_i32(params.region)
+            }
+            msg => Err(Error::custom(
+                format!("Unexpected gateway message {msg:?}",),
+            )),
         }
     }
 }
@@ -84,8 +95,7 @@ impl StateChannelFollowService {
             })) => Ok(Some(resp)),
             Ok(None) => Ok(None),
             Ok(msg) => Err(Error::custom(format!(
-                "unexpected gateway response {:?}",
-                msg
+                "unexpected gateway response {msg:?}",
             ))),
             Err(err) => Err(err.into()),
         }
@@ -124,6 +134,20 @@ impl GatewayService {
         })
     }
 
+    pub async fn region_params(&mut self, keypair: Arc<Keypair>) -> Result<Streaming> {
+        let mut req = GatewayRegionParamsUpdateReqV1 {
+            address: keypair.public_key().to_vec(),
+            signature: vec![],
+        };
+        req.signature = req.sign(keypair).await?;
+
+        let stream = self.client.region_params_update(req).await?;
+        Ok(Streaming {
+            streaming: stream.into_inner(),
+            verifier: self.uri.pubkey.clone(),
+        })
+    }
+
     pub async fn is_active_sc(
         &mut self,
         id: &[u8],
@@ -150,8 +174,7 @@ impl GatewayService {
                 }
             }
             Some(other) => Err(Error::custom(format!(
-                "invalid is_active response {:?}",
-                other
+                "invalid is_active response {other:?}",
             ))),
             None => Err(Error::custom("empty is_active response")),
         }
@@ -184,10 +207,7 @@ impl GatewayService {
     pub async fn config(&mut self, keys: Vec<String>) -> Result<Vec<BlockchainVarV1>> {
         match self.get_config(keys).await?.msg {
             Some(gateway_resp_v1::Msg::ConfigResp(GatewayConfigRespV1 { result })) => Ok(result),
-            Some(other) => Err(Error::custom(format!(
-                "invalid config response {:?}",
-                other
-            ))),
+            Some(other) => Err(Error::custom(format!("invalid config response {other:?}"))),
             None => Err(Error::custom("empty config response")),
         }
     }

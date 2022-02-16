@@ -34,7 +34,7 @@ where
     let key_string = String::deserialize(d)?;
     match key_string.parse() {
         Ok(key) => Ok(Arc::new(key)),
-        Err(err) => Err(de::Error::custom(format!("invalid pubkey: \"{}\"", err))),
+        Err(err) => Err(de::Error::custom(format!("invalid pubkey: \"{err}\""))),
     }
 }
 

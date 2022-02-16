@@ -3,7 +3,7 @@ use futures::TryFutureExt;
 use helium_crypto::{Keypair, Sign};
 use helium_proto::{
     BlockchainStateChannelOfferV1, BlockchainStateChannelPacketV1, BlockchainTxnAddGatewayV1,
-    BlockchainTxnStateChannelCloseV1, Message,
+    BlockchainTxnStateChannelCloseV1, GatewayRegionParamsUpdateReqV1, Message,
 };
 use std::sync::Arc;
 
@@ -31,6 +31,7 @@ macro_rules! impl_msg_sign {
     };
 }
 
+impl_msg_sign!(GatewayRegionParamsUpdateReqV1, signature);
 impl_msg_sign!(BlockchainStateChannelPacketV1, signature);
 impl_msg_sign!(BlockchainStateChannelOfferV1, signature);
 impl_msg_sign!(BlockchainTxnStateChannelCloseV1, signature);
