@@ -150,7 +150,7 @@ impl Dispatcher {
                     info!(logger, "shutting down");
                     return Ok(())
                 },
-                gateway_streams = self.gateway_streams(gateway.clone()) => {
+                gateway_streams = Self::gateway_streams(gateway.clone(), self.routing_height, self.keypair.clone()) => {
                     match gateway_streams {
                         Ok((routing_stream, region_stream)) => self.run_with_gateway_streams(gateway, routing_stream, region_stream, shutdown.clone(), &logger).await?,
                         Err(err) => warn!(logger, "gateway error: {err:?}")
@@ -163,19 +163,23 @@ impl Dispatcher {
                         self.handle_gateway_change(&logger).await;
                         time::sleep(Duration::from_secs(5)).await;
                     }
+                },
+                message = self.messages.recv() => match message {
+                    Some(message) => self.handle_message(message, &mut gateway.clone(), &logger).await,
+                    None => warn!(logger, "ignoring closed messages channel"),
                 }
             }
         }
     }
 
     async fn gateway_streams(
-        &mut self,
-        gateway: GatewayService,
+        mut gateway: GatewayService,
+        routing_height: u64,
+        keypair: Arc<Keypair>,
     ) -> Result<(service::gateway::Streaming, service::gateway::Streaming)> {
         let mut routing_gateway = gateway.clone();
-        let routing = routing_gateway.routing(self.routing_height);
-        let mut region_params_gateway = gateway.clone();
-        let region_params = region_params_gateway.region_params(self.keypair.clone());
+        let routing = routing_gateway.routing(routing_height);
+        let region_params = gateway.region_params(keypair);
         tokio::try_join!(routing, region_params)
     }
 
