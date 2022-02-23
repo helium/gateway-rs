@@ -18,7 +18,7 @@ pub enum Error {
     Encode(#[from] EncodeError),
     #[error("decode error")]
     Decode(#[from] DecodeError),
-    #[error("service error")]
+    #[error("service error {0}")]
     Service(#[from] ServiceError),
     #[error("state channel error")]
     StateChannel(#[from] Box<StateChannelError>),
@@ -58,14 +58,18 @@ pub enum DecodeError {
 
 #[derive(Error, Debug)]
 pub enum ServiceError {
-    #[error("services error")]
+    #[error("service {0}")]
     Service(#[from] helium_proto::services::Error),
-    #[error("rpc error")]
+    #[error("rpc {0}")]
     Rpc(#[from] tonic::Status),
-    #[error("stream closed error")]
+    #[error("stream closed")]
     Stream,
-    #[error("channel closed error")]
+    #[error("channel closed")]
     Channel,
+    #[error("no service")]
+    NoService,
+    #[error("block age {block_age}s > {max_age}s")]
+    Check { block_age: u64, max_age: u64 },
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -194,5 +198,13 @@ impl Error {
 
     pub fn channel() -> Error {
         Error::Service(ServiceError::Channel)
+    }
+
+    pub fn no_service() -> Error {
+        Error::Service(ServiceError::NoService)
+    }
+
+    pub fn gateway_service_check(block_age: u64, max_age: u64) -> Error {
+        Error::Service(ServiceError::Check { block_age, max_age })
     }
 }
