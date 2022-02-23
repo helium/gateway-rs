@@ -4,6 +4,7 @@ use crate::{
     service::{self, gateway::GatewayService},
     sync, CacheSettings, Error, KeyedUri, Keypair, Packet, Region, Result, Settings,
 };
+use exponential_backoff::Backoff;
 use futures::{
     future::join_all,
     task::{Context, Poll},
@@ -90,6 +91,7 @@ pub struct Dispatcher {
     default_router: KeyedUri,
     cache_settings: CacheSettings,
     routers: HashMap<RouterKey, RouterEntry>,
+    gateway_retry: u32,
 }
 
 #[derive(PartialEq, Eq, Hash)]
@@ -104,6 +106,13 @@ struct RouterEntry {
     dispatch: router::client::MessageSender,
     join_handle: JoinHandle<Result>,
 }
+
+const GATEWAY_BACKOFF_RETRIES: u32 = 10;
+const GATEWAY_BACKOFF_MIN_WAIT: Duration = Duration::from_secs(5);
+const GATEWAY_BACKOFF_MAX_WAIT: Duration = Duration::from_secs(1800); // 30 minutes
+
+const GATEWAY_CHECK_INTERVAL: Duration = Duration::from_secs(900); // 15 minutes
+const GATEWAY_MAX_BLOCK_AGE: Duration = Duration::from_secs(1800); // 30 minutes
 
 impl Dispatcher {
     // Allow mutable key type for HashMap with Uri in the key
@@ -128,6 +137,7 @@ impl Dispatcher {
             region_height: 0,
             default_router,
             cache_settings,
+            gateway_retry: 0,
         })
     }
 
@@ -140,6 +150,11 @@ impl Dispatcher {
             "pubkey" => self.default_router.pubkey.to_string(),
             "uri" => self.default_router.uri.to_string());
 
+        let gateway_backoff = Backoff::new(
+            GATEWAY_BACKOFF_RETRIES,
+            GATEWAY_BACKOFF_MIN_WAIT,
+            GATEWAY_BACKOFF_MAX_WAIT,
+        );
         loop {
             let gateway = GatewayService::random_new(&self.gateways)?;
             info!(logger, "using gateway";
@@ -155,17 +170,13 @@ impl Dispatcher {
                         Ok((routing_stream, region_stream)) => self.run_with_gateway_streams(gateway, routing_stream, region_stream, shutdown.clone(), &logger).await?,
                         Err(err) => warn!(logger, "gateway error: {err:?}")
                     }
-                    // Check if trigger happened in run_with_routing_stream
+                    self.prepare_gateway_change(&gateway_backoff, shutdown.clone(), &logger).await;
                     if shutdown.is_triggered() {
                         return Ok(())
-                    } else {
-                        // Wait a bit before trying another gateway service
-                        self.handle_gateway_change(&logger).await;
-                        time::sleep(Duration::from_secs(5)).await;
                     }
                 },
                 message = self.messages.recv() => match message {
-                    Some(message) => self.handle_message(message, &mut gateway.clone(), &logger).await,
+                    Some(message) => self.handle_message(message, Some(&mut gateway.clone()), &logger).await,
                     None => warn!(logger, "ignoring closed messages channel"),
                 }
             }
@@ -191,6 +202,7 @@ impl Dispatcher {
         shutdown: triggered::Listener,
         logger: &Logger,
     ) -> Result {
+        let mut interval = time::interval(GATEWAY_CHECK_INTERVAL);
         loop {
             tokio::select! {
                 _ = shutdown.clone() => {
@@ -221,41 +233,103 @@ impl Dispatcher {
                         return Ok(())
                     },
                 },
+                _ = interval.tick() => match self.check_gateway(&mut gateway, logger).await {
+                    Ok(()) => {
+                        self.gateway_retry = 0;
+                    },
+                    Err(err) => {
+                        warn!(logger, "gateway check error: {err}");
+                        return Ok(())
+                    }
+                },
                 message = self.messages.recv() => match message {
-                    Some(message) => self.handle_message(message, &mut gateway, logger).await,
+                    Some(message) => self.handle_message(message, Some(&mut gateway), logger).await,
                     None => warn!(logger, "ignoring closed messages channel"),
                 }
             }
         }
     }
 
-    async fn handle_gateway_change(&mut self, _logger: &Logger) {
+    async fn check_gateway(&mut self, gateway: &mut GatewayService, logger: &Logger) -> Result {
+        let (_, block_age) = gateway.height().await?;
+        info!(logger, "checking gateway"; 
+            "pubkey" => gateway.uri.pubkey.to_string(),
+            "block_age" => block_age);
+        if block_age > GATEWAY_MAX_BLOCK_AGE.as_secs() {
+            return Err(Error::gateway_service_check(
+                block_age,
+                GATEWAY_MAX_BLOCK_AGE.as_secs(),
+            ));
+        }
+        Ok(())
+    }
+
+    async fn prepare_gateway_change(
+        &mut self,
+        backoff: &Backoff,
+        shutdown: triggered::Listener,
+        logger: &Logger,
+    ) {
+        // Check if trigger happened in run_with_routing_stream
+        if shutdown.is_triggered() {
+            return;
+        }
+        // Tell routers to stop
         for (_, router_entry) in self.routers.drain() {
             router_entry.dispatch.gateway_changed().await;
         }
         // Reset routing and region heigth for the next gateway
         self.routing_height = 0;
         self.region_height = 0;
+
+        // Use backof to sleep exponentially longer
+        self.gateway_retry += 1;
+        let sleep = backoff
+            .next(self.gateway_retry)
+            .unwrap_or(GATEWAY_BACKOFF_MAX_WAIT);
+
+        // Select over either shutdown or sleep, and handle messages that don't
+        // require a gateway
+        info!(logger, "selecting new gateway in {}s", sleep.as_secs());
+        tokio::select! {
+            _ = shutdown => {},
+            _ = time::sleep(sleep) => {}
+            message = self.messages.recv() => match message {
+                Some(message) => self.handle_message(message, None, logger).await,
+                None => warn!(logger, "ignoring closed messages channel"),
+            }
+        }
     }
 
     async fn handle_message(
         &self,
         message: Message,
-        gateway: &mut GatewayService,
+        gateway: Option<&mut GatewayService>,
         logger: &Logger,
     ) {
         match message {
             Message::Uplink(packet) => self.handle_uplink(&packet, logger).await,
-            Message::Config { keys, response } => response.send(gateway.config(keys).await, logger),
+            Message::Config { keys, response } => {
+                let reply = if let Some(gateway) = gateway {
+                    gateway.config(keys).await
+                } else {
+                    Err(Error::no_service())
+                };
+                response.send(reply, logger)
+            }
             Message::Height { response } => {
-                let reply = gateway
-                    .height()
-                    .await
-                    .map(|(height, block_age)| HeightResponse {
-                        gateway: gateway.uri.clone(),
-                        height,
-                        block_age,
-                    });
+                let reply = if let Some(gateway) = gateway {
+                    gateway
+                        .height()
+                        .await
+                        .map(|(height, block_age)| HeightResponse {
+                            gateway: gateway.uri.clone(),
+                            height,
+                            block_age,
+                        })
+                } else {
+                    Err(Error::no_service())
+                };
                 response.send(reply, logger)
             }
             Message::Region { response } => response.send(Ok(self.region), logger),
