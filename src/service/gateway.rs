@@ -153,16 +153,16 @@ impl GatewayService {
         id: &[u8],
         owner: &[u8],
     ) -> Result<GatewayScIsActiveRespV1> {
-        match self
+        let resp = self
             .client
             .is_active_sc(GatewayScIsActiveReqV1 {
                 sc_owner: owner.into(),
                 sc_id: id.into(),
             })
             .await?
-            .into_inner()
-            .msg
-        {
+            .into_inner();
+        resp.verify(&self.uri.pubkey)?;
+        match resp.msg {
             Some(gateway_resp_v1::Msg::IsActiveResp(resp)) => {
                 let GatewayScIsActiveRespV1 {
                     sc_id, sc_owner, ..
