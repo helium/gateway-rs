@@ -50,6 +50,7 @@ signature = "*"
 async-trait = "0"
 angry-purple-tiger = "0"
 lorawan = { package = "lorawan", path = "lorawan" }
+exponential-backoff = {git = "https://github.com/madninja/exponential-backoff", branch = "madninja/upgrade_rand"}
 semtech-udp = { version = ">=0.8,<1", default-features=false, features=["server"] }
 helium-proto = { git = "https://github.com/helium/proto", branch="master", features=["services"]}
 helium-crypto = { git = "https://github.com/helium/helium-crypto-rs", tag = "v0.3.4", features = ["ecc608"]}
