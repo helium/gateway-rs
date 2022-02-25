@@ -378,7 +378,11 @@ impl Dispatcher {
                 info!(
                     logger,
                     "updated region to {region} at height {update_height}"
-                )
+                );
+                // Tell routers about it
+                for router_entry in self.routers.values() {
+                    router_entry.dispatch.region_changed(region).await;
+                }
             }
             Err(err) => {
                 warn!(logger, "error decoding region: {err:?}");
