@@ -3,7 +3,7 @@ use gateway_rs::{
     error::Result,
     settings::{LogMethod, Settings},
 };
-use slog::{self, debug, o, Drain, Logger};
+use slog::{self, debug, error,  o, Drain, Logger};
 use std::{io, path::PathBuf};
 use structopt::StructOpt;
 use tokio::{io::AsyncReadExt, signal, time::Duration};
@@ -107,8 +107,12 @@ pub fn main() -> Result {
     });
     runtime.shutdown_timeout(Duration::from_secs(0));
 
+    if let Err(e) = &res {
+        let error_logger = slog_scope::logger().new(o!());
+        error!(&error_logger, "{e}");
+    };
     drop(scope_guard);
-    res
+    Ok(())
 }
 
 pub async fn run(
