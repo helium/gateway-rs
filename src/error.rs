@@ -70,6 +70,8 @@ pub enum ServiceError {
     NoService,
     #[error("block age {block_age}s > {max_age}s")]
     Check { block_age: u64, max_age: u64 },
+    #[error("Unable to connect to local client. Check the `helium_gateway server` is running.")]
+    LocalClientConnect(helium_proto::services::Error),
 }
 
 #[allow(clippy::large_enum_variant)]

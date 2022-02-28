@@ -3,7 +3,7 @@ use gateway_rs::{
     error::Result,
     settings::{LogMethod, Settings},
 };
-use slog::{self, debug, error,  o, Drain, Logger};
+use slog::{self, debug, error, o, Drain, Logger};
 use std::{io, path::PathBuf};
 use structopt::StructOpt;
 use tokio::{io::AsyncReadExt, signal, time::Duration};
