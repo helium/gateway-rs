@@ -206,6 +206,10 @@ impl Error {
         Error::Service(ServiceError::NoService)
     }
 
+    pub fn local_client_connect(e: helium_proto::services::Error) -> Error {
+        Error::Service(ServiceError::LocalClientConnect(e))
+    }
+
     pub fn gateway_service_check(block_age: u64, max_age: u64) -> Error {
         Error::Service(ServiceError::Check { block_age, max_age })
     }

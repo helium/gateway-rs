@@ -1,7 +1,7 @@
 use super::{
     connect_uri, ConfigReq, ConfigValue, HeightReq, HeightRes, PubkeyReq, RegionReq, SignReq,
 };
-use crate::{error::ServiceError, PublicKey, Region, Result};
+use crate::{error::Error, PublicKey, Region, Result};
 use helium_proto::services::local::Client;
 use std::convert::TryFrom;
 use tonic::transport::{Channel, Endpoint};
@@ -16,7 +16,7 @@ impl LocalClient {
         let endpoint = Endpoint::from_shared(uri).unwrap();
         let client = Client::connect(endpoint)
             .await
-            .map_err(ServiceError::LocalClientConnect)?;
+            .map_err(Error::local_client_connect)?;
         Ok(Self { client })
     }
 
