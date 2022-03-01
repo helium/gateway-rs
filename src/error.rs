@@ -18,7 +18,7 @@ pub enum Error {
     Encode(#[from] EncodeError),
     #[error("decode error")]
     Decode(#[from] DecodeError),
-    #[error("service error: {0}")]
+    #[error("service error {0}")]
     Service(#[from] ServiceError),
     #[error("state channel error")]
     StateChannel(#[from] Box<StateChannelError>),
@@ -58,9 +58,9 @@ pub enum DecodeError {
 
 #[derive(Error, Debug)]
 pub enum ServiceError {
-    #[error("service: {0:?}")]
+    #[error("service {0:?}")]
     Service(#[from] helium_proto::services::Error),
-    #[error("rpc: {0:?}")]
+    #[error("rpc {0:?}")]
     Rpc(#[from] tonic::Status),
     #[error("stream closed")]
     Stream,
