@@ -58,9 +58,9 @@ pub enum DecodeError {
 
 #[derive(Error, Debug)]
 pub enum ServiceError {
-    #[error("service {0}")]
+    #[error("service {0:?}")]
     Service(#[from] helium_proto::services::Error),
-    #[error("rpc {0}")]
+    #[error("rpc {0:?}")]
     Rpc(#[from] tonic::Status),
     #[error("stream closed")]
     Stream,
@@ -70,6 +70,8 @@ pub enum ServiceError {
     NoService,
     #[error("block age {block_age}s > {max_age}s")]
     Check { block_age: u64, max_age: u64 },
+    #[error("Unable to connect to local server. Check that `helium_gateway` is running.")]
+    LocalClientConnect(helium_proto::services::Error),
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -202,6 +204,10 @@ impl Error {
 
     pub fn no_service() -> Error {
         Error::Service(ServiceError::NoService)
+    }
+
+    pub fn local_client_connect(e: helium_proto::services::Error) -> Error {
+        Error::Service(ServiceError::LocalClientConnect(e))
     }
 
     pub fn gateway_service_check(block_age: u64, max_age: u64) -> Error {

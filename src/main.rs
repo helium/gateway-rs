@@ -3,7 +3,7 @@ use gateway_rs::{
     error::Result,
     settings::{LogMethod, Settings},
 };
-use slog::{self, debug, o, Drain, Logger};
+use slog::{self, debug, error, o, Drain, Logger};
 use std::{io, path::PathBuf};
 use structopt::StructOpt;
 use tokio::{io::AsyncReadExt, signal, time::Duration};
@@ -103,12 +103,15 @@ pub fn main() -> Result {
             }
             shutdown_trigger.trigger()
         });
-        run(cli, settings, &shutdown_listener, run_logger).await
+        run(cli, settings, &shutdown_listener, run_logger.clone()).await
     });
     runtime.shutdown_timeout(Duration::from_secs(0));
 
+    if let Err(e) = &res {
+        error!(&run_logger, "{e}");
+    };
     drop(scope_guard);
-    res
+    Ok(())
 }
 
 pub async fn run(
