@@ -103,13 +103,12 @@ pub fn main() -> Result {
             }
             shutdown_trigger.trigger()
         });
-        run(cli, settings, &shutdown_listener, run_logger).await
+        run(cli, settings, &shutdown_listener, run_logger.clone()).await
     });
     runtime.shutdown_timeout(Duration::from_secs(0));
 
     if let Err(e) = &res {
-        let error_logger = slog_scope::logger().new(o!());
-        error!(&error_logger, "{e}");
+        error!(&run_logger, "{e}");
     };
     drop(scope_guard);
     Ok(())
