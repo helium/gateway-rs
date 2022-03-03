@@ -604,7 +604,7 @@ dependencies = [
 
 [[package]]
 name = "gateway-rs"
-version = "1.0.0-alpha.22"
+version = "1.0.0-alpha.23"
 dependencies = [
  "angry-purple-tiger",
  "async-trait",
