@@ -20,6 +20,12 @@ pub struct Cli {
     #[structopt(long)]
     daemon: bool,
 
+    /// Monitor stdin and terminate when stdin closes.
+    ///
+    /// This flag is not cmopatible with the daemon flag
+    #[structopt(long)]
+    stdin: bool,
+
     #[structopt(subcommand)]
     cmd: Cmd,
 }
@@ -98,7 +104,7 @@ pub fn main() -> Result {
             loop {
                 tokio::select!(
                     _ = signal::ctrl_c() => break,
-                    read = stdin.read(&mut in_buf), if !cli.daemon => if let Ok(0) = read { break },
+                    read = stdin.read(&mut in_buf), if cli.stdin => if let Ok(0) = read { break },
                 )
             }
             shutdown_trigger.trigger()
