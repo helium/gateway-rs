@@ -237,13 +237,9 @@ To use in your `settings.toml` override the `keypair` setting to reflect the use
 keypair = "ecc://i2c-1:96?slot=0&network=mainnet"
 ```
 
-will have helium_gateway use the ECC at the `/dev/i2c-1` device driver location,
-use bus address `96` (which is hex `0x60`) and slot `0` for it's crypto
-operations. while marking the resulting key as a mainnet key. Buss, slot and
-network are all optional parameters and default to the above values.
+will have helium_gateway use the ECC at the `/dev/i2c-1` device driver location, use bus address `96` (which is hex `0x60`) and slot `0` for it's crypto operations. While marking the resulting key as a mainnet key. Bus address, slot and network are all optional parameters and default to the above values (only device driver location is required such as `ecc://i2c-1`).
 
-Note that the file based keypair will no longer be used once the ECC is
-configured for use. 
+Note that the file based keypair will no longer be used once the ECC is configured for use. 
 
 See the [gateway-mfr-rs repo](https://github.com/helium/gateway-mfr-rs) for instructions on configuring, locking, and testing an ECC chip.
 
