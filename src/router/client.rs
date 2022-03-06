@@ -136,7 +136,7 @@ impl RouterClient {
                     },
                     Some(Message::Region(region)) => {
                         self.region = region;
-                        info!(logger, "updated regtion to {region}" );
+                        info!(logger, "updated region to {region}" );
                     },
                     None => warn!(logger, "ignoring closed uplinks channel"),
                 },
