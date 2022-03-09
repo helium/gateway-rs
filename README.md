@@ -101,6 +101,7 @@ Note that platforms will be tested much faster if you join the development proce
 | caldigit       | mipsel-unknown-linux-musl      | :white_check_mark: CalDigit Light Hotspot                |
 | tektelic       | armv7-unknown-linux-gnueabihf  | :white_check_mark: [Kona Micro] IoT Gateway              |
 |                |                                | :white_check_mark: [Kona Enterprise] IoT Gateway         |
+| risinghf       | armv7-unknown-linux-gnueabihf  | :white_check_mark: [RisingHF RHF2S027] Light Hotspot     |
 
 [ramips_24kec]: https://downloads.rakwireless.com/WIFI/RAK634/Hardware%20Specification/RAK634_Module_Specification_V1.0.pdf
 [RAK833]: https://github.com/RAKWireless/RAK2247-RAK833-LoRaGateway-OpenWRT-MT7628
@@ -115,6 +116,7 @@ Note that platforms will be tested much faster if you join the development proce
 [cotx]: https://www.cotxnetworks.com/product/service_one
 [Kona Micro]: https://www.tektelic.com/catalog/kona-micro-lorawan-gateway
 [Kona Enterprise]: https://www.tektelic.com/catalog/kona-enterprise-lorawan-gateway
+[RisingHF RHF2S027]: https://www.risinghf.com/product/detail/27
 
 ## Building
 
