@@ -53,6 +53,7 @@ jobs:
           - raspi_64
           - caldigit
           - tektelic
+          - risinghf
     steps:
       - uses: actions-rs/toolchain@v1
         with:
