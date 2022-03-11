@@ -4,6 +4,7 @@ use std::{convert::From, fmt, io, result};
 
 pub mod error;
 pub use error::LoraWanError;
+pub mod subnet;
 
 #[derive(Debug)]
 pub enum Direction {
