@@ -1,0 +1,6 @@
+#!/bin/sh
+
+chmod +x /etc/helium_gateway/install_update
+
+/etc/init.d/helium_gateway enable
+/etc/init.d/helium_gateway reload
