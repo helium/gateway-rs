@@ -1,7 +1,7 @@
 /// Does this LoRaWAN devaddr belong to the Helium network?
 /// netid_list contains Helium's ordered list of assigned NetIDs
 ///
-pub fn is_local_devaddr(devaddr: u32, netid_list: Vec<u32>) -> bool {
+pub fn is_local_devaddr(devaddr: u32, netid_list: &[u32]) -> bool {
     let netid = parse_netid(devaddr);
     is_local_netid(netid, netid_list)
 }
@@ -9,8 +9,8 @@ pub fn is_local_devaddr(devaddr: u32, netid_list: Vec<u32>) -> bool {
 /// Translate from a Helium subnet address to a LoRaWAN devaddr.
 /// netid_list contains Helium's ordered list of assigned NetIDs
 ///
-pub fn devaddr_from_subnet(subnetaddr: u32, netid_list: Vec<u32>) -> u32 {
-    let netid = subnet_addr_to_netid(subnetaddr, netid_list.clone());
+pub fn devaddr_from_subnet(subnetaddr: u32, netid_list: &[u32]) -> u32 {
+    let netid = subnet_addr_to_netid(subnetaddr, netid_list);
     let (lower, _upper) = netid_addr_range(netid, netid_list);
     devaddr(netid, subnetaddr - lower)
 }
@@ -18,7 +18,7 @@ pub fn devaddr_from_subnet(subnetaddr: u32, netid_list: Vec<u32>) -> u32 {
 /// Translate from a LoRaWAN devaddr to a Helium subnet address.
 /// netid_list contains Helium's ordered list of assigned NetIDs
 ///
-pub fn subnet_from_devaddr(devaddr: u32, netid_list: Vec<u32>) -> u32 {
+pub fn subnet_from_devaddr(devaddr: u32, netid_list: &[u32]) -> u32 {
     let netid = parse_netid(devaddr);
     let (lower, _upper) = netid_addr_range(netid, netid_list);
     lower + nwk_addr(devaddr)
@@ -47,16 +47,14 @@ fn id_len(netclass: u8) -> u32 {
         .unwrap_or(&0)
 }
 
-fn subnet_addr_to_netid(subnetaddr: u32, netid_list: Vec<u32>) -> u32 {
-    for item in netid_list.clone() {
-        if subnet_addr_within_range(subnetaddr, item, netid_list.clone()) {
-            return item;
-        }
-    }
-    0
+fn subnet_addr_to_netid(subnetaddr: u32, netid_list: &[u32]) -> u32 {
+    *netid_list
+        .iter()
+        .find(|item| subnet_addr_within_range(subnetaddr, **item, netid_list))
+        .unwrap_or(&0)
 }
 
-fn subnet_addr_within_range(subnetaddr: u32, netid: u32, netid_list: Vec<u32>) -> bool {
+fn subnet_addr_within_range(subnetaddr: u32, netid: u32, netid_list: &[u32]) -> bool {
     let (lower, upper) = netid_addr_range(netid, netid_list);
     (subnetaddr >= lower) && (subnetaddr < upper)
 }
@@ -87,13 +85,8 @@ fn devaddr(netid: u32, nwkaddr: u32) -> u32 {
     var_netid(netclass, addr) | nwkaddr
 }
 
-fn is_local_netid(netid: u32, netid_list: Vec<u32>) -> bool {
-    for item in netid_list {
-        if item == netid {
-            return true;
-        }
-    }
-    false
+fn is_local_netid(netid: u32, netid_list: &[u32]) -> bool {
+    netid_list.contains(&netid)
 }
 
 fn netid_type(devaddr: u32) -> u8 {
@@ -129,13 +122,13 @@ fn parse_netid(devaddr: u32) -> u32 {
     id | ((net_type as u32) << 21)
 }
 
-fn netid_addr_range(netid: u32, netid_list: Vec<u32>) -> (u32, u32) {
+fn netid_addr_range(netid: u32, netid_list: &[u32]) -> (u32, u32) {
     let mut lower: u32 = 0;
     let mut upper: u32 = 0;
     if netid_list.contains(&netid) {
         for item in netid_list {
-            let size = netid_size(item);
-            if item == netid {
+            let size = netid_size(*item);
+            if *item == netid {
                 upper += size;
                 break;
             }
@@ -206,9 +199,9 @@ mod tests {
         assert_eq!(131072, NetSize2);
 
         let NetIDList: Vec<u32> = vec![NetID00, NetID01, NetID02];
-        let LocalTrue = is_local_netid(NetID01, NetIDList.clone());
-        let LocalFalse = is_local_netid(NetIDExt, NetIDList.clone());
-        let _LegacyLocal = is_local_netid(LegacyNetID, NetIDList.clone());
+        let LocalTrue = is_local_netid(NetID01, &NetIDList);
+        let LocalFalse = is_local_netid(NetIDExt, &NetIDList);
+        let _LegacyLocal = is_local_netid(LegacyNetID, &NetIDList);
         assert_eq!(true, LocalTrue);
         assert_eq!(false, LocalFalse);
         //assert_eq!(true, LegacyLocal);
@@ -283,10 +276,10 @@ mod tests {
         // %% By design we do compute a proper subnet (giving us a correct OUI route),
         // %% but if we compute the associated DevAddr for this subnet (for the Join request)
         // %% we'll get a new one associated with a current and proper NetID
-        let Subnet0 = subnet_from_devaddr(DevAddr00, NetIDList.clone());
+        let Subnet0 = subnet_from_devaddr(DevAddr00, &NetIDList);
         //io:format("Subnet0 ~8.16.0B~n", [Subnet0]);
         assert_eq!(0, Subnet0);
-        let DevAddr000 = devaddr_from_subnet(Subnet0, NetIDList.clone());
+        let DevAddr000 = devaddr_from_subnet(Subnet0, &NetIDList);
         //io:format("DevAddr00 ~8.16.0B~n", [DevAddr00]);
         //io:format("DevAddr000 ~8.16.0B~n", [DevAddr000]);
         //%% By design the reverse DevAddr will have a correct NetID
@@ -295,22 +288,22 @@ mod tests {
         let DevAddr000NetID = parse_netid(DevAddr000);
         assert_eq!(NetID00, DevAddr000NetID);
 
-        let Subnet1 = subnet_from_devaddr(DevAddr01, NetIDList.clone());
+        let Subnet1 = subnet_from_devaddr(DevAddr01, &NetIDList);
         //io:format("Subnet1 ~8.16.0B~n", [Subnet1]);
         assert_eq!((1 << 7) + 16, Subnet1);
-        let DevAddr001 = devaddr_from_subnet(Subnet1, NetIDList.clone());
+        let DevAddr001 = devaddr_from_subnet(Subnet1, &NetIDList);
         //io:format("DevAddr01 ~8.16.0B~n", [DevAddr01]);
         //io:format("DevAddr001 ~8.16.0B~n", [DevAddr001]);
         assert_eq!(DevAddr001, DevAddr01);
 
-        let Subnet1 = subnet_from_devaddr(DevAddr01, NetIDList.clone());
+        let Subnet1 = subnet_from_devaddr(DevAddr01, &NetIDList);
         assert_eq!((1 << 7) + 16, Subnet1);
-        let DevAddr001 = devaddr_from_subnet(Subnet1, NetIDList.clone());
+        let DevAddr001 = devaddr_from_subnet(Subnet1, &NetIDList);
         assert_eq!(DevAddr001, DevAddr01);
 
-        let Subnet2 = subnet_from_devaddr(DevAddr02, NetIDList.clone());
+        let Subnet2 = subnet_from_devaddr(DevAddr02, &NetIDList);
         assert_eq!((1 << 7) + (1 << 10) + 8, Subnet2);
-        let DevAddr002 = devaddr_from_subnet(Subnet2, NetIDList.clone());
+        let DevAddr002 = devaddr_from_subnet(Subnet2, &NetIDList);
         assert_eq!(DevAddr002, DevAddr02);
     }
 
