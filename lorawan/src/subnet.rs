@@ -302,63 +302,47 @@ mod tests {
 
     #[test]
     fn test_id() {
-        // %% CP data
-        assert_eq!(0x00002D, parse_netid(0x5BFFFFFF)); // <<91, 255, 255, 255>>), "[45] == 2D == 45 type 0"),
-        assert_eq!(0x20002D, parse_netid(0xADFFFFFF)); // <<173, 255, 255, 255>>), "[45] == 2D == 45 type 1"),
-        assert_eq!(0x40016D, parse_netid(0xD6DFFFFF)); // <<214, 223, 255, 255>>), "[1,109] == 16D == 365 type 2"
-        assert_eq!(
-            0x6005B7,
-            parse_netid(0xEB6FFFFF) // <<235, 111, 255, 255>>), "[5,183] == 5B7 == 1463 type 3"
-        );
+        // CP data (matches Erlang test cases)
+        // <<91, 255, 255, 255>> "[45] == 2D == 45 type 0"
+        assert_eq!(0x00002D, parse_netid(0x5BFFFFFF));
+        // <<173, 255, 255, 255>> "[45] == 2D == 45 type 1"
+        assert_eq!(0x20002D, parse_netid(0xADFFFFFF));
+        // <<214, 223, 255, 255>> "[1,109] == 16D == 365 type 2"
+        assert_eq!(0x40016D, parse_netid(0xD6DFFFFF));
+        // <<235, 111, 255, 255>>), "[5,183] == 5B7 == 1463 type 3"
+        assert_eq!(0x6005B7, parse_netid(0xEB6FFFFF));
+        // <<245, 182, 255, 255>>), "[11, 109] == B6D == 2925 type 4"
         assert_eq!(0x800B6D, parse_netid(0xF5B6FFFF));
-        //        lorawan:netid(<<245, 182, 255, 255>>),
-        //        "[11, 109] == B6D == 2925 type 4"
-        //    ),
+        // println!(
+        //     "left: {:#04X?} right: {:#04X?}",
+        //     0xA016DB,
+        //     parse_netid(0xFADB7FFF)
+        // );
+        // <<250, 219, 127, 255>>), "[22,219] == 16DB == 5851 type 5"
+        assert_eq!( 0xA016DB, parse_netid(0xFADB7FFF) );
+        // <<253, 109, 183, 255>> "[91, 109] == 5B6D == 23405 type 6"
+        assert_eq!(0xC05B6D, parse_netid(0xFD6DB7FF));
+        // <<254, 182, 219, 127>> "[1,109,182] == 16DB6 == 93622 type 7"
+        assert_eq!(0xE16DB6, parse_netid(0xFEB6DB7F));
         println!(
             "left: {:#04X?} right: {:#04X?}",
             0xA016DB,
-            parse_netid(0xFAD87FFF)
+            parse_netid(0xFFFFFFFF)
         );
-        // FixMe assert_eq!( 0xA016DB, parse_netid(0xFAD87FFF) );
-        //        lorawan:netid(<<250, 219, 127, 255>>),
-        //        "[22,219] == 16DB == 5851 type 5"
-        //    ),
-        assert_eq!(0xC05B6D, parse_netid(0xFD6DB7FF));
-        //       lorawan:netid(<<253, 109, 183, 255>>),
-        //       "[91, 109] == 5B6D == 23405 type 6"
-        //   ),
-        assert_eq!(0xE16DB6, parse_netid(0xFEB6DB7F));
-        //       lorawan:netid(<<254, 182, 219, 127>>),
-        //       "[1,109,182] == 16DB6 == 93622 type 7"
-        //   ),
-        // FixMe assert_eq!( 0x0, parse_netid(0xFFFFFFFF) );
-        //        {error, invalid_netid_type},
-        //        lorawan:netid(<<255, 255, 255, 255>>),
-        //        "Invalid DevAddr"
-        //    ),
+        // FixME - Invalid NetID type
+        assert_eq!(127, parse_netid(0xFFFFFFFF));
 
-        // % Actility spreadsheet examples
-        // assert_eq!(0, parse_netid(<<0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:25>>)),
-        // assert_eq!(1, parse_netid(<<0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 1:1, 0:25>>)),
-        // assert_eq!(2, parse_netid(<<0:1, 0:1, 0:1, 0:1, 0:1, 1:1, 0:1, 0:25>>)),
+        // Actility spreadsheet examples
+        assert_eq!(0, parse_netid(0));
+        assert_eq!(1, parse_netid(1<<25));
+        assert_eq!(2, parse_netid(1<<26));
 
-        // %% Mis-parsed as netid 4 of type 3
+        // Mis-parsed as netid 4 of type 3
         assert_eq!(0x600004, parse_netid(0xE009ABCD));
-        // assert_eq!(
-        //     0x600004, parse_netid(<<224, 9, 171, 205>>), "hex_to_binary(<<'E009ABCD'>>)"
-        // ),
-        //    %% Valid DevAddr, NetID not assigned
+        // Valid DevAddr, NetID not assigned
         assert_eq!(0x20002D, parse_netid(0xADFFFFFF));
-        //        0x20002D, parse_netid(<<173, 255, 255, 255>>), "hex_to_binary(<<'ADFFFFFF'>>)"
-        //    ),
-        //    %% Less than 32 bit number
+        // Less than 32 bit number
         assert_eq!(0, parse_netid(46377));
-
-        // % Louis test data
-        // assert_eq!(0x600002, parse_netid(<<224, 4, 0, 1>>)),
-        // assert_eq!(0x600002, parse_netid(<<224, 5, 39, 132>>)),
-        // assert_eq!(0x000002, parse_netid(<<4, 16, 190, 163>>)),
-        // ok.
 
         // Louis test data
         assert_eq!(0x600002, parse_netid(0xE0040001));
