@@ -316,7 +316,7 @@ mod tests {
         //     parse_netid(0xFADB7FFF)
         // );
         // <<250, 219, 127, 255>>), "[22,219] == 16DB == 5851 type 5"
-        assert_eq!( 0xA016DB, parse_netid(0xFADB7FFF) );
+        assert_eq!(0xA016DB, parse_netid(0xFADB7FFF));
         // <<253, 109, 183, 255>> "[91, 109] == 5B6D == 23405 type 6"
         assert_eq!(0xC05B6D, parse_netid(0xFD6DB7FF));
         // <<254, 182, 219, 127>> "[1,109,182] == 16DB6 == 93622 type 7"
@@ -331,8 +331,8 @@ mod tests {
 
         // Actility spreadsheet examples
         assert_eq!(0, parse_netid(0));
-        assert_eq!(1, parse_netid(1<<25));
-        assert_eq!(2, parse_netid(1<<26));
+        assert_eq!(1, parse_netid(1 << 25));
+        assert_eq!(2, parse_netid(1 << 26));
 
         // Mis-parsed as netid 4 of type 3
         assert_eq!(0x600004, parse_netid(0xE009ABCD));
