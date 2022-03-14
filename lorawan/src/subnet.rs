@@ -163,26 +163,15 @@ mod tests {
     #[test]
     fn test_netid() {
         let RETIRED_NETID: u32 = 0x200010;
-
         // LegacyDevAddr = <<$H:7, 0:25>>,
-        let _LegacyDevAddr: u32 = 0x90000000;
-        // LegacyNum = 16#90000000,
-        // _LegacyID = 8,
-        // %% 16#200010,
         let LegacyNetID: u32 = RETIRED_NETID;
-        // <<H1:7, _/bitstring>> = LegacyDevAddr,
-        // <<H2:7, _:25>> = LegacyDevAddr,
-        // H3 = <<LegacyNum:32/integer-unsigned>>,
-        // ?assertEqual(H1, H2),
-        // ?assertEqual(H3, LegacyDevAddr),
 
         let NetID00: u32 = 0xE00001;
         let NetID01: u32 = 0xC00035;
         let NetID02: u32 = 0x60002D;
         let NetIDExt: u32 = 0xC00050;
-        let _NetID000: u32 = 0x200010;
 
-        // %% Class 6
+        // Class 6
         let DevAddr00: u32 = 0x90000000;
         let DevAddr01: u32 = 0xFC00D410;
         let DevAddr02: u32 = 0xE05A0008;
