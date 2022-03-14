@@ -86,7 +86,12 @@ fn devaddr(netid: u32, nwkaddr: u32) -> u32 {
 }
 
 fn is_local_netid(netid: u32, netid_list: &[u32]) -> bool {
-    netid_list.contains(&netid)
+    let retired_netid: u32 = 0x200010;
+    if netid == retired_netid {
+        true
+    } else {
+        netid_list.contains(&netid)
+    }
 }
 
 fn netid_type(devaddr: u32) -> u8 {
@@ -118,7 +123,9 @@ fn parse_netid(devaddr: u32) -> u32 {
 fn netid_addr_range(netid: u32, netid_list: &[u32]) -> (u32, u32) {
     let mut lower: u32 = 0;
     let mut upper: u32 = 0;
+    // 95% of traffic is non-Helium so netid_list.contains will usually be false
     if netid_list.contains(&netid) {
+        // 5% code path
         for item in netid_list {
             let size = netid_size(*item);
             if *item == netid {
