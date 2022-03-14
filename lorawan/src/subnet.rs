@@ -158,6 +158,7 @@ mod tests {
         let RETIRED_NETID: u32 = 0x200010;
 
         // LegacyDevAddr = <<$H:7, 0:25>>,
+        let _LegacyDevAddr: u32 = 0x90000000;
         // LegacyNum = 16#90000000,
         // _LegacyID = 8,
         // %% 16#200010,
@@ -172,6 +173,7 @@ mod tests {
         let NetID01: u32 = 0xC00035;
         let NetID02: u32 = 0x60002D;
         let NetIDExt: u32 = 0xC00050;
+        let _NetID000: u32 = 0x200010;
 
         // %% Class 6
         let DevAddr00: u32 = 0x90000000;
@@ -194,10 +196,10 @@ mod tests {
         let NetIDList: Vec<u32> = vec![NetID00, NetID01, NetID02];
         let LocalTrue = is_local_netid(NetID01, &NetIDList);
         let LocalFalse = is_local_netid(NetIDExt, &NetIDList);
-        let _LegacyLocal = is_local_netid(LegacyNetID, &NetIDList);
+        let LegacyLocal = is_local_netid(LegacyNetID, &NetIDList);
         assert_eq!(true, LocalTrue);
         assert_eq!(false, LocalFalse);
-        //assert_eq!(true, LegacyLocal);
+        assert_eq!(true, LegacyLocal);
 
         let DevAddrLegacy = devaddr(LegacyNetID, 0);
         assert_eq!(DevAddr00, DevAddrLegacy);
@@ -264,29 +266,24 @@ mod tests {
         let NwkAddr2 = nwk_addr(DevAddr02);
         assert_eq!(8, NwkAddr2);
 
-        // %% Backwards DevAddr compatibility test
-        // %% DevAddr00 is a legacy Helium Devaddr.  The NetID is retired.
-        // %% By design we do compute a proper subnet (giving us a correct OUI route),
-        // %% but if we compute the associated DevAddr for this subnet (for the Join request)
-        // %% we'll get a new one associated with a current and proper NetID
+        // Backwards DevAddr compatibility test
+        // DevAddr00 is a legacy Helium Devaddr.  The NetID is retired.
+        // By design we do compute a proper subnet (giving us a correct OUI route),
+        // but if we compute the associated DevAddr for this subnet (for the Join request)
+        // we'll get a new one associated with a current and proper NetID
+        // In other words, DevAddr00 is not equal to DevAddr000.
         let Subnet0 = subnet_from_devaddr(DevAddr00, &NetIDList);
-        //io:format("Subnet0 ~8.16.0B~n", [Subnet0]);
         assert_eq!(0, Subnet0);
         let DevAddr000 = devaddr_from_subnet(Subnet0, &NetIDList);
-        //io:format("DevAddr00 ~8.16.0B~n", [DevAddr00]);
-        //io:format("DevAddr000 ~8.16.0B~n", [DevAddr000]);
-        //%% By design the reverse DevAddr will have a correct NetID
-        // FixMe assert_eq!(DevAddr000, DevAddr00);
+        // By design the reverse DevAddr will have a correct NetID
+        assert_ne!(DevAddr000, DevAddr00);
         assert_eq!(0xFE000080, DevAddr000);
         let DevAddr000NetID = parse_netid(DevAddr000);
         assert_eq!(NetID00, DevAddr000NetID);
 
         let Subnet1 = subnet_from_devaddr(DevAddr01, &NetIDList);
-        //io:format("Subnet1 ~8.16.0B~n", [Subnet1]);
         assert_eq!((1 << 7) + 16, Subnet1);
         let DevAddr001 = devaddr_from_subnet(Subnet1, &NetIDList);
-        //io:format("DevAddr01 ~8.16.0B~n", [DevAddr01]);
-        //io:format("DevAddr001 ~8.16.0B~n", [DevAddr001]);
         assert_eq!(DevAddr001, DevAddr01);
 
         let Subnet1 = subnet_from_devaddr(DevAddr01, &NetIDList);
