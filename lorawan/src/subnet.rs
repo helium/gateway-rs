@@ -1,3 +1,5 @@
+const RETIRED_NETID: u32 = 0x200010;
+
 /// Does this LoRaWAN devaddr belong to the Helium network?
 /// netid_list contains Helium's ordered list of assigned NetIDs
 ///
@@ -86,8 +88,7 @@ fn devaddr(netid: u32, nwkaddr: u32) -> u32 {
 }
 
 fn is_local_netid(netid: u32, netid_list: &[u32]) -> bool {
-    let retired_netid: u32 = 0x200010;
-    if netid == retired_netid {
+    if netid == RETIRED_NETID {
         true
     } else {
         netid_list.contains(&netid)
@@ -162,7 +163,6 @@ mod tests {
     #[allow(non_snake_case)]
     #[test]
     fn test_netid() {
-        let RETIRED_NETID: u32 = 0x200010;
         // LegacyDevAddr = <<$H:7, 0:25>>,
         let LegacyNetID: u32 = RETIRED_NETID;
 
