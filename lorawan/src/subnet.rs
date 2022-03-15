@@ -16,19 +16,23 @@ pub fn is_local_devaddr(devaddr: DevAddr, netid_list: &[NetID]) -> bool {
 /// Translate from a Helium subnet address to a LoRaWAN devaddr.
 /// netid_list contains Helium's ordered list of assigned NetIDs
 ///
-pub fn devaddr_from_subnet(subnetaddr: SubnetAddr, netid_list: &[NetID]) -> DevAddr {
+pub fn devaddr_from_subnet(subnetaddr: SubnetAddr, netid_list: &[NetID]) -> Option<DevAddr> {
     let netid = subnet_addr_to_netid(subnetaddr, netid_list);
-    let (lower, _upper) = netid_addr_range(netid, netid_list);
-    devaddr(netid, subnetaddr - lower)
+    if netid.is_some() {
+        let (lower, _upper) = netid_addr_range(netid.unwrap(), netid_list);
+        Some(devaddr(netid.unwrap(), subnetaddr - lower))
+    } else {
+        None
+    }
 }
 
 /// Translate from a LoRaWAN devaddr to a Helium subnet address.
 /// netid_list contains Helium's ordered list of assigned NetIDs
 ///
-pub fn subnet_from_devaddr(devaddr: DevAddr, netid_list: &[NetID]) -> SubnetAddr {
+pub fn subnet_from_devaddr(devaddr: DevAddr, netid_list: &[NetID]) -> Option<SubnetAddr> {
     let netid = parse_netid(devaddr);
     let (lower, _upper) = netid_addr_range(netid, netid_list);
-    lower + nwk_addr(devaddr)
+    Some(lower + nwk_addr(devaddr))
 }
 
 //
@@ -54,11 +58,16 @@ fn id_len(netclass: NetClass) -> u32 {
         .unwrap_or(&0)
 }
 
-fn subnet_addr_to_netid(subnetaddr: SubnetAddr, netid_list: &[NetID]) -> NetID {
-    *netid_list
+fn subnet_addr_to_netid(subnetaddr: SubnetAddr, netid_list: &[NetID]) -> Option<NetID> {
+    let netid = *netid_list
         .iter()
         .find(|item| subnet_addr_within_range(subnetaddr, **item, netid_list))
-        .unwrap_or(&0)
+        .unwrap_or(&0);
+    if netid == 0 {
+        None
+    } else {
+        Some(netid)
+    }
 }
 
 fn subnet_addr_within_range(subnetaddr: SubnetAddr, netid: NetID, netid_list: &[NetID]) -> bool {
@@ -274,28 +283,28 @@ mod tests {
         // we'll get a new one associated with a current and proper NetID
         // In other words, DevAddr00 is not equal to DevAddr000.
         let Subnet0 = subnet_from_devaddr(DevAddr00, &NetIDList);
-        assert_eq!(0, Subnet0);
-        let DevAddr000 = devaddr_from_subnet(Subnet0, &NetIDList);
+        assert_eq!(Some(0), Subnet0);
+        let DevAddr000 = devaddr_from_subnet(Subnet0.unwrap(), &NetIDList);
         // By design the reverse DevAddr will have a correct NetID
-        assert_ne!(DevAddr000, DevAddr00);
-        assert_eq!(0xFE000080, DevAddr000);
-        let DevAddr000NetID = parse_netid(DevAddr000);
+        assert_ne!(DevAddr000.unwrap(), DevAddr00);
+        assert_eq!(Some(0xFE000080), DevAddr000);
+        let DevAddr000NetID = parse_netid(DevAddr000.unwrap());
         assert_eq!(NetID00, DevAddr000NetID);
 
         let Subnet1 = subnet_from_devaddr(DevAddr01, &NetIDList);
-        assert_eq!((1 << 7) + 16, Subnet1);
-        let DevAddr001 = devaddr_from_subnet(Subnet1, &NetIDList);
-        assert_eq!(DevAddr001, DevAddr01);
+        assert_eq!((1 << 7) + 16, Subnet1.unwrap());
+        let DevAddr001 = devaddr_from_subnet(Subnet1.unwrap(), &NetIDList);
+        assert_eq!(DevAddr001.unwrap(), DevAddr01);
 
         let Subnet1 = subnet_from_devaddr(DevAddr01, &NetIDList);
-        assert_eq!((1 << 7) + 16, Subnet1);
-        let DevAddr001 = devaddr_from_subnet(Subnet1, &NetIDList);
-        assert_eq!(DevAddr001, DevAddr01);
+        assert_eq!((1 << 7) + 16, Subnet1.unwrap());
+        let DevAddr001 = devaddr_from_subnet(Subnet1.unwrap(), &NetIDList);
+        assert_eq!(DevAddr001.unwrap(), DevAddr01);
 
         let Subnet2 = subnet_from_devaddr(DevAddr02, &NetIDList);
-        assert_eq!((1 << 7) + (1 << 10) + 8, Subnet2);
-        let DevAddr002 = devaddr_from_subnet(Subnet2, &NetIDList);
-        assert_eq!(DevAddr002, DevAddr02);
+        assert_eq!((1 << 7) + (1 << 10) + 8, Subnet2.unwrap());
+        let DevAddr002 = devaddr_from_subnet(Subnet2.unwrap(), &NetIDList);
+        assert_eq!(DevAddr002.unwrap(), DevAddr02);
     }
 
     #[test]
