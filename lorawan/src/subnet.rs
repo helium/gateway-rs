@@ -1,9 +1,13 @@
 const RETIRED_NETID: u32 = 0x200010;
 
+type DevAddr = u32;
+type SubnetAddr = u32;
+type NetID = u32;
+
 /// Does this LoRaWAN devaddr belong to the Helium network?
 /// netid_list contains Helium's ordered list of assigned NetIDs
 ///
-pub fn is_local_devaddr(devaddr: u32, netid_list: &[u32]) -> bool {
+pub fn is_local_devaddr(devaddr: DevAddr, netid_list: &[NetID]) -> bool {
     let netid = parse_netid(devaddr);
     is_local_netid(netid, netid_list)
 }
@@ -11,7 +15,7 @@ pub fn is_local_devaddr(devaddr: u32, netid_list: &[u32]) -> bool {
 /// Translate from a Helium subnet address to a LoRaWAN devaddr.
 /// netid_list contains Helium's ordered list of assigned NetIDs
 ///
-pub fn devaddr_from_subnet(subnetaddr: u32, netid_list: &[u32]) -> u32 {
+pub fn devaddr_from_subnet(subnetaddr: SubnetAddr, netid_list: &[NetID]) -> DevAddr {
     let netid = subnet_addr_to_netid(subnetaddr, netid_list);
     let (lower, _upper) = netid_addr_range(netid, netid_list);
     devaddr(netid, subnetaddr - lower)
@@ -20,7 +24,7 @@ pub fn devaddr_from_subnet(subnetaddr: u32, netid_list: &[u32]) -> u32 {
 /// Translate from a LoRaWAN devaddr to a Helium subnet address.
 /// netid_list contains Helium's ordered list of assigned NetIDs
 ///
-pub fn subnet_from_devaddr(devaddr: u32, netid_list: &[u32]) -> u32 {
+pub fn subnet_from_devaddr(devaddr: DevAddr, netid_list: &[NetID]) -> SubnetAddr {
     let netid = parse_netid(devaddr);
     let (lower, _upper) = netid_addr_range(netid, netid_list);
     lower + nwk_addr(devaddr)
@@ -32,7 +36,7 @@ pub fn subnet_from_devaddr(devaddr: u32, netid_list: &[u32]) -> u32 {
 // Note - function and var names correspond closely to the LoRaWAN spec.
 //
 
-fn netid_class(netid: u32) -> u8 {
+fn netid_class(netid: NetID) -> u8 {
     let netclass: u8 = (netid >> 21) as u8;
     netclass
 }
@@ -49,14 +53,14 @@ fn id_len(netclass: u8) -> u32 {
         .unwrap_or(&0)
 }
 
-fn subnet_addr_to_netid(subnetaddr: u32, netid_list: &[u32]) -> u32 {
+fn subnet_addr_to_netid(subnetaddr: SubnetAddr, netid_list: &[NetID]) -> NetID {
     *netid_list
         .iter()
         .find(|item| subnet_addr_within_range(subnetaddr, **item, netid_list))
         .unwrap_or(&0)
 }
 
-fn subnet_addr_within_range(subnetaddr: u32, netid: u32, netid_list: &[u32]) -> bool {
+fn subnet_addr_within_range(subnetaddr: SubnetAddr, netid: NetID, netid_list: &[NetID]) -> bool {
     let (lower, upper) = netid_addr_range(netid, netid_list);
     (subnetaddr >= lower) && (subnetaddr < upper)
 }
@@ -76,18 +80,18 @@ fn var_net_class(netclass: u8) -> u32 {
     }
 }
 
-fn var_netid(netclass: u8, netid: u32) -> u32 {
+fn var_netid(netclass: u8, netid: NetID) -> NetID {
     netid << addr_len(netclass)
 }
 
-fn devaddr(netid: u32, nwkaddr: u32) -> u32 {
+fn devaddr(netid: NetID, nwkaddr: u32) -> DevAddr {
     let netclass = netid_class(netid);
     let id = netid & 0b111111111111111111111;
     let addr = var_net_class(netclass) | id;
     var_netid(netclass, addr) | nwkaddr
 }
 
-fn is_local_netid(netid: u32, netid_list: &[u32]) -> bool {
+fn is_local_netid(netid: NetID, netid_list: &[NetID]) -> bool {
     if netid == RETIRED_NETID {
         true
     } else {
@@ -95,7 +99,7 @@ fn is_local_netid(netid: u32, netid_list: &[u32]) -> bool {
     }
 }
 
-fn netid_type(devaddr: u32) -> u8 {
+fn netid_type(devaddr: DevAddr) -> u8 {
     fn netid_shift_prefix(prefix: u8, index: u8) -> u8 {
         if (prefix & (1 << index)) == 0 {
             7 - index
@@ -111,7 +115,7 @@ fn netid_type(devaddr: u32) -> u8 {
     netid_shift_prefix(first, 7)
 }
 
-fn parse_netid(devaddr: u32) -> u32 {
+fn parse_netid(devaddr: DevAddr) -> NetID {
     fn get_netid(devaddr: u32, prefix_len: u8, nwkidbits: u32) -> u32 {
         (devaddr << (prefix_len - 1)) >> (31 - nwkidbits)
     }
@@ -121,7 +125,7 @@ fn parse_netid(devaddr: u32) -> u32 {
     id | ((net_type as u32) << 21)
 }
 
-fn netid_addr_range(netid: u32, netid_list: &[u32]) -> (u32, u32) {
+fn netid_addr_range(netid: NetID, netid_list: &[NetID]) -> (SubnetAddr, SubnetAddr) {
     let mut lower: u32 = 0;
     let mut upper: u32 = 0;
     // 95% of traffic is non-Helium so netid_list.contains will usually be false
@@ -140,14 +144,14 @@ fn netid_addr_range(netid: u32, netid_list: &[u32]) -> (u32, u32) {
     (lower, upper)
 }
 
-fn nwk_addr(devaddr: u32) -> u32 {
+fn nwk_addr(devaddr: DevAddr) -> u32 {
     let netid = parse_netid(devaddr);
     let len = addr_len(netid_class(netid));
     let mask = (1 << len) - 1;
     devaddr & mask
 }
 
-fn netid_size(netid: u32) -> u32 {
+fn netid_size(netid: NetID) -> u32 {
     1 << addr_len(netid_class(netid))
 }
 
@@ -164,17 +168,17 @@ mod tests {
     #[test]
     fn test_netid() {
         // LegacyDevAddr = <<$H:7, 0:25>>,
-        let LegacyNetID: u32 = RETIRED_NETID;
+        let LegacyNetID: NetID = RETIRED_NETID;
 
-        let NetID00: u32 = 0xE00001;
-        let NetID01: u32 = 0xC00035;
-        let NetID02: u32 = 0x60002D;
-        let NetIDExt: u32 = 0xC00050;
+        let NetID00: NetID = 0xE00001;
+        let NetID01: NetID = 0xC00035;
+        let NetID02: NetID = 0x60002D;
+        let NetIDExt: NetID = 0xC00050;
 
         // Class 6
-        let DevAddr00: u32 = 0x90000000;
-        let DevAddr01: u32 = 0xFC00D410;
-        let DevAddr02: u32 = 0xE05A0008;
+        let DevAddr00: DevAddr = 0x90000000;
+        let DevAddr01: DevAddr = 0xFC00D410;
+        let DevAddr02: DevAddr = 0xE05A0008;
 
         let NetWidth0 = addr_len(netid_class(NetID00));
         assert_eq!(7, NetWidth0);
@@ -189,7 +193,7 @@ mod tests {
         let NetSize2 = netid_size(NetID02);
         assert_eq!(131072, NetSize2);
 
-        let NetIDList: Vec<u32> = vec![NetID00, NetID01, NetID02];
+        let NetIDList: Vec<NetID> = vec![NetID00, NetID01, NetID02];
         let LocalTrue = is_local_netid(NetID01, &NetIDList);
         let LocalFalse = is_local_netid(NetIDExt, &NetIDList);
         let LegacyLocal = is_local_netid(LegacyNetID, &NetIDList);
