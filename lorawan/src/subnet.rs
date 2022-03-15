@@ -3,6 +3,7 @@ const RETIRED_NETID: u32 = 0x200010;
 type DevAddr = u32;
 type SubnetAddr = u32;
 type NetID = u32;
+type NetClass = u8;
 
 /// Does this LoRaWAN devaddr belong to the Helium network?
 /// netid_list contains Helium's ordered list of assigned NetIDs
@@ -36,18 +37,18 @@ pub fn subnet_from_devaddr(devaddr: DevAddr, netid_list: &[NetID]) -> SubnetAddr
 // Note - function and var names correspond closely to the LoRaWAN spec.
 //
 
-fn netid_class(netid: NetID) -> u8 {
-    let netclass: u8 = (netid >> 21) as u8;
+fn netid_class(netid: NetID) -> NetClass {
+    let netclass: NetClass = (netid >> 21) as NetClass;
     netclass
 }
 
-fn addr_len(netclass: u8) -> u32 {
+fn addr_len(netclass: NetClass) -> u32 {
     *[25, 24, 20, 17, 15, 13, 10, 7]
         .get(netclass as usize)
         .unwrap_or(&0)
 }
 
-fn id_len(netclass: u8) -> u32 {
+fn id_len(netclass: NetClass) -> u32 {
     *[6, 6, 9, 11, 12, 13, 15, 17]
         .get(netclass as usize)
         .unwrap_or(&0)
@@ -65,7 +66,7 @@ fn subnet_addr_within_range(subnetaddr: SubnetAddr, netid: NetID, netid_list: &[
     (subnetaddr >= lower) && (subnetaddr < upper)
 }
 
-fn var_net_class(netclass: u8) -> u32 {
+fn var_net_class(netclass: NetClass) -> u32 {
     let idlen = id_len(netclass);
     match netclass {
         0 => 0,
@@ -80,7 +81,7 @@ fn var_net_class(netclass: u8) -> u32 {
     }
 }
 
-fn var_netid(netclass: u8, netid: NetID) -> NetID {
+fn var_netid(netclass: NetClass, netid: NetID) -> NetID {
     netid << addr_len(netclass)
 }
 
@@ -99,8 +100,8 @@ fn is_local_netid(netid: NetID, netid_list: &[NetID]) -> bool {
     }
 }
 
-fn netid_type(devaddr: DevAddr) -> u8 {
-    fn netid_shift_prefix(prefix: u8, index: u8) -> u8 {
+fn netid_type(devaddr: DevAddr) -> NetClass {
+    fn netid_shift_prefix(prefix: u8, index: u8) -> NetClass {
         if (prefix & (1 << index)) == 0 {
             7 - index
         } else if index > 0 {
