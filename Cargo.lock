@@ -954,6 +954,7 @@ dependencies = [
  "base64",
  "bitfield",
  "byteorder",
+ "rand",
 ]
 
 [[package]]

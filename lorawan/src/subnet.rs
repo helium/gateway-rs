@@ -20,7 +20,7 @@ pub fn devaddr_from_subnet(subnetaddr: SubnetAddr, netid_list: &[NetID]) -> Opti
     let netid = subnet_addr_to_netid(subnetaddr, netid_list);
     if netid.is_some() {
         let (lower, _upper) = netid_addr_range(netid.unwrap(), netid_list);
-        Some(devaddr(netid.unwrap(), subnetaddr - lower))
+        Some(devaddr(netid.unwrap(), subnetaddr - lower.unwrap()))
     } else {
         None
     }
@@ -32,7 +32,11 @@ pub fn devaddr_from_subnet(subnetaddr: SubnetAddr, netid_list: &[NetID]) -> Opti
 pub fn subnet_from_devaddr(devaddr: DevAddr, netid_list: &[NetID]) -> Option<SubnetAddr> {
     let netid = parse_netid(devaddr);
     let (lower, _upper) = netid_addr_range(netid, netid_list);
-    Some(lower + nwk_addr(devaddr))
+    if lower.is_some() {
+        Some(lower.unwrap() + nwk_addr(devaddr))
+    } else {
+        None
+    }
 }
 
 //
@@ -72,7 +76,7 @@ fn subnet_addr_to_netid(subnetaddr: SubnetAddr, netid_list: &[NetID]) -> Option<
 
 fn subnet_addr_within_range(subnetaddr: SubnetAddr, netid: NetID, netid_list: &[NetID]) -> bool {
     let (lower, upper) = netid_addr_range(netid, netid_list);
-    (subnetaddr >= lower) && (subnetaddr < upper)
+    (subnetaddr >= lower.unwrap()) && (subnetaddr < upper.unwrap())
 }
 
 fn var_net_class(netclass: NetClass) -> u32 {
@@ -135,11 +139,14 @@ fn parse_netid(devaddr: DevAddr) -> NetID {
     id | ((net_type as u32) << 21)
 }
 
-fn netid_addr_range(netid: NetID, netid_list: &[NetID]) -> (SubnetAddr, SubnetAddr) {
-    let mut lower: u32 = 0;
-    let mut upper: u32 = 0;
+fn netid_addr_range(
+    netid: NetID,
+    netid_list: &[NetID],
+) -> (Option<SubnetAddr>, Option<SubnetAddr>) {
     // 95% of traffic is non-Helium so netid_list.contains will usually be false
     if netid_list.contains(&netid) {
+        let mut lower: u32 = 0;
+        let mut upper: u32 = 0;
         // 5% code path
         for item in netid_list {
             let size = netid_size(*item);
@@ -150,8 +157,10 @@ fn netid_addr_range(netid: NetID, netid_list: &[NetID]) -> (SubnetAddr, SubnetAd
             lower += size;
             upper = lower;
         }
+        (Some(lower), Some(upper))
+    } else {
+        (None, None)
     }
-    (lower, upper)
 }
 
 fn nwk_addr(devaddr: DevAddr) -> u32 {
@@ -168,10 +177,88 @@ fn netid_size(netid: NetID) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rand::Rng;
+
+    fn create_netid(netclass: NetClass, id: u32) -> NetID {
+        let netclass_32 = netclass as u32;
+        let netid: NetID = (netclass_32 << 21) | id;
+        netid
+    }
+
+    fn mock_random_netids() -> Vec<u32> {
+        let mut rng = rand::thread_rng();
+        // Len = rand:uniform(10),
+        // [create_netid(rand:uniform(7), rand:uniform(64)) || _ <- lists:seq(1, Len)].
+        let _len: u32 = rng.gen_range(0..10);
+        let netids = (0..10)
+            .map(|_| {
+                let id = rng.gen_range(0..65);
+                let netclass = rng.gen_range(0..8);
+                create_netid(netclass, id) as u32
+            })
+            .collect::<Vec<u32>>();
+        netids
+    }
+
+    fn mock_netid_list() -> &'static mut [NetID] {
+        // let list_1 = Box::<[u32]>::new_uninit_slice(3);
+        let list: &mut [u32] = &mut [0xE00001, 0xC00035, 0x60002D];
+        list
+    }
+
+    fn insert_item<T>(item: T, array: &'static mut [T], pos: usize) -> &'static mut [T] {
+        *array.last_mut().unwrap() = item;
+        array[pos..].rotate_right(1);
+        array
+    }
+
+    fn copy_slice(dst: &mut [u8], src: &[u8]) -> usize {
+        dst.iter_mut().zip(src).map(|(x, y)| *x = *y).count()
+    }
+
+    fn insert_item_to_mut(item: u32, iarray: &[u32], pos: usize) -> &'static mut [u32] {
+        let array: &mut [u32] = &mut [];
+        array.iter_mut().zip(iarray).map(|(x, y)| *x = *y).count();
+        *array.last_mut().unwrap() = item;
+        array[pos..].rotate_right(1);
+        array
+    }
+
+    fn insert_rand<T>(item: T, array: &mut [T]) {
+        let mut rng = rand::thread_rng();
+        let alen = array.len();
+        let pos: usize = rng.gen_range(0..alen) as usize;
+        *array.last_mut().unwrap() = item;
+        array[pos..].rotate_right(1);
+    }
+
+    fn exercise_subnet_list(devaddr: DevAddr, netid_list: &[NetID]) {
+        let subnet_addr = subnet_from_devaddr(devaddr, netid_list);
+        let devaddr_2 = devaddr_from_subnet(subnet_addr.unwrap(), netid_list);
+        assert_eq!(devaddr, devaddr_2.unwrap());
+    }
+
+    fn exercise_subnet(devaddr: DevAddr) {
+        let netid = parse_netid(devaddr);
+        exercise_subnet_list(devaddr, insert_item(netid, mock_netid_list(), 0));
+        exercise_subnet_list(devaddr, insert_item(netid, mock_netid_list(), 1));
+        exercise_subnet_list(devaddr, insert_item(netid, mock_netid_list(), 2));
+        exercise_subnet_list(devaddr, insert_item(netid, mock_netid_list(), 3));
+    }
 
     fn addr_bit_len(devaddr: u32) -> u32 {
         let netid = parse_netid(devaddr);
         addr_len(netid_class(netid))
+    }
+
+    #[test]
+    fn test_exercise() {
+        let netid_1 = create_netid(0x2, 123) as u32;
+        println!("NetID_1_a is: {:#04X?}", netid_1);
+        let netids = mock_random_netids();
+        println!("devaddr is: {:#04X?}", 123);
+        println!("netids is: {:#04X?}", netids);
+        assert_eq!(7, 8)
     }
 
     #[allow(non_snake_case)]
@@ -283,8 +370,8 @@ mod tests {
         // we'll get a new one associated with a current and proper NetID
         // In other words, DevAddr00 is not equal to DevAddr000.
         let Subnet0 = subnet_from_devaddr(DevAddr00, &NetIDList);
-        assert_eq!(Some(0), Subnet0);
-        let DevAddr000 = devaddr_from_subnet(Subnet0.unwrap(), &NetIDList);
+        assert_eq!(None, Subnet0);
+        let DevAddr000 = devaddr_from_subnet(0, &NetIDList);
         // By design the reverse DevAddr will have a correct NetID
         assert_ne!(DevAddr000.unwrap(), DevAddr00);
         assert_eq!(Some(0xFE000080), DevAddr000);
