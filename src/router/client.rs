@@ -4,14 +4,13 @@ use crate::{
     router::{QuePacket, RouterStore, StateChannelEntry},
     service::gateway::{GatewayService, StateChannelFollowService},
     service::router::{RouterService, StateChannelService},
-    state_channel::{
-        check_active, StateChannelCausality, StateChannelMessage, StateChannelValidation,
-    },
+    state_channel::{check_active, check_active_diff, StateChannel, StateChannelMessage},
     CacheSettings, KeyedUri, Keypair, MsgSign, Packet, Region, Result, TxnFee, TxnFeeConfig,
 };
 use futures::{future::OptionFuture, TryFutureExt};
 use helium_proto::{
-    blockchain_state_channel_message_v1::Msg, BlockchainTxnStateChannelCloseV1, CloseState,
+    blockchain_state_channel_message_v1::Msg, BlockchainStateChannelDiffV1,
+    BlockchainStateChannelV1, BlockchainTxnStateChannelCloseV1, CloseState,
     GatewayScFollowStreamedRespV1,
 };
 use slog::{debug, info, o, warn, Logger};
@@ -278,108 +277,87 @@ impl RouterClient {
             Msg::Offer(_) => Err(Error::custom("unexpected state channel offer message")),
             Msg::Purchase(purchase) => {
                 let packet = self.store.dequeue_packet(&purchase.packet_hash);
-                if let Some(purchase_sc) = &purchase.sc {
-                    let public_key = self.keypair.public_key();
-                    match check_active(purchase_sc, &mut self.gateway, &self.store)
+                let packet_ref = packet.as_ref();
+                let state_channel_result = if let Some(purchase_sc) = &purchase.sc {
+                    self.handle_purchase_state_channel(logger, packet_ref, purchase_sc)
                         .await
-                        .and_then(|prev_sc| prev_sc.is_valid_upgrade_for(public_key, purchase_sc))
-                        .and_then(|(prev_sc, new_sc, causality)| {
-                            // Chheck that the purchase is an effect of the
-                            // current one to avoid double payment
-                            if causality != StateChannelCausality::Cause {
-                                Err(StateChannelError::causal_conflict(prev_sc, new_sc))
-                            } else if let Some(packet) = packet.as_ref() {
-                                let dc_total = purchase_sc.total_dcs();
-                                let dc_prev_total = (&prev_sc.sc).total_dcs();
-                                let dc_packet = packet.dc_payload();
-                                // Check that the dc change between the last
-                                // state chanel and the new one is at least
-                                // incremented by the dcs for the packet.
-                                if (dc_total - dc_prev_total) >= dc_packet {
-                                    Ok(new_sc)
-                                } else {
-                                    Err(StateChannelError::underpaid(new_sc))
-                                }
-                            } else {
-                                // We've discarded the packet previously. Accept
-                                // the new purchase.
-                                info!(logger, "unexpected purchase, accepting state channel");
-                                Ok(new_sc)
-                            }
-                        }) {
-                        Err(Error::StateChannel(err)) => match *err {
-                            // Overpaid state channels are ignored
-                            StateChannelError::Overpaid { sc, .. } => {
-                                warn!(logger, "ignoring overpaid state channel"; 
+                } else if let Some(purchase_sc_diff) = &purchase.sc_diff {
+                    self.handle_purchase_state_channel_diff(logger, packet_ref, purchase_sc_diff)
+                        .await
+                } else {
+                    Ok(None)
+                };
+
+                match state_channel_result {
+                    Err(Error::StateChannel(err)) => match *err {
+                        // Overpaid state channels are ignored
+                        StateChannelError::Overpaid { sc, .. } => {
+                            warn!(logger, "ignoring overpaid state channel"; 
                                     "sc_id" => sc.id_str());
-                                self.store.ignore_state_channel(sc)
-                            }
-                            // Underpaid state channels are ignored
-                            StateChannelError::Underpaid { sc, .. } => {
-                                warn!(logger, "ignoring underpaid state channel"; 
+                            self.store.ignore_state_channel(sc)
+                        }
+                        // Underpaid state channels are ignored
+                        StateChannelError::Underpaid { sc, .. } => {
+                            warn!(logger, "ignoring underpaid state channel"; 
                                     "sc_id" => sc.id_str());
-                                self.store.ignore_state_channel(sc)
-                            }
-                            // A previously ignored state channel
-                            StateChannelError::Ignored { sc, .. } => {
-                                warn!(logger, "ignored purchase state channel"; 
+                            self.store.ignore_state_channel(sc)
+                        }
+                        // A previously ignored state channel
+                        StateChannelError::Ignored { sc, .. } => {
+                            warn!(logger, "ignored purchase state channel"; 
                                     "sc_id" => sc.id_str());
-                                Ok(())
-                            }
-                            // A new channel was detected. We have no baseline
-                            // for the received state channel in the purchase.
-                            // Accept it, follow it for close actions and submit
-                            // the packet
-                            //
-                            // TODO: Ideally we would check if the difference
-                            // between last purchase channel (this is the harder
-                            // part to infer) and the new one is enough to cover
-                            // for the packet.
-                            StateChannelError::NewChannel { sc } => {
-                                info!(logger, "accepting new state channel";
-                                    "sc_id" => sc.id_str());
-                                self.state_channel_follower
-                                    .send(sc.id(), sc.owner())
-                                    .await?;
-                                self.store.store_state_channel(sc)?;
-                                let _ = self
-                                    .send_packet(logger, packet.as_ref())
-                                    .map_err(|err| {
-                                        warn!(logger, "ignoring packet send error: {err:?}")
-                                    })
-                                    .await;
-                                self.send_packet_offers(logger).await
-                            }
-                            // TODO: Ideally we'd find the state channel that
-                            // pays us back to most in the conflict between
-                            // prev_sc, new_sc and conflicts_with and keep that
-                            // one?
-                            StateChannelError::CausalConflict { sc, conflicts_with } => {
-                                warn!(logger, "ignoring non-causal purchase";
-                                    "sc_id" => sc.id_str());
-                                self.store
-                                    .store_conflicting_state_channel(sc, conflicts_with)
-                            }
-                            err => {
-                                info!(logger, "ignoring purchase: {err:?}");
-                                Ok(())
-                            }
-                        },
-                        Err(err) => {
-                            info!(logger, "ignoring purchase: {err:?}");
                             Ok(())
                         }
-                        Ok(new_sc) => {
-                            self.store.store_state_channel(new_sc)?;
+                        // A new channel was detected. We have no baseline
+                        // for the received state channel in the purchase.
+                        // Accept it, follow it for close actions and submit
+                        // the packet
+                        //
+                        // TODO: Ideally we would check if the difference
+                        // between last purchase channel (this is the harder
+                        // part to infer) and the new one is enough to cover
+                        // for the packet.
+                        StateChannelError::NewChannel { sc } => {
+                            info!(logger, "accepting new state channel";
+                                    "sc_id" => sc.id_str());
+                            self.state_channel_follower
+                                .send(sc.id(), sc.owner())
+                                .await?;
+                            self.store.store_state_channel(sc)?;
                             let _ = self
-                                .send_packet(logger, packet.as_ref())
+                                .send_packet(logger, packet_ref)
                                 .map_err(|err| warn!(logger, "ignoring packet send error: {err:?}"))
                                 .await;
                             self.send_packet_offers(logger).await
                         }
+                        // TODO: Ideally we'd find the state channel that
+                        // pays us back to most in the conflict between
+                        // prev_sc, new_sc and conflicts_with and keep that
+                        // one?
+                        StateChannelError::CausalConflict { sc, conflicts_with } => {
+                            warn!(logger, "ignoring non-causal purchase";
+                                    "sc_id" => sc.id_str());
+                            self.store
+                                .store_conflicting_state_channel(sc, conflicts_with)
+                        }
+                        err => {
+                            info!(logger, "ignoring purchase: {err:?}");
+                            Ok(())
+                        }
+                    },
+                    Err(err) => {
+                        info!(logger, "ignoring purchase: {err:?}");
+                        Ok(())
                     }
-                } else {
-                    Ok(())
+                    Ok(Some(new_sc)) => {
+                        self.store.store_state_channel(new_sc)?;
+                        let _ = self
+                            .send_packet(logger, packet_ref)
+                            .map_err(|err| warn!(logger, "ignoring packet send error: {err:?}"))
+                            .await;
+                        self.send_packet_offers(logger).await
+                    }
+                    Ok(None) => Ok(()),
                 }
             }
             Msg::Banner(banner) => {
@@ -401,6 +379,32 @@ impl RouterClient {
                 self.send_packet_offers(logger).await
             }
         }
+    }
+
+    async fn handle_purchase_state_channel(
+        &mut self,
+        _logger: &Logger,
+        packet: Option<&QuePacket>,
+        sc: &BlockchainStateChannelV1,
+    ) -> Result<Option<StateChannel>> {
+        let public_key = self.keypair.public_key();
+        check_active(sc, &mut self.gateway, &self.store)
+            .await
+            .and_then(|prev_sc| prev_sc.is_valid_purchase_sc(public_key, packet, sc))
+            .map(Some)
+    }
+
+    async fn handle_purchase_state_channel_diff(
+        &mut self,
+        _logger: &Logger,
+        packet: Option<&QuePacket>,
+        sc_diff: &BlockchainStateChannelDiffV1,
+    ) -> Result<Option<StateChannel>> {
+        let public_key = self.keypair.public_key();
+        check_active_diff(sc_diff, &self.store)
+            .await
+            .and_then(|prev_sc| prev_sc.is_valid_purchase_sc_diff(public_key, packet, sc_diff))
+            .map(Some)
     }
 
     async fn handle_downlink(&mut self, logger: &Logger, packet: Packet) {

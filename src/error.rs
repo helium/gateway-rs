@@ -83,6 +83,8 @@ pub enum StateChannelError {
     Ignored { sc: state_channel::StateChannel },
     #[error("inactive state channel")]
     Inactive,
+    #[error("state channel not found")]
+    NotFound,
     #[error("invalid owner for state channel")]
     InvalidOwner,
     #[error("state channel summary error")]
@@ -174,6 +176,10 @@ impl StateChannelError {
 
     pub fn inactive() -> Error {
         Error::StateChannel(Box::new(Self::Inactive))
+    }
+
+    pub fn not_found() -> Error {
+        Error::StateChannel(Box::new(Self::NotFound))
     }
 
     pub fn ignored(sc: state_channel::StateChannel) -> Error {

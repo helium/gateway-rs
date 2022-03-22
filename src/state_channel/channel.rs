@@ -1,13 +1,17 @@
 use crate::{
     error::{DecodeError, StateChannelError, StateChannelSummaryError},
     hash_str,
-    router::{store::StateChannelEntry, RouterStore},
+    router::{store::StateChannelEntry, QuePacket, RouterStore},
     service::gateway::GatewayService,
     Error, MsgVerify, Result,
 };
 use bytes::{Buf, BufMut, BytesMut};
 use helium_crypto::PublicKey;
-use helium_proto::{BlockchainStateChannelSummaryV1, BlockchainStateChannelV1, Message};
+use helium_proto::{
+    blockchain_state_channel_diff_entry_v1, BlockchainStateChannelDiffAppendSummaryV1,
+    BlockchainStateChannelDiffUpdateSummaryV1, BlockchainStateChannelDiffV1,
+    BlockchainStateChannelSummaryV1, BlockchainStateChannelV1, Message,
+};
 use sha2::{Digest, Sha256};
 use std::{convert::TryFrom, mem};
 
@@ -67,29 +71,94 @@ impl StateChannel {
     ///  Validates this state channel for just the gateway with the given public key
     ///
     /// This assumes the caller will validate that the state channel is active.
-    pub fn is_valid_upgrade_for(
+    pub fn is_valid_purchase_sc(
         self,
         public_key: &PublicKey,
+        packet: Option<&QuePacket>,
         newer: &BlockchainStateChannelV1,
-    ) -> Result<(Self, Self, StateChannelCausality)> {
-        newer.is_valid_for(public_key)?;
-        let newer_sc = Self {
+    ) -> Result<Self> {
+        newer
+            .is_valid_owner()
+            .and_then(|_| newer.is_valid_for(public_key))?;
+        let new_sc = Self {
             sc: newer.clone(),
             total_dcs: newer.total_dcs(),
             expiry_at_block: self.expiry_at_block,
             original_dc_amount: self.original_dc_amount,
         };
         let causality = (&self.sc).causally_compare_for(public_key, &newer);
-        if causality == StateChannelCausality::Conflict {
-            return Err(StateChannelError::causal_conflict(self, newer_sc));
+        // Chheck that the purchase is an effect of the current one to avoid
+        // double payment
+        if causality != StateChannelCausality::Cause {
+            return Err(StateChannelError::causal_conflict(self, new_sc));
         }
-        if newer_sc.total_dcs > self.original_dc_amount {
-            return Err(StateChannelError::overpaid(
-                newer_sc,
-                self.original_dc_amount,
-            ));
+        self.is_valid_packet_purchase(new_sc, packet)
+    }
+
+    pub fn is_valid_purchase_sc_diff(
+        self,
+        _public_key: &PublicKey,
+        packet: Option<&QuePacket>,
+        diff: &BlockchainStateChannelDiffV1,
+    ) -> Result<Self> {
+        let mut new_sc = self.clone();
+        new_sc.sc.nonce += diff.add_nonce;
+        for diff in &diff.diffs {
+            match &diff.entry {
+                Some(blockchain_state_channel_diff_entry_v1::Entry::Append(
+                    BlockchainStateChannelDiffAppendSummaryV1 {
+                        client_pubkeybin,
+                        num_packets,
+                        num_dcs,
+                    },
+                )) => {
+                    let new_summary = BlockchainStateChannelSummaryV1 {
+                        client_pubkeybin: client_pubkeybin.clone(),
+                        num_packets: *num_packets,
+                        num_dcs: *num_dcs,
+                    };
+                    new_sc.sc.summaries.push(new_summary);
+                    new_sc.total_dcs += num_dcs;
+                }
+                Some(blockchain_state_channel_diff_entry_v1::Entry::Add(
+                    BlockchainStateChannelDiffUpdateSummaryV1 {
+                        client_index,
+                        add_packets,
+                        add_dcs,
+                    },
+                )) => {
+                    if let Some(summary) = new_sc.sc.summaries.get_mut(*client_index as usize) {
+                        summary.num_packets += add_packets;
+                        summary.num_dcs += add_dcs;
+                        new_sc.total_dcs += add_dcs;
+                    }
+                }
+                _ => (),
+            }
         }
-        Ok((self, newer_sc, causality))
+        self.is_valid_packet_purchase(new_sc, packet)
+    }
+
+    fn is_valid_packet_purchase(
+        &self,
+        new_sc: StateChannel,
+        packet: Option<&QuePacket>,
+    ) -> Result<StateChannel> {
+        let original_dc_amount = new_sc.original_dc_amount;
+        if new_sc.total_dcs > original_dc_amount {
+            return Err(StateChannelError::overpaid(new_sc, original_dc_amount));
+        }
+        if let Some(packet) = packet {
+            let dc_total = (&new_sc.sc).total_dcs();
+            let dc_prev_total = (&self.sc).total_dcs();
+            let dc_packet = packet.dc_payload();
+            // Check that the dc change between the last state chanel and the
+            // new one is at least incremented by the dcs for the packet.
+            if (dc_total - dc_prev_total) < dc_packet {
+                return Err(StateChannelError::underpaid(new_sc));
+            }
+        }
+        Ok(new_sc)
     }
 
     pub fn id(&self) -> &[u8] {
@@ -120,6 +189,7 @@ impl StateChannel {
 }
 
 pub trait StateChannelValidation {
+    fn is_valid_owner(&self) -> Result;
     fn is_valid_for(&self, public_key: &PublicKey) -> Result;
     fn total_dcs(&self) -> u64;
     fn num_dcs_for(&self, public_key: &PublicKey) -> u64;
@@ -166,12 +236,47 @@ pub async fn check_active(
     }
 }
 
+pub async fn check_active_diff(
+    diff: &BlockchainStateChannelDiffV1,
+    store: &RouterStore,
+) -> Result<StateChannel> {
+    match store.get_state_channel_entry(&diff.id) {
+        None =>
+        // No entry is not good for a diff since there's no state channel to
+        // clone
+        {
+            Err(StateChannelError::not_found())
+        }
+        Some(entry) => match entry {
+            // If the entry is ignored return an error
+            StateChannelEntry {
+                ignore: true, sc, ..
+            } => Err(StateChannelError::ignored(sc.clone())),
+            // Next is the conflict check
+            StateChannelEntry {
+                sc,
+                conflicts_with: Some(conflicts_with),
+                ..
+            } => Err(StateChannelError::causal_conflict(
+                sc.clone(),
+                conflicts_with.clone(),
+            )),
+            // After which we're ok for a active check
+            StateChannelEntry { sc, .. } => Ok(sc.clone()),
+        },
+    }
+}
+
 impl StateChannelValidation for &BlockchainStateChannelV1 {
-    fn is_valid_for(&self, public_key: &PublicKey) -> Result {
+    fn is_valid_owner(&self) -> Result {
         PublicKey::try_from(&self.owner[..])
             .map_err(|_| StateChannelError::invalid_owner())
             .and_then(|owner| self.verify(&owner))
             .map_err(|_| StateChannelError::invalid_owner())?;
+        Ok(())
+    }
+
+    fn is_valid_for(&self, public_key: &PublicKey) -> Result {
         // Validate summary for this gateway
         if let Some(summary) = self.get_summary(public_key) {
             is_valid_summary(summary)?;
