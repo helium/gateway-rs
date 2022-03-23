@@ -53,6 +53,9 @@ jobs:
           - raspi_64
           - cloudgate
           - caldigit
+          - tektelic
+          - risinghf
+          - clodpi
     steps:
       - uses: actions-rs/toolchain@v1
         with:

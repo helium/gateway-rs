@@ -159,28 +159,27 @@ trait ToValue<T> {
 
 impl ToValue<bool> for ConfigValue {
     fn to_value(&self) -> Result<bool> {
+        let name = &self.name;
         if self.r#type != "atom" {
-            return Err(Error::custom(format!(
-                "not a boolean variable: {}",
-                self.name
-            )));
+            return Err(Error::custom(format!("not a boolean variable: {name}",)));
         }
         let value = std::str::from_utf8(&self.value)
-            .map_err(|_| Error::custom(format!("not a boolean value: {}", self.name)))?;
+            .map_err(|_| Error::custom(format!("not a boolean value: {name}")))?;
         Ok(value == "true")
     }
 }
 
 impl ToValue<u64> for ConfigValue {
     fn to_value(&self) -> Result<u64> {
+        let name = &self.name;
         if self.r#type != "int" {
-            return Err(Error::custom(format!("not an int variable: {}", self.name)));
+            return Err(Error::custom(format!("not an int variable: {name}")));
         }
         let value = std::str::from_utf8(&self.value)
-            .map_err(|_| Error::custom(format!("not an valid value: {}", self.name)))
+            .map_err(|_| Error::custom(format!("not an valid value: {name}")))
             .and_then(|v| {
                 v.parse::<u64>()
-                    .map_err(|_| Error::custom(format!("not a valid int value: {}", self.name)))
+                    .map_err(|_| Error::custom(format!("not a valid int value: {name}")))
             })?;
         Ok(value)
     }

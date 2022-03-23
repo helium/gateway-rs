@@ -1,3 +1,4 @@
+use crate::{Error, Result};
 use helium_proto::Region as ProtoRegion;
 use serde::{de, Deserialize, Deserializer};
 use std::fmt;
@@ -30,8 +31,7 @@ where
         "IN865" => Region(ProtoRegion::In865),
         unsupported => {
             return Err(de::Error::custom(format!(
-                "unsupported region: {}",
-                unsupported
+                "unsupported region: {unsupported}"
             )))
         }
     };
@@ -66,5 +66,13 @@ impl From<Region> for i32 {
 impl From<&Region> for i32 {
     fn from(region: &Region) -> Self {
         region.0.into()
+    }
+}
+
+impl Region {
+    pub fn from_i32(v: i32) -> Result<Self> {
+        ProtoRegion::from_i32(v)
+            .map(Self)
+            .ok_or_else(|| Error::custom(format!("unsupported region {v}")))
     }
 }

@@ -39,6 +39,7 @@ pub struct Gateway {
     messages: MessageReceiver,
     downlink_mac: MacAddress,
     udp_runtime: UdpRuntime,
+    listen_address: String,
 }
 
 impl Gateway {
@@ -49,8 +50,9 @@ impl Gateway {
     ) -> Result<Self> {
         let gateway = Gateway {
             uplinks,
-            downlink_mac: MacAddress::new(&[0u8; 8]),
+            downlink_mac: Default::default(),
             messages,
+            listen_address: settings.listen.clone(),
             udp_runtime: UdpRuntime::new(&settings.listen).await?,
         };
         Ok(gateway)
@@ -58,7 +60,7 @@ impl Gateway {
 
     pub async fn run(&mut self, shutdown: triggered::Listener, logger: &Logger) -> Result {
         let logger = logger.new(o!("module" => "gateway"));
-        info!(logger, "starting");
+        info!(logger, "starting"; "listen" => &self.listen_address);
         loop {
             tokio::select! {
                 _ = shutdown.clone() => {
@@ -80,8 +82,11 @@ impl Gateway {
 
     async fn handle_udp_event(&mut self, logger: &Logger, event: Event) -> Result {
         match event {
-            Event::UnableToParseUdpFrame(buf) => {
-                info!(logger, "ignoring semtech udp parsing error for {:?}", buf)
+            Event::UnableToParseUdpFrame(e, buf) => {
+                warn!(
+                    logger,
+                    "ignoring semtech udp parsing error {e}, raw bytes {buf:?}"
+                );
             }
             Event::NewClient((mac, addr)) => {
                 info!(logger, "new packet forwarder client: {}, {}", mac, addr);

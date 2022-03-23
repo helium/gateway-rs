@@ -40,7 +40,7 @@ impl KeypairArgs {
                 || Ok(HashMap::new()),
                 serde_urlencoded::from_str::<HashMap<String, String>>,
             )
-            .map_err(|err| format!("invalid keypair url \"{}\": {:?}", url, err))?;
+            .map_err(|err| format!("invalid keypair url \"{url}\": {err:?}"))?;
         Ok(Self(args))
     }
 
@@ -53,7 +53,7 @@ impl KeypairArgs {
             .get(name)
             .map(|s| s.parse::<T>())
             .unwrap_or(Ok(default))
-            .map_err(|err| format!("invalid uri argument for {}: {:?}", name, err))
+            .map_err(|err| format!("invalid uri argument for {name}: {err:?}"))
     }
 }
 

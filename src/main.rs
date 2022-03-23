@@ -3,7 +3,7 @@ use gateway_rs::{
     error::Result,
     settings::{LogMethod, Settings},
 };
-use slog::{self, o, Drain, Logger};
+use slog::{self, debug, error, o, Drain, Logger};
 use std::{io, path::PathBuf};
 use structopt::StructOpt;
 use tokio::{io::AsyncReadExt, signal, time::Duration};
@@ -19,6 +19,12 @@ pub struct Cli {
     /// Daemonize the application
     #[structopt(long)]
     daemon: bool,
+
+    /// Monitor stdin and terminate when stdin closes.
+    ///
+    /// This flag is not cmopatible with the daemon flag
+    #[structopt(long)]
+    stdin: bool,
 
     #[structopt(subcommand)]
     cmd: Cmd,
@@ -98,17 +104,20 @@ pub fn main() -> Result {
             loop {
                 tokio::select!(
                     _ = signal::ctrl_c() => break,
-                    read = stdin.read(&mut in_buf), if !cli.daemon => if let Ok(0) = read { break },
+                    read = stdin.read(&mut in_buf), if cli.stdin => if let Ok(0) = read { break },
                 )
             }
             shutdown_trigger.trigger()
         });
-        run(cli, settings, &shutdown_listener, run_logger).await
+        run(cli, settings, &shutdown_listener, run_logger.clone()).await
     });
     runtime.shutdown_timeout(Duration::from_secs(0));
 
+    if let Err(e) = &res {
+        error!(&run_logger, "{e}");
+    };
     drop(scope_guard);
-    res
+    Ok(())
 }
 
 pub async fn run(
@@ -117,6 +126,7 @@ pub async fn run(
     shutdown_listener: &triggered::Listener,
     logger: Logger,
 ) -> Result {
+    debug!(logger, "starting"; "settings" => &cli.config.to_str());
     match cli.cmd {
         Cmd::Key(cmd) => cmd.run(settings).await,
         Cmd::Info(cmd) => cmd.run(settings).await,
