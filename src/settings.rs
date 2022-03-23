@@ -96,18 +96,19 @@ impl Settings {
     /// file in uppercase and prefixed with "GW_". For example "GW_KEY" will
     /// override the key file location.
     pub fn new(path: &Path) -> Result<Self> {
-        let mut c = Config::new();
         let default_file = path.join("default.toml");
-        // Load default config and merge in overrides
-        c.merge(File::with_name(default_file.to_str().expect("file name")))?;
         let settings_file = path.join("settings.toml");
-        if settings_file.exists() {
-            c.merge(File::with_name(settings_file.to_str().expect("file name")))?;
-        }
-        // Add in settings from the environment (with a prefix of APP)
-        // Eg.. `GW_DEBUG=1 ./target/app` would set the `debug` key
-        c.merge(Environment::with_prefix("gw").separator("_"))?;
-        c.try_into().map_err(|e| e.into())
+        Config::builder()
+            // Source default config
+            .add_source(File::with_name(default_file.to_str().expect("file name")))
+            // Add optional settings file
+            .add_source(File::with_name(settings_file.to_str().expect("file name")).required(false))
+            // Add in settings from the environment (with a prefix of APP)
+            // Eg.. `GW_DEBUG=1 ./target/app` would set the `debug` key
+            .add_source(Environment::with_prefix("gw").separator("_"))
+            .build()
+            .and_then(|config| config.try_deserialize())
+            .map_err(|e| e.into())
     }
 
     pub fn default_router(&self) -> &KeyedUri {
@@ -147,7 +148,7 @@ impl FromStr for StakingMode {
             "light" => Ok(Self::Light),
             "full" => Ok(Self::Full),
             "dataonly" => Ok(Self::DataOnly),
-            _ => Err(Error::custom(format!("invalid staking mode {}", v))),
+            _ => Err(Error::custom(format!("invalid staking mode {v}"))),
         }
     }
 }
@@ -163,7 +164,7 @@ pub mod log_level {
     {
         let s = String::deserialize(d)?;
         s.parse()
-            .map_err(|_| de::Error::custom(format!("invalid log level \"{}\"", s)))
+            .map_err(|_| de::Error::custom(format!("invalid log level \"{s}\"")))
     }
 }
 
@@ -201,8 +202,7 @@ pub mod log_method {
                         "syslog" => LogMethod::Syslog,
                         unsupported => {
                             return Err(de::Error::custom(format!(
-                                "unsupported log method: \"{}\"",
-                                unsupported
+                                "unsupported log method: \"{unsupported}\""
                             )))
                         }
                     };

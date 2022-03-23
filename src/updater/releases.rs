@@ -42,7 +42,7 @@ pub fn all(url: String) -> Stream<Release> {
 }
 
 fn fetch_releases(url: String, page: u32) -> Future<((String, u32), Vec<Release>)> {
-    let curl_url = format!("{}?per_page={}&page={}", url, GH_PAGE_SIZE, page);
+    let curl_url = format!("{url}?per_page={GH_PAGE_SIZE}&page={page}");
     curl::get(
         curl_url,
         &["-H", "Accept: application/vnd.github.v3+json"],
@@ -81,8 +81,7 @@ where
         Ok(channel) => Ok(channel),
         Err(_) => {
             return Err(de::Error::custom(format!(
-                "unsupported update channel: \"{}\"",
-                channel_str
+                "unsupported update channel: \"{channel_str}\"",
             )))
         }
     }
@@ -148,7 +147,7 @@ where
     };
     version_str
         .parse()
-        .map_err(|e| de::Error::custom(format!("invalid release format \"{}\": {}", s, e)))
+        .map_err(|e| de::Error::custom(format!("invalid release format \"{s}\": {e}")))
 }
 
 impl Release {
@@ -174,7 +173,8 @@ impl Release {
     }
 
     pub fn asset_for_platform(&self, platform: &str) -> Option<&ReleaseAsset> {
-        let package_name = format!("helium-gateway-v{}-{}", self.version, platform);
+        let version = &self.version;
+        let package_name = format!("helium-gateway-v{version}-{platform}");
         self.asset_named(&package_name)
     }
 

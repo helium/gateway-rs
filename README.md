@@ -101,6 +101,8 @@ Note that platforms will be tested much faster if you join the development proce
 | caldigit       | mipsel-unknown-linux-musl      | :white_check_mark: CalDigit Light Hotspot                |
 | tektelic       | armv7-unknown-linux-gnueabihf  | :white_check_mark: [Kona Micro] IoT Gateway              |
 |                |                                | :white_check_mark: [Kona Enterprise] IoT Gateway         |
+| risinghf       | armv7-unknown-linux-gnueabihf  | :white_check_mark: [RisingHF RHF2S027] Light Hotspot     |
+| clodpi         | mipsel-unknown-linux-musl      | :white_check_mark: ClodPi Light Hotspot [ClodPi]         |
 | cloudgate      | armv5te-unknown-linux-musleabi | :white_check_mark: CloudGate |
 
 [ramips_24kec]: https://downloads.rakwireless.com/WIFI/RAK634/Hardware%20Specification/RAK634_Module_Specification_V1.0.pdf
@@ -116,6 +118,8 @@ Note that platforms will be tested much faster if you join the development proce
 [cotx]: https://www.cotxnetworks.com/product/service_one
 [Kona Micro]: https://www.tektelic.com/catalog/kona-micro-lorawan-gateway
 [Kona Enterprise]: https://www.tektelic.com/catalog/kona-enterprise-lorawan-gateway
+[RisingHF RHF2S027]: https://www.risinghf.com/product/detail/27
+[ClodPi]: https://clodpi.io
 [CloudGate]: https://www.option.com/
 
 ## Building
@@ -239,13 +243,9 @@ To use in your `settings.toml` override the `keypair` setting to reflect the use
 keypair = "ecc://i2c-1:96?slot=0&network=mainnet"
 ```
 
-will have helium_gateway use the ECC at the `/dev/i2c-1` device driver location,
-use bus address `96` (which is hex `0x60`) and slot `0` for it's crypto
-operations. while marking the resulting key as a mainnet key. Buss, slot and
-network are all optional parameters and default to the above values.
+will have helium_gateway use the ECC at the `/dev/i2c-1` device driver location, use bus address `96` (which is hex `0x60`) and slot `0` for it's crypto operations. While marking the resulting key as a mainnet key. Bus address, slot and network are all optional parameters and default to the above values (only device driver location is required such as `ecc://i2c-1`).
 
-Note that the file based keypair will no longer be used once the ECC is
-configured for use. 
+Note that the file based keypair will no longer be used once the ECC is configured for use. 
 
 See the [gateway-mfr-rs repo](https://github.com/helium/gateway-mfr-rs) for instructions on configuring, locking, and testing an ECC chip.
 

@@ -1,7 +1,7 @@
 [package]
 name = "gateway-rs"
 description = "Helium Gateway for LoRa packet forwarders"
-version = "1.0.0-alpha.21"
+version = "1.0.0-alpha.23"
 authors = ["Marc Nijdam <marc@helium.com>"]
 edition = "2021"
 license = "Apache-2.0"
@@ -50,7 +50,8 @@ signature = "*"
 async-trait = "0"
 angry-purple-tiger = "0"
 lorawan = { package = "lorawan", path = "lorawan" }
-semtech-udp = { version = ">=0.7.3,<1", default-features=false, features=["server"] }
+exponential-backoff = {git = "https://github.com/yoshuawuyts/exponential-backoff", branch = "master"}
+semtech-udp = { version = ">=0.8,<1", default-features=false, features=["server"] }
 helium-proto = { git = "https://github.com/helium/proto", branch="master", features=["services"]}
 helium-crypto = { git = "https://github.com/helium/helium-crypto-rs", tag = "v0.3.4", features = ["ecc608"]}
 longfi = { git = "https://github.com/helium/longfi-rs", branch = "main" }

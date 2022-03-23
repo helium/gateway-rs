@@ -27,6 +27,7 @@ pub const STATE_CHANNEL_CONNECT_INTERVAL: Duration = Duration::from_secs(60);
 #[derive(Debug)]
 pub enum Message {
     Uplink(Packet),
+    Region(Region),
     GatewayChanged,
 }
 
@@ -42,6 +43,10 @@ pub fn message_channel(size: usize) -> (MessageSender, MessageReceiver) {
 impl MessageSender {
     pub async fn gateway_changed(&self) {
         let _ = self.0.send(Message::GatewayChanged).await;
+    }
+
+    pub async fn region_changed(&self, region: Region) {
+        let _ = self.0.send(Message::Region(region)).await;
     }
 
     pub async fn uplink(&self, packet: Packet) -> Result {
@@ -128,6 +133,10 @@ impl RouterClient {
                     Some(Message::GatewayChanged) => {
                         info!(logger, "gateway changed, shutting down");
                         return Ok(())
+                    },
+                    Some(Message::Region(region)) => {
+                        self.region = region;
+                        info!(logger, "updated region to {region}" );
                     },
                     None => warn!(logger, "ignoring closed uplinks channel"),
                 },
@@ -336,7 +345,7 @@ impl RouterClient {
                                 let _ = self
                                     .send_packet(logger, packet.as_ref())
                                     .map_err(|err| {
-                                        warn!(logger, "ignoring packet send error: {:?}", err)
+                                        warn!(logger, "ignoring packet send error: {err:?}")
                                     })
                                     .await;
                                 self.send_packet_offers(logger).await
@@ -352,21 +361,19 @@ impl RouterClient {
                                     .store_conflicting_state_channel(sc, conflicts_with)
                             }
                             err => {
-                                info!(logger, "ignoring purchase: {:?}", err);
+                                info!(logger, "ignoring purchase: {err:?}");
                                 Ok(())
                             }
                         },
                         Err(err) => {
-                            info!(logger, "ignoring purchase: {:?}", err);
+                            info!(logger, "ignoring purchase: {err:?}");
                             Ok(())
                         }
                         Ok(new_sc) => {
                             self.store.store_state_channel(new_sc)?;
                             let _ = self
                                 .send_packet(logger, packet.as_ref())
-                                .map_err(|err| {
-                                    warn!(logger, "ignoring packet send error: {:?}", err)
-                                })
+                                .map_err(|err| warn!(logger, "ignoring packet send error: {err:?}"))
                                 .await;
                             self.send_packet_offers(logger).await
                         }

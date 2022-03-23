@@ -1,0 +1,9 @@
+keypair = "ecc://i2c-0:96&slot=0"
+
+[log]
+method = "stdio"
+level = "info"
+timestamp = false
+
+[update]
+platform = "clodpi"
