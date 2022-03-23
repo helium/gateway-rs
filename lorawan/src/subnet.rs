@@ -175,6 +175,9 @@ fn netid_size(netid: NetID) -> u32 {
 }
 
 #[cfg(test)]
+
+static NETID_LIST: [NetID; 3] = [0xE00001, 0xC00035, 0x60002D];
+
 mod tests {
     use super::*;
     use rand::Rng;
@@ -200,12 +203,6 @@ mod tests {
         netids
     }
 
-    fn mock_netid_list() -> &'static mut [NetID] {
-        // let list_1 = Box::<[u32]>::new_uninit_slice(3);
-        let list: &mut [u32] = &mut [0xE00001, 0xC00035, 0x60002D];
-        list
-    }
-
     fn insert_item<T>(item: T, array: &'static mut [T], pos: usize) -> &'static mut [T] {
         *array.last_mut().unwrap() = item;
         array[pos..].rotate_right(1);
@@ -219,6 +216,10 @@ mod tests {
     fn insert_item_to_mut(item: u32, iarray: &[u32], pos: usize) -> &'static mut [u32] {
         let array: &mut [u32] = &mut [];
         array.iter_mut().zip(iarray).map(|(x, y)| *x = *y).count();
+        println!("iarray is: {:#04X?}", iarray);
+        println!("pos is: {:#04X?}", pos);
+        println!("item is: {:#04X?}", item);
+        println!("array is: {:#04X?}", array);
         *array.last_mut().unwrap() = item;
         array[pos..].rotate_right(1);
         array
@@ -240,10 +241,10 @@ mod tests {
 
     fn exercise_subnet(devaddr: DevAddr) {
         let netid = parse_netid(devaddr);
-        exercise_subnet_list(devaddr, insert_item(netid, mock_netid_list(), 0));
-        exercise_subnet_list(devaddr, insert_item(netid, mock_netid_list(), 1));
-        exercise_subnet_list(devaddr, insert_item(netid, mock_netid_list(), 2));
-        exercise_subnet_list(devaddr, insert_item(netid, mock_netid_list(), 3));
+        exercise_subnet_list(devaddr, insert_item_to_mut(netid, &NETID_LIST, 0));
+        exercise_subnet_list(devaddr, insert_item_to_mut(netid, &NETID_LIST, 1));
+        exercise_subnet_list(devaddr, insert_item_to_mut(netid, &NETID_LIST, 2));
+        exercise_subnet_list(devaddr, insert_item_to_mut(netid, &NETID_LIST, 3));
     }
 
     fn addr_bit_len(devaddr: u32) -> u32 {
@@ -258,7 +259,9 @@ mod tests {
         let netids = mock_random_netids();
         println!("devaddr is: {:#04X?}", 123);
         println!("netids is: {:#04X?}", netids);
-        assert_eq!(7, 8)
+        assert_eq!(7, 7);
+        let dev_addr_01: DevAddr = 0xFC00D410;
+        exercise_subnet(dev_addr_01)
     }
 
     #[allow(non_snake_case)]
