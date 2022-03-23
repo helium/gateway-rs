@@ -1,8 +1,9 @@
 use super::{
-    connect_uri, ConfigReq, ConfigValue, HeightReq, HeightRes, PubkeyReq, RegionReq, SignReq,
+    connect_uri, AddGatewayReq, ConfigReq, ConfigValue, GatewayStakingMode, HeightReq, HeightRes,
+    PubkeyReq, RegionReq, SignReq,
 };
-use crate::{error::Error, PublicKey, Region, Result};
-use helium_proto::services::local::Client;
+use crate::{error::Error, settings::StakingMode, PublicKey, Region, Result, TxnEnvelope};
+use helium_proto::{services::local::Client, BlockchainTxnAddGatewayV1};
 use std::convert::TryFrom;
 use tonic::transport::{Channel, Endpoint};
 
@@ -32,7 +33,10 @@ impl LocalClient {
         Ok(signature)
     }
 
-    pub async fn config(&mut self, keys: &[&str]) -> Result<Vec<ConfigValue>> {
+    pub async fn config<T>(&mut self, keys: &[T]) -> Result<Vec<ConfigValue>>
+    where
+        T: ToString,
+    {
         let keys = keys.iter().map(|s| s.to_string()).collect();
         let response = self.client.config(ConfigReq { keys }).await?.into_inner();
         Ok(response.values)
@@ -46,5 +50,24 @@ impl LocalClient {
     pub async fn region(&mut self) -> Result<Region> {
         let response = self.client.region(RegionReq {}).await?;
         Region::from_i32(response.into_inner().region)
+    }
+
+    pub async fn add_gateway(
+        &mut self,
+        owner: &PublicKey,
+        payer: &PublicKey,
+        mode: &StakingMode,
+    ) -> Result<BlockchainTxnAddGatewayV1> {
+        let response = self
+            .client
+            .add_gateway(AddGatewayReq {
+                owner: owner.to_vec(),
+                payer: payer.to_vec(),
+                staking_mode: GatewayStakingMode::from(mode).into(),
+            })
+            .await?;
+        let encoded = response.into_inner().add_gateway_txn;
+        let txn = BlockchainTxnAddGatewayV1::from_envelope_vec(&encoded)?;
+        Ok(txn)
     }
 }

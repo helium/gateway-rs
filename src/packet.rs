@@ -62,7 +62,7 @@ impl TryFrom<push_data::RxPk> for Packet {
             };
             Ok(Self(packet))
         } else {
-            Err(Error::Decode(DecodeError::InvalidCrc))
+            Err(DecodeError::invalid_crc())
         }
     }
 }

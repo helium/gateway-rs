@@ -1,5 +1,5 @@
 use crate::{
-    error::{StateChannelError, StateChannelSummaryError},
+    error::{DecodeError, StateChannelError, StateChannelSummaryError},
     hash_str,
     router::{store::StateChannelEntry, RouterStore},
     service::gateway::GatewayService,
@@ -39,9 +39,7 @@ impl TryFrom<&[u8]> for StateChannel {
     fn try_from(v: &[u8]) -> Result<Self> {
         let mut buf = v;
         if buf.len() < (mem::size_of::<u64>() * 3) {
-            return Err(Error::Decode(
-                prost::DecodeError::new("not enough data").into(),
-            ));
+            return Err(DecodeError::prost_decode("not enough data"));
         }
         let expiry_at_block = buf.get_u64();
         let original_dc_amount = buf.get_u64();

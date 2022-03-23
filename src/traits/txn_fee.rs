@@ -12,6 +12,13 @@ pub trait TxnFee {
 
 const TXN_FEE_SIGNATURE_SIZE: usize = 64;
 const TXN_FEE_MULTIPLIER: u64 = 5000;
+pub const CONFIG_FEE_KEYS: &[&str] = &[
+    "txn_fees",
+    "txn_fee_multiplier",
+    "staking_fee_txn_add_gateway_v1",
+    "staking_fee_txn_add_light_gateway_v1",
+    "staking_fee_txn_add_dataonly_gateway_v1",
+];
 
 macro_rules! payer_sig_clear {
     (basic, $txn:ident) => {};
@@ -97,14 +104,7 @@ impl TxnFeeConfig {
     }
 
     pub async fn from_client(client: &mut LocalClient) -> Result<Self> {
-        let keys = vec![
-            "txn_fees",
-            "txn_fee_multiplier",
-            "staking_fee_txn_add_gateway_v1",
-            "staking_fee_txn_add_light_gateway_v1",
-            "staking_fee_txn_add_dataonly_gateway_v1",
-        ];
-        let values = client.config(&keys).await?;
+        let values = client.config(CONFIG_FEE_KEYS).await?;
         Self::try_from(values)
     }
 

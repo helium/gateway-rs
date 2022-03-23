@@ -54,6 +54,8 @@ pub enum DecodeError {
     Semtech(#[from] semtech_udp::data_rate::ParseError),
     #[error("packet crc")]
     InvalidCrc,
+    #[error("unexpected transaction in envelope")]
+    InvalidEnvelope,
 }
 
 #[derive(Error, Debug)]
@@ -145,6 +147,20 @@ from_err!(DecodeError, prost::DecodeError);
 from_err!(DecodeError, lorawan::LoraWanError);
 from_err!(DecodeError, longfi::LfcError);
 from_err!(DecodeError, semtech_udp::data_rate::ParseError);
+
+impl DecodeError {
+    pub fn invalid_envelope() -> Error {
+        Error::Decode(DecodeError::InvalidEnvelope)
+    }
+
+    pub fn invalid_crc() -> Error {
+        Error::Decode(DecodeError::InvalidCrc)
+    }
+
+    pub fn prost_decode(msg: &'static str) -> Error {
+        Error::Decode(prost::DecodeError::new(msg).into())
+    }
+}
 
 // State Channel Errors
 impl StateChannelError {
