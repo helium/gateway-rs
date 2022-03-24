@@ -221,7 +221,7 @@ impl RouterClient {
             self.store.get_state_channel_entry_mut(&message.sc_id)
         {
             let keypair = self.keypair.clone();
-            match CloseState::from_i32(message.close_state).unwrap() {
+            match message.close_state() {
                 // File a dispute as soon as we hit the expiration time
                 CloseState::Closable => (
                     (entry.in_conflict())

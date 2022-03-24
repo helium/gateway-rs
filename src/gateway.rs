@@ -4,7 +4,7 @@ use semtech_udp::{
     server_runtime::{Error as SemtechError, Event, UdpRuntime},
     tx_ack, MacAddress,
 };
-use slog::{info, o, warn, Logger};
+use slog::{debug, info, o, warn, Logger};
 use std::{convert::TryFrom, time::Duration};
 use tokio::sync::mpsc;
 
@@ -89,11 +89,14 @@ impl Gateway {
                 );
             }
             Event::NewClient((mac, addr)) => {
-                info!(logger, "new packet forwarder client: {}, {}", mac, addr);
+                info!(logger, "new packet forwarder client: {mac}, {addr}");
                 self.downlink_mac = mac;
             }
             Event::UpdateClient((mac, addr)) => {
-                info!(logger, "mac existed, but IP updated: {}, {}", mac, addr)
+                info!(logger, "mac existed, but IP updated: {mac}, {addr}")
+            }
+            Event::ClientDisconnected((mac, addr)) => {
+                info!(logger, "disconnected packet forwarder: {mac}, {addr}")
             }
             Event::PacketReceived(rxpk, _gateway_mac) => match Packet::try_from(rxpk) {
                 Ok(packet) if packet.is_longfi() => {
@@ -101,11 +104,14 @@ impl Gateway {
                 }
                 Ok(packet) => self.handle_uplink(logger, packet).await,
                 Err(err) => {
-                    warn!(logger, "ignoring push_data: {:?}", err);
+                    warn!(logger, "ignoring push_data: {err:?}");
                 }
             },
             Event::NoClientWithMac(_packet, mac) => {
-                info!(logger, "ignoring send to client with unknown MAC: {}", mac)
+                info!(logger, "ignoring send to client with unknown MAC: {mac}")
+            }
+            Event::StatReceived(stat, mac) => {
+                debug!(logger, "mac: {mac}, stat: {stat:?}")
             }
         };
         Ok(())

@@ -1,10 +1,11 @@
-use crate::{keypair, region, releases, Error, KeyedUri, Keypair, Region, Result};
+use crate::{
+    api::GatewayStakingMode, keypair, region, releases, Error, KeyedUri, Keypair, Region, Result,
+};
 use config::{Config, Environment, File};
 use http::uri::Uri;
+pub use log_method::LogMethod;
 use serde::Deserialize;
 use std::{collections::HashMap, fmt, path::Path, str::FromStr, sync::Arc};
-
-pub use log_method::LogMethod;
 
 pub fn version() -> semver::Version {
     semver::Version::parse(env!("CARGO_PKG_VERSION")).expect("unable to parse version")
@@ -27,7 +28,7 @@ pub struct Settings {
     #[serde(deserialize_with = "keypair::deserialize")]
     pub keypair: Arc<Keypair>,
     /// The lorawan region to use. This value should line up with the configured
-    /// region of the semtech packet forwarder. Defaults to "US91%"
+    /// region of the semtech packet forwarder. Defaults to "US915"
     #[serde(deserialize_with = "region::deserialize")]
     pub region: Region,
     /// Log settings
@@ -125,10 +126,31 @@ fn default_api() -> u16 {
 }
 
 #[derive(Debug)]
+#[repr(u8)]
 pub enum StakingMode {
-    DataOnly,
-    Light,
-    Full,
+    DataOnly = 0,
+    Light = 1,
+    Full = 2,
+}
+
+impl From<GatewayStakingMode> for StakingMode {
+    fn from(v: GatewayStakingMode) -> Self {
+        match v {
+            GatewayStakingMode::Dataonly => StakingMode::DataOnly,
+            GatewayStakingMode::Full => StakingMode::Full,
+            GatewayStakingMode::Light => StakingMode::Light,
+        }
+    }
+}
+
+impl From<&StakingMode> for GatewayStakingMode {
+    fn from(v: &StakingMode) -> Self {
+        match v {
+            StakingMode::DataOnly => GatewayStakingMode::Dataonly,
+            StakingMode::Full => GatewayStakingMode::Full,
+            StakingMode::Light => GatewayStakingMode::Light,
+        }
+    }
 }
 
 impl fmt::Display for StakingMode {

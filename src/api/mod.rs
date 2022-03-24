@@ -5,8 +5,9 @@ const LISTEN_ADDR: &str = "127.0.0.1";
 
 pub use client::LocalClient;
 pub use helium_proto::services::local::{
-    ConfigReq, ConfigRes, ConfigValue, EcdhReq, EcdhRes, HeightReq, HeightRes, PubkeyReq,
-    PubkeyRes, RegionReq, RegionRes, SignReq, SignRes,
+    AddGatewayReq, AddGatewayRes, ConfigReq, ConfigRes, ConfigValue, EcdhReq, EcdhRes,
+    GatewayStakingMode, HeightReq, HeightRes, PubkeyReq, PubkeyRes, RegionReq, RegionRes, SignReq,
+    SignRes,
 };
 pub use server::LocalServer;
 
