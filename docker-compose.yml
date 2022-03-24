@@ -5,9 +5,9 @@ networks:
 
 services:
   gateway-rs:
-    image: helium/gateway-rs:v1.0.0-alpha.23
+    image: helium/gateway-rs:main
     build:
-      context: https://github.com/helium/gateway-rs.git#v1.0.0-alpha.23
+      context: https://github.com/helium/gateway-rs.git#main
     volumes:
       - './gateway_key.bin:/etc/helium_gateway/gateway_key.bin:ro'
     environment:
