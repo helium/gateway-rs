@@ -8,8 +8,8 @@ services:
     image: helium/gateway-rs
     build:
       context: .
-    #volumes:
-    #  - './gateway_key.bin:/etc/helium_gateway/gateway_key.bin:ro'
+    volumes:
+      - './gateway_key.bin:/etc/helium_gateway/gateway_key.bin'
     #  - '/dev/i2c-1:/dev/i2c-1'
     #cap_add:
     #  - SYS_RAWIO
