@@ -20,6 +20,6 @@ services:
       - 1680/udp
       - 4467/tcp
     ports:
-      - 1680:1680/udp
-      - 4467:4467/tcp
+      - 127.0.0.1:1680:1680/udp
+      - 127.0.0.1:4467:4467/tcp
     restart: unless-stopped
