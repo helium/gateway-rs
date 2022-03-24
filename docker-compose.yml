@@ -1,0 +1,25 @@
+version: "3.7"
+
+networks:
+  helium:
+
+services:
+  gateway-rs:
+    image: helium/gateway-rs:v1.0.0-alpha.23
+    build:
+      context: https://github.com/helium/gateway-rs.git#v1.0.0-alpha.23
+    volumes:
+      - './gateway_key.bin:/etc/helium_gateway/gateway_key.bin:ro'
+    environment:
+      - GW_REGION=US915
+      - GW_LOG_LEVEL=info 
+      - GW_UPDATE_ENABLED=false
+    networks:
+      - helium
+    expose:
+      - 1680/udp
+      - 4467/tcp
+    ports:
+      - 1680:1680/udp
+      - 4467:4467/tcp
+    restart: unless-stopped
