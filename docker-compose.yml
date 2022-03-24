@@ -5,7 +5,7 @@ networks:
 
 services:
   gateway-rs:
-    image: helium/gateway-rs:main
+    image: helium/gateway-rs
     build:
       context: .
     volumes:
