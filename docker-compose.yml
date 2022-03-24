@@ -17,6 +17,7 @@ services:
       - GW_REGION=US915
       - GW_LOG_LEVEL=info 
       - GW_UPDATE_ENABLED=false
+    #  - GW_KEYPAIR=ecc://i2c-1:96&slot=0
     networks:
       - helium
     expose:
