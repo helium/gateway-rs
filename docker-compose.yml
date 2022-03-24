@@ -7,7 +7,7 @@ services:
   gateway-rs:
     image: helium/gateway-rs:main
     build:
-      context: https://github.com/helium/gateway-rs.git#main
+      context: .
     volumes:
       - './gateway_key.bin:/etc/helium_gateway/gateway_key.bin:ro'
     environment:
