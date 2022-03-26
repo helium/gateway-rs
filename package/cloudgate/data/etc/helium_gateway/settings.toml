@@ -1,0 +1,10 @@
+keypair = "ecc://i2c-0:96&slot=0"
+region = "EU868"
+
+[log]
+method = "syslog"
+level = "info"
+timestamp = false
+
+[update]
+platform = "cloudgate"

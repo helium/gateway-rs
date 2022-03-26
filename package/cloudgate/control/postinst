@@ -1,0 +1,7 @@
+#!/bin/sh
+
+chmod +x /etc/helium_gateway/install_update
+
+ln -sf /etc/init.d/helium_gateway /etc/rc.d/K80helium_gateway
+
+/etc/init.d/helium_gateway restart

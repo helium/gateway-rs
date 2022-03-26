@@ -103,6 +103,7 @@ Note that platforms will be tested much faster if you join the development proce
 |                |                                | :white_check_mark: [Kona Enterprise] IoT Gateway         |
 | risinghf       | armv7-unknown-linux-gnueabihf  | :white_check_mark: [RisingHF RHF2S027] Light Hotspot     |
 | clodpi         | mipsel-unknown-linux-musl      | :white_check_mark: ClodPi Light Hotspot [ClodPi]         |
+| cloudgate      | armv5te-unknown-linux-musleabi | :white_check_mark: CloudGate |
 
 [ramips_24kec]: https://downloads.rakwireless.com/WIFI/RAK634/Hardware%20Specification/RAK634_Module_Specification_V1.0.pdf
 [RAK833]: https://github.com/RAKWireless/RAK2247-RAK833-LoRaGateway-OpenWRT-MT7628
@@ -119,6 +120,8 @@ Note that platforms will be tested much faster if you join the development proce
 [Kona Enterprise]: https://www.tektelic.com/catalog/kona-enterprise-lorawan-gateway
 [RisingHF RHF2S027]: https://www.risinghf.com/product/detail/27
 [ClodPi]: https://clodpi.io
+[CloudGate]: https://www.option.com/
+
 ## Building
 
 Use one of the existing [releases](https://github.com/helium/gateway-rs/releases) if you can, or build your own by hand using the instructions below.
