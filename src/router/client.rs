@@ -65,7 +65,12 @@ pub struct RouterClient {
     gateway: GatewayService,
     state_channel_follower: StateChannelFollowService,
     store: RouterStore,
+    // This allows an attempt to connect on an initial uplink without endlessly
+    // trying to connect to a failing state channel
     first_uplink: bool,
+    // This is used to request state channel diffs on anything but the first
+    // offer sent to the state channel
+    first_offer: bool,
     state_channel: StateChannelService,
 }
 
@@ -94,6 +99,7 @@ impl RouterClient {
             gateway,
             state_channel_follower,
             first_uplink: true,
+            first_offer: true,
         })
     }
 
@@ -168,11 +174,13 @@ impl RouterClient {
                     Ok(None) => {
                         // The state channel connect timer will reconnect the
                         // state channel on the next cycle
+                        self.first_offer = true;
                         warn!(logger, "state channel disconnected");
                     },
                     Err(err) => {
                         // The state channel connect timer will reconnect the
                         // state channel on the next cycle
+                        self.first_offer = true;
                         warn!(logger, "state channel error {:?}", err);
                     },
                 },
@@ -204,6 +212,8 @@ impl RouterClient {
 
     async fn handle_uplink(&mut self, logger: &Logger, uplink: Packet) -> Result {
         self.store.store_waiting_packet(uplink)?;
+        // First uplink is used to get a quicker state channel connect than
+        // waiting for the state channel connect timer to trigger
         if self.first_uplink {
             self.first_uplink = false;
             self.maybe_connect_state_channel(logger).await;
@@ -423,7 +433,8 @@ impl RouterClient {
             return Ok(());
         }
         while let Some(packet) = self.store.pop_waiting_packet() {
-            self.send_offer(logger, &packet).await?;
+            self.send_offer(logger, &packet, self.first_offer).await?;
+            self.first_offer = false;
             self.store.queue_packet(packet)?;
             if self.state_channel.capacity() == 0 || self.store.packet_queue_full() {
                 return Ok(());
@@ -432,13 +443,20 @@ impl RouterClient {
         Ok(())
     }
 
-    async fn send_offer(&mut self, _logger: &Logger, packet: &QuePacket) -> Result {
-        match StateChannelMessage::offer(packet.packet().clone(), self.keypair.clone(), self.region)
-            .await
-        {
-            Ok(message) => Ok(self.state_channel.send(message.to_message()).await?),
-            Err(err) => Err(err),
-        }
+    async fn send_offer(
+        &mut self,
+        _logger: &Logger,
+        packet: &QuePacket,
+        first_offer: bool,
+    ) -> Result {
+        StateChannelMessage::offer(
+            packet.packet().clone(),
+            self.keypair.clone(),
+            self.region,
+            !first_offer,
+        )
+        .and_then(|message| self.state_channel.send(message.to_message()))
+        .await
     }
 
     async fn send_packet(&mut self, logger: &Logger, packet: Option<&QuePacket>) -> Result {
