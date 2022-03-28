@@ -34,8 +34,3 @@ pub type Future<T> = Pin<Box<dyn StdFuture<Output = Result<T>> + Send>>;
 
 /// A type alias for `Stream` that may result in `crate::error::Error`
 pub type Stream<T> = Pin<Box<dyn StdStream<Item = Result<T>> + Send>>;
-
-/// Convert a slice of bytes to a base64 url encoded string
-pub fn hash_str(hash: &[u8]) -> String {
-    base64::encode_config(hash, base64::URL_SAFE_NO_PAD)
-}

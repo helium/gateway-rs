@@ -1,6 +1,5 @@
 use crate::{
     error::{DecodeError, StateChannelError, StateChannelSummaryError},
-    hash_str,
     router::{store::StateChannelEntry, QuePacket, RouterStore},
     service::gateway::GatewayService,
     Error, MsgVerify, Result,
@@ -169,16 +168,8 @@ impl StateChannel {
         &self.sc.owner
     }
 
-    pub fn id_str(&self) -> String {
-        hash_str(&self.sc.id)
-    }
-
     pub fn amount(&self) -> u64 {
         self.sc.credits
-    }
-
-    pub fn hash_str(&self) -> String {
-        hash_str(&self.hash())
     }
 
     pub fn hash(&self) -> Vec<u8> {

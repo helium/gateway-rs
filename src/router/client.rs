@@ -1,11 +1,12 @@
 use crate::{
     error::{Error, StateChannelError},
-    gateway, hash_str,
+    gateway,
     router::{QuePacket, RouterStore, StateChannelEntry},
     service::gateway::{GatewayService, StateChannelFollowService},
     service::router::{RouterService, StateChannelService},
     state_channel::{check_active, check_active_diff, StateChannel, StateChannelMessage},
-    CacheSettings, KeyedUri, Keypair, MsgSign, Packet, Region, Result, TxnFee, TxnFeeConfig,
+    Base64, CacheSettings, KeyedUri, Keypair, MsgSign, Packet, Region, Result, TxnFee,
+    TxnFeeConfig,
 };
 use futures::{future::OptionFuture, TryFutureExt};
 use helium_proto::{
@@ -303,19 +304,19 @@ impl RouterClient {
                         // Overpaid state channels are ignored
                         StateChannelError::Overpaid { sc, .. } => {
                             warn!(logger, "ignoring overpaid state channel"; 
-                                    "sc_id" => sc.id_str());
+                                    "sc_id" => sc.id().to_b64url());
                             self.store.ignore_state_channel(sc)
                         }
                         // Underpaid state channels are ignored
                         StateChannelError::Underpaid { sc, .. } => {
                             warn!(logger, "ignoring underpaid state channel"; 
-                                    "sc_id" => sc.id_str());
+                                    "sc_id" => sc.id().to_b64url());
                             self.store.ignore_state_channel(sc)
                         }
                         // A previously ignored state channel
                         StateChannelError::Ignored { sc, .. } => {
                             warn!(logger, "ignored purchase state channel"; 
-                                    "sc_id" => sc.id_str());
+                                    "sc_id" => sc.id().to_b64url());
                             Ok(())
                         }
                         // A new channel was detected. We have no baseline
@@ -329,7 +330,7 @@ impl RouterClient {
                         // for the packet.
                         StateChannelError::NewChannel { sc } => {
                             info!(logger, "accepting new state channel";
-                                    "sc_id" => sc.id_str());
+                                    "sc_id" => sc.id().to_b64url());
                             self.state_channel_follower
                                 .send(sc.id(), sc.owner())
                                 .await?;
@@ -346,13 +347,13 @@ impl RouterClient {
                         // one?
                         StateChannelError::CausalConflict { sc, conflicts_with } => {
                             warn!(logger, "ignoring non-causal purchase";
-                                    "sc_id" => sc.id_str());
+                                    "sc_id" => sc.id().to_b64url());
                             self.store
                                 .store_conflicting_state_channel(sc, conflicts_with)
                         }
                         StateChannelError::NotFound { sc_id } => {
                             warn!(logger, "ignoring purchase with no local state channel";
-                                    "sc_id" => hash_str(&sc_id));
+                                    "sc_id" => sc_id.to_b64url());
                             Ok(())
                         }
                         err => {
@@ -380,13 +381,13 @@ impl RouterClient {
                 // the first received purchase
                 if let Some(banner_sc) = &banner.sc {
                     info!(logger, "received banner (ignored)";
-                        "sc_id" => hash_str(&banner_sc.id));
+                        "sc_id" => banner_sc.id.to_b64url());
                 }
                 self.send_packet_offers(logger).await
             }
             Msg::Reject(rejection) => {
                 debug!(logger, "packet rejected"; 
-                    "packet_hash" => hash_str(&rejection.packet_hash));
+                    "packet_hash" => rejection.packet_hash.to_b64());
                 self.store.dequeue_packet(&rejection.packet_hash);
                 // We do not receive the hash of the packet that was rejected so
                 // we rely on the store cleanup to remove the implied packet.
@@ -470,7 +471,7 @@ impl RouterClient {
         }
         let packet = packet.unwrap();
         debug!(logger, "sending packet";
-            "packet_hash" => packet.hash_str());
+            "packet_hash" => packet.hash().to_b64());
         StateChannelMessage::packet(
             packet.packet().clone(),
             self.keypair.clone(),
