@@ -350,6 +350,11 @@ impl RouterClient {
                             self.store
                                 .store_conflicting_state_channel(sc, conflicts_with)
                         }
+                        StateChannelError::NotFound { sc_id } => {
+                            warn!(logger, "ignoring purchase with no local state channel";
+                                    "sc_id" => hash_str(&sc_id));
+                            Ok(())
+                        }
                         err => {
                             info!(logger, "ignoring purchase: {err:?}");
                             Ok(())

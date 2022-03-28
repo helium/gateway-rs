@@ -245,7 +245,7 @@ pub async fn check_active_diff(
         // No entry is not good for a diff since there's no state channel to
         // clone
         {
-            Err(StateChannelError::not_found())
+            Err(StateChannelError::not_found(&diff.id))
         }
         Some(entry) => match entry {
             // If the entry is ignored return an error

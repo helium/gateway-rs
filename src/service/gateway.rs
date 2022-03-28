@@ -102,7 +102,7 @@ impl StateChannelFollowService {
             Ok(msg) => Err(Error::custom(format!(
                 "unexpected gateway response {msg:?}",
             ))),
-            Err(err) => Err(err.into()),
+            Err(err) => Err(err),
         }
     }
 }
