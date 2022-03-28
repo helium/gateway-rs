@@ -15,6 +15,7 @@ use tokio_stream::wrappers::ReceiverStream;
 
 type GatewayClient = services::gateway::Client<Channel>;
 
+#[derive(Debug)]
 pub struct Streaming {
     streaming: tonic::Streaming<GatewayRespV1>,
     verifier: Arc<PublicKey>,
@@ -65,16 +66,20 @@ impl Response {
 #[derive(Debug)]
 pub struct StateChannelFollowService {
     tx: mpsc::Sender<GatewayScFollowReqV1>,
-    rx: tonic::Streaming<GatewayRespV1>,
+    rx: Streaming,
 }
 
 impl StateChannelFollowService {
-    pub async fn new(mut client: GatewayClient) -> Result<Self> {
+    pub async fn new(mut client: GatewayClient, verifier: Arc<PublicKey>) -> Result<Self> {
         let (tx, client_rx) = mpsc::channel(3);
-        let rx = client
+        let streaming = client
             .follow_sc(ReceiverStream::new(client_rx))
             .await?
             .into_inner();
+        let rx = Streaming {
+            streaming,
+            verifier,
+        };
         Ok(Self { tx, rx })
     }
 
@@ -89,15 +94,15 @@ impl StateChannelFollowService {
     pub async fn message(&mut self) -> Result<Option<GatewayScFollowStreamedRespV1>> {
         use helium_proto::gateway_resp_v1::Msg;
         match self.rx.message().await {
-            Ok(Some(GatewayRespV1 {
+            Ok(Some(Response(GatewayRespV1 {
                 msg: Some(Msg::FollowStreamedResp(resp)),
                 ..
-            })) => Ok(Some(resp)),
+            }))) => Ok(Some(resp)),
             Ok(None) => Ok(None),
             Ok(msg) => Err(Error::custom(format!(
                 "unexpected gateway response {msg:?}",
             ))),
-            Err(err) => Err(err.into()),
+            Err(err) => Err(err),
         }
     }
 }
@@ -181,7 +186,7 @@ impl GatewayService {
     }
 
     pub async fn follow_sc(&mut self) -> Result<StateChannelFollowService> {
-        StateChannelFollowService::new(self.client.clone()).await
+        StateChannelFollowService::new(self.client.clone(), self.uri.pubkey.clone()).await
     }
 
     pub async fn close_sc(&mut self, close_txn: BlockchainTxnStateChannelCloseV1) -> Result {

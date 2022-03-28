@@ -1,5 +1,6 @@
 use crate::{
-    api::LocalClient, cmd::*, settings::StakingMode, PublicKey, Result, Settings, TxnEnvelope,
+    api::LocalClient, cmd::*, settings::StakingMode, Base64, PublicKey, Result, Settings,
+    TxnEnvelope,
 };
 use helium_proto::BlockchainTxnAddGatewayV1;
 use serde_json::json;
@@ -40,7 +41,7 @@ fn print_txn(mode: &StakingMode, txn: &BlockchainTxnAddGatewayV1) -> Result {
         "owner": PublicKey::from_bytes(&txn.owner)?.to_string(),
         "fee": txn.fee,
         "staking fee": txn.staking_fee,
-        "txn": base64::encode_config(&txn.in_envelope_vec()?, base64::STANDARD),
+        "txn": txn.in_envelope_vec()?.to_b64(),
     });
     print_json(&table)
 }

@@ -83,6 +83,8 @@ pub enum StateChannelError {
     Ignored { sc: state_channel::StateChannel },
     #[error("inactive state channel")]
     Inactive,
+    #[error("state channel not found")]
+    NotFound { sc_id: Vec<u8> },
     #[error("invalid owner for state channel")]
     InvalidOwner,
     #[error("state channel summary error")]
@@ -174,6 +176,11 @@ impl StateChannelError {
 
     pub fn inactive() -> Error {
         Error::StateChannel(Box::new(Self::Inactive))
+    }
+
+    pub fn not_found(sc_id: &[u8]) -> Error {
+        let sc_id = sc_id.to_vec();
+        Error::StateChannel(Box::new(Self::NotFound { sc_id }))
     }
 
     pub fn ignored(sc: state_channel::StateChannel) -> Error {

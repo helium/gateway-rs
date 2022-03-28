@@ -26,7 +26,12 @@ impl StateChannelMessage {
         Ok(StateChannelMessage::from(packet))
     }
 
-    pub async fn offer(packet: Packet, keypair: Arc<Keypair>, region: Region) -> Result<Self> {
+    pub async fn offer(
+        packet: Packet,
+        keypair: Arc<Keypair>,
+        region: Region,
+        req_diff: bool,
+    ) -> Result<Self> {
         let frame = Packet::parse_frame(lorawan::Direction::Uplink, packet.payload())?;
         let mut offer = BlockchainStateChannelOfferV1 {
             packet_hash: packet.hash(),
@@ -36,7 +41,7 @@ impl StateChannelMessage {
             region: region.into(),
             routing: Packet::routing_information(&frame)?,
             signature: vec![],
-            req_diff: false,
+            req_diff,
         };
         offer.signature = offer.sign(keypair).await?;
         Ok(Self::from(offer))

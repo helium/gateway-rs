@@ -1,4 +1,4 @@
-use crate::{error::DecodeError, hash_str, Error, Result};
+use crate::{error::DecodeError, Error, Result};
 use helium_proto::{
     packet::PacketType, routing_information::Data as RoutingData, BlockchainStateChannelResponseV1,
     Eui, RoutingInformation,
@@ -156,10 +156,6 @@ impl Packet {
 
     pub fn hash(&self) -> Vec<u8> {
         Sha256::digest(&self.0.payload).to_vec()
-    }
-
-    pub fn hash_str(&self) -> String {
-        hash_str(&self.hash())
     }
 
     pub fn dc_payload(&self) -> u64 {
