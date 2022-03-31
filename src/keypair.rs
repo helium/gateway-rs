@@ -85,6 +85,7 @@ pub fn from_str(str: &str) -> Result<Arc<Keypair>> {
     }
 }
 
+#[derive(Debug)]
 struct KeypairArgs(HashMap<String, String>);
 
 impl KeypairArgs {
@@ -126,10 +127,10 @@ mod tests {
 
     #[test]
     fn keypair_args() {
-        let args =
-            KeypairArgs::from_uri(&Uri::from_static("ecc://i2c-1:96?slot=0&network=testnet"))
-                .expect("keypair args");
-        assert_eq!(0, args.get::<u8>("slot", 22).expect("slot"));
+        let uri = &Uri::from_static("ecc://i2c-1:196?slot=22&network=testnet");
+        let args = KeypairArgs::from_uri(&uri).expect("keypair args");
+        assert_eq!(22, args.get::<u8>("slot", 22).expect("slot"));
+        assert_eq!(196, uri.port_u16().expect("uri port"));
         assert_eq!(
             Network::TestNet,
             args.get::<Network>("network", Network::MainNet)
