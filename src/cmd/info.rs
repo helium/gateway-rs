@@ -138,12 +138,12 @@ impl InfoCache {
         Ok(public_keys)
     }
 
-    async fn onboarding_key(&mut self) -> Result<PublicKey> {
+    async fn public_key(&mut self) -> Result<PublicKey> {
         let (public_key, _) = self._public_keys().await?;
         Ok(public_key)
     }
 
-    async fn public_key(&mut self) -> Result<PublicKey> {
+    async fn onboarding_key(&mut self) -> Result<PublicKey> {
         let (_, onboarding_key) = self._public_keys().await?;
         Ok(onboarding_key)
     }
