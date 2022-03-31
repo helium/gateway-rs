@@ -46,29 +46,40 @@ max_packets = 20
 
 # A list of gateway service keys and urls (note https is not supported
 [[gateways]]
-# lgw-ireland
+# Nova lgw-ireland
 pubkey = "11tk4zzbyfMPYYHYda255ACoqfYFVdrUSoCWrCYfn8BoyuYrERK"
 uri = "http://52.49.199.40:8080"
 
 [[gateways]]
-# lgw-ohio
+# Nova lgw-ohio
 pubkey = "115PmCR6fpFihdjw626JXYdUEdzwjh66yoWzWkMvB9CRGEx1U6G"
 uri = "http://3.132.190.192:8080"
 
 [[gateways]]
-# lgw-oregon
+# Nova lgw-oregon
 pubkey = "11pUovhssQdXzrfcYMTUrNNTQossgny8WqhfdbprrAVFyHcmvAN"
 uri = "http://35.84.173.125:8080"
 
 [[gateways]]
-# lgw-seoul
+# Nova lgw-seoul
 pubkey = "11yJXQPG9deHqvw2ac6VWtNP7gZj8X3t3Qb3Gqm9j729p4AsdaA"
 uri = "http://3.38.70.101:8080"
 
 [[gateways]]
-# lgw-singapore
+# Nova lgw-singapore
 pubkey = "11Gx2yPEmBGUrbHUiUWQs9vV7JDHQLZSddQs6e3WB2uvqSMUDBW"
 uri = "http://54.251.77.229:8080"
+
+[[gateways]]
+# Argon Chicago faint-mango-worm
+pubkey = "13FtYb62FtYxHshvyHAiDZKxjXBVVyTN18DbxFfce9Twfk68BJG"
+uri = "http://64.44.56.60:8080"
+
+[[gateways]]
+# Argon - Chicago mythical-lipstick-spider
+pubkey = "14L3B5jAev8DjkhwLzcprtPaDwpviTEU7oM1cS8FRiPNoyFuNPs"
+uri = "http://64.44.23.204:8080"
+
 
 ## Default routers for various release channels
 [router.alpha]
