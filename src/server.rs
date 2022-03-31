@@ -11,7 +11,7 @@ pub async fn run(shutdown: &triggered::Listener, settings: &Settings, logger: &L
     let mut dispatcher = Dispatcher::new(dispatcher_rx, gateway_tx, settings)?;
     let mut gateway = gateway::Gateway::new(dispatcher_tx.clone(), gateway_rx, settings).await?;
     let updater = Updater::new(settings)?;
-    let api = LocalServer::new(dispatcher_tx, settings);
+    let api = LocalServer::new(dispatcher_tx, settings)?;
     info!(logger,
         "starting server";
         "version" => settings::version().to_string(),

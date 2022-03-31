@@ -21,10 +21,12 @@ impl LocalClient {
         Ok(Self { client })
     }
 
-    pub async fn pubkey(&mut self) -> Result<PublicKey> {
-        let response = self.client.pubkey(PubkeyReq {}).await?;
-        let public_key = PublicKey::try_from(response.into_inner().address)?;
-        Ok(public_key)
+    pub async fn pubkey(&mut self) -> Result<(PublicKey, PublicKey)> {
+        let response = self.client.pubkey(PubkeyReq {}).await?.into_inner();
+
+        let public_key = PublicKey::try_from(response.address)?;
+        let onboarding_key = PublicKey::try_from(response.onboarding_address)?;
+        Ok((public_key, onboarding_key))
     }
 
     pub async fn sign(&mut self, data: &[u8]) -> Result<Vec<u8>> {
