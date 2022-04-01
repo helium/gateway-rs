@@ -1,5 +1,7 @@
-use crate::{service::CONNECT_TIMEOUT, Error, KeyedUri, MsgSign, MsgVerify, Region, Result};
-use helium_crypto::{Keypair, PublicKey};
+use crate::{
+    service::CONNECT_TIMEOUT, Error, KeyedUri, Keypair, MsgSign, MsgVerify, PublicKey, Region,
+    Result,
+};
 use helium_proto::{
     gateway_resp_v1,
     services::{self, Channel, Endpoint},

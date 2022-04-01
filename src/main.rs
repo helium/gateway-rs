@@ -54,7 +54,7 @@ fn mk_logger(settings: &Settings) -> Logger {
                 .fuse();
             slog_async::Async::new(drain)
                 .build()
-                .filter_level(settings.log.level)
+                .filter_level(settings.log.level.into())
                 .fuse()
         }
         LogMethod::Stdio => {
@@ -70,7 +70,7 @@ fn mk_logger(settings: &Settings) -> Logger {
                 .fuse();
             slog_async::Async::new(drain)
                 .build()
-                .filter_level(settings.log.level)
+                .filter_level(settings.log.level.into())
                 .fuse()
         }
     };
