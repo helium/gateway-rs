@@ -72,18 +72,37 @@ pub enum Channel {
     Release,
 }
 
-pub fn deserialize_channel<'de, D>(d: D) -> std::result::Result<releases::Channel, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let channel_str = String::deserialize(d)?.to_lowercase();
-    match channel_str.parse::<releases::Channel>() {
-        Ok(channel) => Ok(channel),
-        Err(_) => {
-            return Err(de::Error::custom(format!(
-                "unsupported update channel: \"{channel_str}\"",
-            )))
+impl<'de> Deserialize<'de> for Channel {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct ChannelVisitor;
+
+        impl<'de> de::Visitor<'de> for ChannelVisitor {
+            type Value = Channel;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("release channel")
+            }
+
+            fn visit_str<E>(self, value: &str) -> std::result::Result<Channel, E>
+            where
+                E: de::Error,
+            {
+                let value = value.to_lowercase();
+                match value.parse::<releases::Channel>() {
+                    Ok(channel) => Ok(channel),
+                    Err(_) => {
+                        return Err(de::Error::custom(format!(
+                            "unsupported update channel: \"{value}\"",
+                        )))
+                    }
+                }
+            }
         }
+
+        deserializer.deserialize_str(ChannelVisitor)
     }
 }
 

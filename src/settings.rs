@@ -1,6 +1,5 @@
 use crate::{
-    api::GatewayStakingMode, keypair, region, releases, Error, KeyedUri, Keypair, PublicKey,
-    Region, Result,
+    api::GatewayStakingMode, releases, Error, KeyedUri, Keypair, PublicKey, Region, Result,
 };
 use config::{Config, Environment, File};
 use http::uri::Uri;
@@ -25,7 +24,6 @@ pub struct Settings {
     pub api: u16,
     /// The location of the keypair binary file for the gateway. If the keyfile
     /// is not found there a new one is generated and saved in that location.
-    #[serde(deserialize_with = "keypair::deserialize")]
     pub keypair: Arc<Keypair>,
     /// The location of the onboarding keypair binary file for the gateway. If
     /// the keyfile is not found there a new one is generated and saved in that
@@ -33,7 +31,6 @@ pub struct Settings {
     pub onboarding: Option<String>,
     /// The lorawan region to use. This value should line up with the configured
     /// region of the semtech packet forwarder. Defaults to "US915"
-    #[serde(deserialize_with = "region::deserialize")]
     pub region: Region,
     /// Log settings
     pub log: LogSettings,
@@ -53,7 +50,6 @@ pub struct Settings {
 #[derive(Debug, Deserialize)]
 pub struct LogSettings {
     /// Log level to show (default info)
-    #[serde(deserialize_with = "log_level::deserialize")]
     pub level: log_level::Level,
 
     ///  Which log method to use (stdio or syslog, default stdio)
@@ -72,7 +68,6 @@ pub struct UpdateSettings {
     pub interval: u32,
     /// Which udpate channel to use (alpha, beta, release, semver).
     /// Defaults to semver which is the channel specified in the running app.
-    #[serde(deserialize_with = "releases::deserialize_channel")]
     pub channel: releases::Channel,
     /// The platform identifier to use for released packages (default: klkgw)
     pub platform: String,
@@ -128,7 +123,7 @@ impl Settings {
         self.onboarding.as_ref().map_or_else(
             || self.keypair.public_key().to_owned(),
             |str| {
-                keypair::from_str(str)
+                Keypair::from_str(str)
                     .map(|keypair| keypair.public_key().to_owned())
                     .unwrap_or_else(|_| self.keypair.public_key().to_owned())
             },
@@ -195,18 +190,59 @@ impl FromStr for StakingMode {
 }
 
 pub mod log_level {
-    use serde::{de, Deserialize, Deserializer};
+    use serde::de::{self, Deserialize, Deserializer, Visitor};
+    use std::fmt;
 
-    pub type Level = slog::Level;
+    #[derive(Debug, Clone, Copy)]
+    pub struct Level(slog::Level);
 
-    pub fn deserialize<'de, D>(d: D) -> std::result::Result<slog::Level, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = String::deserialize(d)?;
-        s.parse()
-            .map_err(|_| de::Error::custom(format!("invalid log level \"{s}\"")))
+    impl AsRef<slog::Level> for Level {
+        fn as_ref(&self) -> &slog::Level {
+            &self.0
+        }
     }
+
+    impl From<Level> for slog::Level {
+        fn from(v: Level) -> Self {
+            v.0
+        }
+    }
+
+    impl<'de> Deserialize<'de> for Level {
+        fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            struct LevelVisitor;
+
+            impl<'de> Visitor<'de> for LevelVisitor {
+                type Value = Level;
+                fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                    formatter.write_str("log level")
+                }
+                fn visit_str<E>(self, value: &str) -> std::result::Result<Level, E>
+                where
+                    E: de::Error,
+                {
+                    value
+                        .parse()
+                        .map(Level)
+                        .map_err(|_| de::Error::custom(format!("invalid log level \"{value}\"")))
+                }
+            }
+
+            deserializer.deserialize_str(LevelVisitor)
+        }
+    }
+
+    // pub fn deserialize<'de, D>(d: D) -> std::result::Result<slog::Level, D::Error>
+    // where
+    //     D: Deserializer<'de>,
+    // {
+    //     let s = String::deserialize(d)?;
+    //     s.parse()
+    //         .map_err(|_| de::Error::custom(format!("invalid log level \"{s}\"")))
+    // }
 }
 
 pub mod log_method {

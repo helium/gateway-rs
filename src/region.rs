@@ -12,30 +12,49 @@ impl From<Region> for ProtoRegion {
     }
 }
 
-pub fn deserialize<'de, D>(d: D) -> std::result::Result<Region, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let region = match String::deserialize(d)?.as_str() {
-        "US915" => Region(ProtoRegion::Us915),
-        "EU868" => Region(ProtoRegion::Eu868),
-        "EU433" => Region(ProtoRegion::Eu433),
-        "CN470" => Region(ProtoRegion::Cn470),
-        "CN779" => Region(ProtoRegion::Cn779),
-        "AU915" => Region(ProtoRegion::Au915),
-        "AS923_1" => Region(ProtoRegion::As9231),
-        "AS923_2" => Region(ProtoRegion::As9232),
-        "AS923_3" => Region(ProtoRegion::As9233),
-        "AS923_4" => Region(ProtoRegion::As9234),
-        "KR920" => Region(ProtoRegion::Kr920),
-        "IN865" => Region(ProtoRegion::In865),
-        unsupported => {
-            return Err(de::Error::custom(format!(
-                "unsupported region: {unsupported}"
-            )))
+impl<'de> Deserialize<'de> for Region {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct RegionVisitor;
+
+        impl<'de> de::Visitor<'de> for RegionVisitor {
+            type Value = Region;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("region string")
+            }
+
+            fn visit_str<E>(self, value: &str) -> std::result::Result<Region, E>
+            where
+                E: de::Error,
+            {
+                let proto_region = match value {
+                    "US915" => ProtoRegion::Us915,
+                    "EU868" => ProtoRegion::Eu868,
+                    "EU433" => ProtoRegion::Eu433,
+                    "CN470" => ProtoRegion::Cn470,
+                    "CN779" => ProtoRegion::Cn779,
+                    "AU915" => ProtoRegion::Au915,
+                    "AS923_1" => ProtoRegion::As9231,
+                    "AS923_2" => ProtoRegion::As9232,
+                    "AS923_3" => ProtoRegion::As9233,
+                    "AS923_4" => ProtoRegion::As9234,
+                    "KR920" => ProtoRegion::Kr920,
+                    "IN865" => ProtoRegion::In865,
+                    unsupported => {
+                        return Err(de::Error::custom(format!(
+                            "unsupported region: {unsupported}"
+                        )))
+                    }
+                };
+                Ok(Region(proto_region))
+            }
         }
-    };
-    Ok(region)
+
+        deserializer.deserialize_str(RegionVisitor)
+    }
 }
 
 impl fmt::Display for Region {
