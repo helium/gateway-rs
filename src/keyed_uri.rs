@@ -45,3 +45,14 @@ impl From<KeyedUri> for helium_proto::services::local::KeyedUri {
         }
     }
 }
+
+impl TryFrom<helium_proto::RoutingAddress> for KeyedUri {
+    type Error = crate::Error;
+    fn try_from(v: helium_proto::RoutingAddress) -> Result<Self> {
+        let result = Self {
+            uri: http::Uri::from_str(&String::from_utf8_lossy(&v.uri))?,
+            pubkey: Arc::new(helium_crypto::PublicKey::from_bytes(v.pub_key)?),
+        };
+        Ok(result)
+    }
+}

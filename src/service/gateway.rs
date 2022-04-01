@@ -1,6 +1,6 @@
 use crate::{
-    service::CONNECT_TIMEOUT, Error, KeyedUri, Keypair, MsgSign, MsgVerify, PublicKey, Region,
-    Result,
+    service::{CONNECT_TIMEOUT, RPC_TIMEOUT},
+    Error, KeyedUri, Keypair, MsgSign, MsgVerify, PublicKey, Region, Result,
 };
 use helium_proto::{
     gateway_resp_v1,
@@ -8,12 +8,17 @@ use helium_proto::{
     BlockchainTxnStateChannelCloseV1, BlockchainVarV1, GatewayConfigReqV1, GatewayConfigRespV1,
     GatewayRegionParamsUpdateReqV1, GatewayRespV1, GatewayRoutingReqV1, GatewayScCloseReqV1,
     GatewayScFollowReqV1, GatewayScFollowStreamedRespV1, GatewayScIsActiveReqV1,
-    GatewayScIsActiveRespV1, Routing,
+    GatewayScIsActiveRespV1, GatewayValidatorsReqV1, GatewayValidatorsRespV1, Routing,
 };
 use rand::{rngs::OsRng, seq::SliceRandom};
-use std::{sync::Arc, time::Duration};
+use std::{
+    pin::Pin,
+    sync::Arc,
+    task::{Context, Poll},
+    time::Duration,
+};
 use tokio::sync::mpsc;
-use tokio_stream::wrappers::ReceiverStream;
+use tokio_stream::{wrappers::ReceiverStream, Stream};
 
 type GatewayClient = services::gateway::Client<Channel>;
 
@@ -23,29 +28,35 @@ pub struct Streaming {
     verifier: Arc<PublicKey>,
 }
 
-#[derive(Debug, Clone)]
-pub struct Response(GatewayRespV1);
+impl Stream for Streaming {
+    type Item = Result<GatewayRespV1>;
 
-impl Streaming {
-    pub async fn message(&mut self) -> Result<Option<Response>> {
-        match self.streaming.message().await {
-            Ok(Some(response)) => {
-                response.verify(&self.verifier)?;
-                Ok(Some(Response(response)))
-            }
-            Ok(None) => Ok(None),
-            Err(err) => Err(err.into()),
-        }
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        Pin::new(&mut self.streaming)
+            .poll_next(cx)
+            .map_err(Error::from)
+            .map(|msg| match msg {
+                Some(Ok(response)) => Some(response.verify(&self.verifier).map(|_| response)),
+                Some(Err(err)) => Some(Err(err)),
+                None => None,
+            })
     }
 }
 
-impl Response {
-    pub fn height(&self) -> u64 {
-        self.0.height
+pub(crate) trait Response {
+    fn height(&self) -> u64;
+    fn routings(&self) -> Result<&[Routing]>;
+    fn region(&self) -> Result<Region>;
+    fn state_channel_response(&self) -> Result<&GatewayScFollowStreamedRespV1>;
+}
+
+impl Response for GatewayRespV1 {
+    fn height(&self) -> u64 {
+        self.height
     }
 
-    pub fn routings(&self) -> Result<&[Routing]> {
-        match &self.0.msg {
+    fn routings(&self) -> Result<&[Routing]> {
+        match &self.msg {
             Some(gateway_resp_v1::Msg::RoutingStreamedResp(routings)) => Ok(&routings.routings),
             msg => Err(Error::custom(
                 format!("Unexpected gateway message {msg:?}",),
@@ -53,11 +64,20 @@ impl Response {
         }
     }
 
-    pub fn region(&self) -> Result<Region> {
-        match &self.0.msg {
+    fn region(&self) -> Result<Region> {
+        match &self.msg {
             Some(gateway_resp_v1::Msg::RegionParamsStreamedResp(params)) => {
                 Region::from_i32(params.region)
             }
+            msg => Err(Error::custom(
+                format!("Unexpected gateway message {msg:?}",),
+            )),
+        }
+    }
+
+    fn state_channel_response(&self) -> Result<&GatewayScFollowStreamedRespV1> {
+        match &self.msg {
+            Some(gateway_resp_v1::Msg::FollowStreamedResp(res)) => Ok(res),
             msg => Err(Error::custom(
                 format!("Unexpected gateway message {msg:?}",),
             )),
@@ -92,20 +112,13 @@ impl StateChannelFollowService {
         };
         Ok(self.tx.send(msg).await?)
     }
+}
 
-    pub async fn message(&mut self) -> Result<Option<GatewayScFollowStreamedRespV1>> {
-        use helium_proto::gateway_resp_v1::Msg;
-        match self.rx.message().await {
-            Ok(Some(Response(GatewayRespV1 {
-                msg: Some(Msg::FollowStreamedResp(resp)),
-                ..
-            }))) => Ok(Some(resp)),
-            Ok(None) => Ok(None),
-            Ok(msg) => Err(Error::custom(format!(
-                "unexpected gateway response {msg:?}",
-            ))),
-            Err(err) => Err(err),
-        }
+impl Stream for StateChannelFollowService {
+    type Item = Result<GatewayRespV1>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        Pin::new(&mut self.rx).poll_next(cx)
     }
 }
 
@@ -116,21 +129,40 @@ pub struct GatewayService {
 }
 
 impl GatewayService {
-    pub fn new(keyed_uri: KeyedUri) -> Result<Self> {
+    pub fn new(keyed_uri: &KeyedUri) -> Result<Self> {
         let channel = Endpoint::from(keyed_uri.uri.clone())
-            .timeout(Duration::from_secs(CONNECT_TIMEOUT))
+            .connect_timeout(Duration::from_secs(CONNECT_TIMEOUT))
+            .timeout(Duration::from_secs(RPC_TIMEOUT))
             .connect_lazy();
         Ok(Self {
-            uri: keyed_uri,
+            uri: keyed_uri.clone(),
             client: GatewayClient::new(channel),
         })
     }
 
-    pub fn random_new(uris: &[KeyedUri]) -> Result<Self> {
-        let uri = uris
+    pub fn select_seed(seed_uris: &[KeyedUri]) -> Result<Self> {
+        seed_uris
             .choose(&mut OsRng)
-            .ok_or_else(|| Error::custom("empty uri list"))?;
-        Self::new(uri.to_owned())
+            .ok_or_else(|| Error::custom("empty uri list"))
+            .and_then(Self::new)
+    }
+
+    pub async fn random_new(
+        &mut self,
+        fetch_count: u8,
+        cancel: triggered::Listener,
+    ) -> Result<Option<Self>> {
+        tokio::select! {
+            gateways = self.validators(fetch_count.into()) => match gateways {
+                Ok(gateways) => gateways
+                    .choose(&mut OsRng)
+                    .ok_or_else(|| Error::custom("empty gateway list"))
+                    .and_then(Self::new)
+                    .map(Some),
+                Err(err) => Err(err)
+            },
+            _ = cancel.clone() => Ok(None)
+        }
     }
 
     pub async fn routing(&mut self, height: u64) -> Result<Streaming> {
@@ -222,5 +254,23 @@ impl GatewayService {
     pub async fn height(&mut self) -> Result<(u64, u64)> {
         let resp = self.get_config(vec![]).await?;
         Ok((resp.height, resp.block_age))
+    }
+
+    pub async fn validators(&mut self, quantity: u32) -> Result<Vec<KeyedUri>> {
+        let resp = self
+            .client
+            .validators(GatewayValidatorsReqV1 { quantity })
+            .await?
+            .into_inner();
+        resp.verify(&self.uri.pubkey)?;
+        match resp.msg {
+            Some(gateway_resp_v1::Msg::ValidatorsResp(GatewayValidatorsRespV1 { result })) => {
+                result.into_iter().map(KeyedUri::try_from).collect()
+            }
+            Some(other) => Err(Error::custom(format!(
+                "invalid validator response {other:?}"
+            ))),
+            None => Err(Error::custom("empty validator response")),
+        }
     }
 }
