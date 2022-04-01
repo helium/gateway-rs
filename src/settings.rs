@@ -123,7 +123,7 @@ impl Settings {
     /// Returns the onboarding key for this gateway. The onboarding key is
     /// determined by the onboarding setting. If the onbaording setting is not
     /// present or there is any error retrievign the onboarding key from the
-    /// confignred settune the public key of the gateawy is returned.
+    /// confignred setting the public key of the gateawy is returned.
     pub fn onboarding_key(&self) -> PublicKey {
         self.onboarding.as_ref().map_or_else(
             || self.keypair.public_key().to_owned(),
