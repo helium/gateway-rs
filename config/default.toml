@@ -59,7 +59,7 @@ uri = "http://3.132.190.192:8080"
 [[gateways]]
 # lgw-oregon
 pubkey = "11pUovhssQdXzrfcYMTUrNNTQossgny8WqhfdbprrAVFyHcmvAN"
-uri = "http://35.84.173.125:8080"
+uri = "http://44.229.159.157:8080"
 
 [[gateways]]
 # lgw-seoul
