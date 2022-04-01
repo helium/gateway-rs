@@ -27,7 +27,7 @@ impl LocalServer {
     pub fn new(dispatcher: dispatcher::MessageSender, settings: &Settings) -> Result<Self> {
         Ok(Self {
             keypair: settings.keypair.clone(),
-            onboarding_key: settings.onboarding_key()?,
+            onboarding_key: settings.onboarding_key(),
             listen_port: settings.api,
             dispatcher,
         })

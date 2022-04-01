@@ -120,12 +120,19 @@ impl Settings {
         &self.router[&self.update.channel.to_string()]
     }
 
-    pub fn onboarding_key(&self) -> Result<PublicKey> {
-        if let Some(str) = self.onboarding.as_ref() {
-            keypair::from_str(str).map(|keypair| keypair.public_key().to_owned())
-        } else {
-            Ok(self.keypair.public_key().to_owned())
-        }
+    /// Returns the onboarding key for this gateway. The onboarding key is
+    /// determined by the onboarding setting. If the onbaording setting is not
+    /// present or there is any error retrievign the onboarding key from the
+    /// confignred settune the public key of the gateawy is returned.
+    pub fn onboarding_key(&self) -> PublicKey {
+        self.onboarding.as_ref().map_or_else(
+            || self.keypair.public_key().to_owned(),
+            |str| {
+                keypair::from_str(str)
+                    .map(|keypair| keypair.public_key().to_owned())
+                    .unwrap_or_else(|_| self.keypair.public_key().to_owned())
+            },
+        )
     }
 }
 
