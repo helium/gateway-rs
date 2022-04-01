@@ -17,6 +17,7 @@ use structopt::StructOpt;
 pub enum InfoKey {
     Fw,
     Key,
+    OnboardingKey,
     Name,
     Gateway,
     Region,
@@ -34,7 +35,7 @@ pub struct Cmd {
         long,
         short,
         multiple = false,
-        default_value = "fw,key,name,region,gateway"
+        default_value = "fw,key,onboarding,name,region,gateway"
     )]
     pub keys: InfoKeys,
 }
@@ -52,6 +53,7 @@ impl Cmd {
 
 const INFO_FW: &str = "fw";
 const INFO_KEY: &str = "key";
+const INFO_ONBOARDING_KEY: &str = "onboarding";
 const INFO_NAME: &str = "name";
 const INFO_GATEWAY: &str = "gateway";
 const INFO_REGION: &str = "region";
@@ -61,6 +63,7 @@ impl fmt::Display for InfoKey {
         let s = match self {
             Self::Fw => INFO_FW,
             Self::Key => INFO_KEY,
+            Self::OnboardingKey => INFO_ONBOARDING_KEY,
             Self::Name => INFO_NAME,
             Self::Gateway => INFO_GATEWAY,
             Self::Region => INFO_REGION,
@@ -84,6 +87,7 @@ impl FromStr for InfoKey {
         match s {
             INFO_FW => Ok(Self::Fw),
             INFO_KEY => Ok(Self::Key),
+            INFO_ONBOARDING_KEY => Ok(Self::OnboardingKey),
             INFO_NAME => Ok(Self::Name),
             INFO_GATEWAY => Ok(Self::Gateway),
             INFO_REGION => Ok(Self::Region),
@@ -108,7 +112,7 @@ impl std::str::FromStr for InfoKeys {
 struct InfoCache {
     platform: String,
     port: u16,
-    public_key: Option<PublicKey>,
+    public_keys: Option<(PublicKey, PublicKey)>,
     height: Option<HeightRes>,
     region: Option<Region>,
 }
@@ -118,20 +122,30 @@ impl InfoCache {
         Self {
             platform,
             port,
-            public_key: None,
+            public_keys: None,
             height: None,
             region: None,
         }
     }
 
-    async fn public_key(&mut self) -> Result<PublicKey> {
-        if let Some(public_key) = &self.public_key {
-            return Ok(public_key.clone());
+    async fn _public_keys(&mut self) -> Result<(PublicKey, PublicKey)> {
+        if let Some(public_keys) = &self.public_keys {
+            return Ok(public_keys.clone());
         }
         let mut client = LocalClient::new(self.port).await?;
-        let public_key = client.pubkey().await?;
-        self.public_key = Some(public_key.clone());
+        let public_keys = client.pubkey().await?;
+        self.public_keys = Some(public_keys.clone());
+        Ok(public_keys)
+    }
+
+    async fn public_key(&mut self) -> Result<PublicKey> {
+        let (public_key, _) = self._public_keys().await?;
         Ok(public_key)
+    }
+
+    async fn onboarding_key(&mut self) -> Result<PublicKey> {
+        let (_, onboarding_key) = self._public_keys().await?;
+        Ok(onboarding_key)
     }
 
     async fn _height(&mut self) -> Result<HeightRes> {
@@ -183,6 +197,9 @@ impl InfoKey {
             }
             Self::Key => {
                 json!(cache.public_key().await?.to_string())
+            }
+            Self::OnboardingKey => {
+                json!(cache.onboarding_key().await?.to_string())
             }
             Self::Name => {
                 let public_key = cache.public_key().await?.to_string();

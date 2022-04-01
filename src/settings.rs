@@ -1,5 +1,6 @@
 use crate::{
-    api::GatewayStakingMode, keypair, region, releases, Error, KeyedUri, Keypair, Region, Result,
+    api::GatewayStakingMode, keypair, region, releases, Error, KeyedUri, Keypair, PublicKey,
+    Region, Result,
 };
 use config::{Config, Environment, File};
 use http::uri::Uri;
@@ -22,11 +23,14 @@ pub struct Settings {
     /// Default 4467
     #[serde(default = "default_api")]
     pub api: u16,
-    /// The location of the keypair binary file for the gateway. Defaults to
-    /// "/etc/helium_gateway/keypair.bin". If the keyfile is not found there a new
-    /// one is generated and saved in that location.
+    /// The location of the keypair binary file for the gateway. If the keyfile
+    /// is not found there a new one is generated and saved in that location.
     #[serde(deserialize_with = "keypair::deserialize")]
     pub keypair: Arc<Keypair>,
+    /// The location of the onboarding keypair binary file for the gateway. If
+    /// the keyfile is not found there a new one is generated and saved in that
+    /// location.
+    pub onboarding: Option<String>,
     /// The lorawan region to use. This value should line up with the configured
     /// region of the semtech packet forwarder. Defaults to "US915"
     #[serde(deserialize_with = "region::deserialize")]
@@ -114,6 +118,21 @@ impl Settings {
 
     pub fn default_router(&self) -> &KeyedUri {
         &self.router[&self.update.channel.to_string()]
+    }
+
+    /// Returns the onboarding key for this gateway. The onboarding key is
+    /// determined by the onboarding setting. If the onbaording setting is not
+    /// present or there is any error retrievign the onboarding key from the
+    /// confignred setting the public key of the gateawy is returned.
+    pub fn onboarding_key(&self) -> PublicKey {
+        self.onboarding.as_ref().map_or_else(
+            || self.keypair.public_key().to_owned(),
+            |str| {
+                keypair::from_str(str)
+                    .map(|keypair| keypair.public_key().to_owned())
+                    .unwrap_or_else(|_| self.keypair.public_key().to_owned())
+            },
+        )
     }
 }
 

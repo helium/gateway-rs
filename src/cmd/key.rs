@@ -25,7 +25,7 @@ impl Cmd {
 impl Info {
     pub async fn run(&self, settings: Settings) -> Result {
         let cmd = info::Cmd {
-            keys: InfoKeys(vec![InfoKey::Name, InfoKey::Key]),
+            keys: InfoKeys(vec![InfoKey::Name, InfoKey::Key, InfoKey::OnboardingKey]),
         };
         cmd.run(settings).await
     }

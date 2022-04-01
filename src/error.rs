@@ -18,7 +18,7 @@ pub enum Error {
     Encode(#[from] EncodeError),
     #[error("decode error")]
     Decode(#[from] DecodeError),
-    #[error("service error {0}")]
+    #[error("service error: {0}")]
     Service(#[from] ServiceError),
     #[error("state channel error")]
     StateChannel(#[from] Box<StateChannelError>),
@@ -38,6 +38,8 @@ pub enum EncodeError {
 pub enum DecodeError {
     #[error("uri decode")]
     Uri(#[from] http::uri::InvalidUri),
+    #[error("keypair uri: {0}")]
+    KeypairUri(String),
     #[error("json decode")]
     Json(#[from] serde_json::Error),
     #[error("base64 decode")]
@@ -161,6 +163,10 @@ impl DecodeError {
 
     pub fn prost_decode(msg: &'static str) -> Error {
         Error::Decode(prost::DecodeError::new(msg).into())
+    }
+
+    pub fn keypair_uri<T: ToString>(msg: T) -> Error {
+        Error::Decode(DecodeError::KeypairUri(msg.to_string()))
     }
 }
 

@@ -19,16 +19,18 @@ pub type ApiResult<T> = std::result::Result<Response<T>, Status>;
 pub struct LocalServer {
     dispatcher: dispatcher::MessageSender,
     keypair: Arc<Keypair>,
+    onboarding_key: PublicKey,
     listen_port: u16,
 }
 
 impl LocalServer {
-    pub fn new(dispatcher: dispatcher::MessageSender, settings: &Settings) -> Self {
-        Self {
+    pub fn new(dispatcher: dispatcher::MessageSender, settings: &Settings) -> Result<Self> {
+        Ok(Self {
             keypair: settings.keypair.clone(),
+            onboarding_key: settings.onboarding_key(),
             listen_port: settings.api,
             dispatcher,
-        }
+        })
     }
 
     pub async fn run(self, shutdown: triggered::Listener, logger: &Logger) -> Result {
@@ -50,7 +52,7 @@ impl LocalServer {
         let reply = self
             .dispatcher
             .config(&keys)
-            .map_err(|_err| Status::internal("Failed to get config"))
+            .map_err(|err| Status::internal(format!("{err}")))
             .await?;
         let values = reply.into_iter().map(ConfigValue::from).collect();
         Ok(values)
@@ -62,6 +64,7 @@ impl Api for LocalServer {
     async fn pubkey(&self, _request: Request<PubkeyReq>) -> ApiResult<PubkeyRes> {
         let reply = PubkeyRes {
             address: self.keypair.public_key().to_vec(),
+            onboarding_address: self.onboarding_key.to_vec(),
         };
         Ok(Response::new(reply))
     }
@@ -148,7 +151,7 @@ impl Api for LocalServer {
         let reply = self
             .dispatcher
             .height()
-            .map_err(|_err| Status::internal("Failed to get config"))
+            .map_err(|err| Status::internal(format!("{err}")))
             .await?;
         Ok(Response::new(HeightRes {
             height: reply.height,
