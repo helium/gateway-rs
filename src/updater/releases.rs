@@ -67,6 +67,8 @@ impl fmt::Display for ChannelParseError {
 /// Represents a release channel
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Channel {
+    Devnet,
+    Testnet,
     Alpha,
     Beta,
     Release,
@@ -109,6 +111,8 @@ impl<'de> Deserialize<'de> for Channel {
 impl fmt::Display for Channel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let s = match self {
+            Channel::Devnet => "devnet",
+            Channel::Testnet => "testnet",
             Channel::Alpha => "alpha",
             Channel::Beta => "beta",
             Channel::Release => "release",
@@ -121,6 +125,8 @@ impl FromStr for Channel {
     type Err = ChannelParseError;
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         match s {
+            "devnet" => Ok(Channel::Devnet),
+            "testnet" => Ok(Channel::Testnet),
             "alpha" => Ok(Channel::Alpha),
             "beta" => Ok(Channel::Beta),
             "release" => Ok(Channel::Release),
@@ -137,6 +143,8 @@ impl Channel {
                 match v.as_str() {
                     "alpha" => return Channel::Alpha,
                     "beta" => return Channel::Beta,
+                    "testnet" => return Channel::Testnet,
+                    "devnet" => return Channel::Devnet,
                     _ => continue,
                 }
             }
@@ -177,7 +185,7 @@ impl Release {
     pub fn in_channel(&self, channel: &Channel) -> bool {
         match channel {
             Channel::Release => !self.version.is_prerelease(),
-            Channel::Alpha | Channel::Beta => {
+            Channel::Devnet | Channel::Testnet | Channel::Alpha | Channel::Beta => {
                 let tag = channel.to_string();
                 for identifier in &self.version.pre {
                     if let Identifier::AlphaNumeric(v) = identifier {
