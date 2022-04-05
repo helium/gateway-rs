@@ -111,8 +111,10 @@ impl Settings {
             .map_err(|e| e.into())
     }
 
-    pub fn default_router(&self) -> &KeyedUri {
-        &self.router[&self.update.channel.to_string()]
+    pub fn default_router(&self) -> Option<KeyedUri> {
+        self.router
+            .get(&self.update.channel.to_string())
+            .map(|uri| uri.to_owned())
     }
 
     /// Returns the onboarding key for this gateway. The onboarding key is
