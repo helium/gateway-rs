@@ -88,10 +88,10 @@ pub struct Dispatcher {
     gateways: Vec<KeyedUri>,
     routing_height: u64,
     region_height: u64,
-    default_router: KeyedUri,
     cache_settings: CacheSettings,
-    routers: HashMap<RouterKey, RouterEntry>,
     gateway_retry: u32,
+    routers: HashMap<RouterKey, RouterEntry>,
+    default_router: Option<KeyedUri>,
 }
 
 #[derive(PartialEq, Eq, Hash)]
@@ -124,7 +124,7 @@ impl Dispatcher {
     ) -> Result<Self> {
         let gateways = settings.gateways.clone();
         let routers = HashMap::with_capacity(5);
-        let default_router = settings.default_router().clone();
+        let default_router = settings.default_router();
         let cache_settings = settings.cache.clone();
         Ok(Self {
             keypair: settings.keypair.clone(),
@@ -146,9 +146,11 @@ impl Dispatcher {
         info!(logger, "starting"; 
             "region" => self.region.to_string());
 
-        info!(logger, "default router";
-            "pubkey" => self.default_router.pubkey.to_string(),
-            "uri" => self.default_router.uri.to_string());
+        if let Some(default_router) = &self.default_router {
+            info!(logger, "default router";
+                "pubkey" => default_router.pubkey.to_string(),
+                "uri" => default_router.uri.to_string());
+        }
 
         let gateway_backoff = Backoff::new(
             GATEWAY_BACKOFF_RETRIES,
@@ -348,10 +350,12 @@ impl Dispatcher {
             }
         }
         if !handled {
-            for (router_key, router_entry) in &self.routers {
-                if router_key.uri == self.default_router.uri {
-                    debug!(logger, "sending to default router");
-                    let _ = router_entry.dispatch.uplink(packet.clone()).await;
+            if let Some(default_router) = &self.default_router {
+                for (router_key, router_entry) in &self.routers {
+                    if router_key.uri == default_router.uri {
+                        debug!(logger, "sending to default router");
+                        let _ = router_entry.dispatch.uplink(packet.clone()).await;
+                    }
                 }
             }
         }
