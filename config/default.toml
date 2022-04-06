@@ -89,7 +89,3 @@ uri = "http://52.8.80.146:8080"
 # production: oui 1
 pubkey = "112qB3YaH5bZkCnKA5uRH7tBtGNv2Y5B4smv1jsmvGUzgKT71QpE"
 uri = "http://52.8.80.146:8080"
-
-[router.testnet]
-pubkey = "1ZLxTAB8Bs7BXySp5HqHhtCos6JtzzV2mfZjofEGT1MQVTKqYQT"
-uri = "http://34.215.110.61:8080"
