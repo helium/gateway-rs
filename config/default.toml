@@ -58,7 +58,7 @@ uri = "http://3.132.190.192:8080"
 
 [[gateways]]
 # lgw-oregon
-pubkey = "11pUovhssQdXzrfcYMTUrNNTQossgny8WqhfdbprrAVFyHcmvAN"
+pubkey = "11aZEJnSduAXG8r3r9vzw3QD5k1KWXUJSVc2SxmwxPBuNmMW6UY"
 uri = "http://44.229.159.157:8080"
 
 [[gateways]]
