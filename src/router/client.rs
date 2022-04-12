@@ -2,8 +2,11 @@ use crate::{
     error::{Error, StateChannelError},
     gateway,
     router::{QuePacket, RouterStore, StateChannelEntry},
-    service::gateway::{GatewayService, StateChannelFollowService},
     service::router::{RouterService, StateChannelService},
+    service::{
+        self,
+        gateway::{GatewayService, StateChannelFollowService},
+    },
     state_channel::{check_active, check_active_diff, StateChannel, StateChannelMessage},
     Base64, CacheSettings, KeyedUri, Keypair, MsgSign, Packet, Region, Result, TxnFee,
     TxnFeeConfig,
@@ -12,7 +15,6 @@ use futures::{future::OptionFuture, TryFutureExt};
 use helium_proto::{
     blockchain_state_channel_message_v1::Msg, BlockchainStateChannelDiffV1,
     BlockchainStateChannelV1, BlockchainTxnStateChannelCloseV1, CloseState,
-    GatewayScFollowStreamedRespV1,
 };
 use slog::{debug, info, o, warn, Logger};
 use std::sync::Arc;
@@ -20,6 +22,7 @@ use tokio::{
     sync::mpsc,
     time::{self, Duration, MissedTickBehavior},
 };
+use tokio_stream::StreamExt;
 
 pub const STORE_GC_INTERVAL: Duration = Duration::from_secs(60);
 pub const STATE_CHANNEL_CONNECT_INTERVAL: Duration = Duration::from_secs(60);
@@ -146,23 +149,23 @@ impl RouterClient {
                     },
                     None => warn!(logger, "ignoring closed uplinks channel"),
                 },
-                gw_message = self.state_channel_follower.message() => match gw_message {
-                    Ok(Some(message)) => {
-                        self.handle_state_channel_close_message(&logger, message)
+                gw_message = self.state_channel_follower.next() => match gw_message {
+                    Some(Ok(message)) => {
+                        self.handle_state_channel_close_message(&logger, &message)
                             .unwrap_or_else(|err| warn!(logger, "ignoring gateway service handling error {:?}", err))
                             .await
                     },
-                    // The follower service has closd or errored out. Give up
-                    // since the dispatcher will notice the disconnect/error and
-                    // reconnect a potentially different gateway
-                    Ok(None) => {
-                        warn!(logger, "gateway service disconnected, shutting down");
-                        return Ok(())
-                    },
-                    Err(err) => {
+                    Some(Err(err)) => {
                         warn!(logger, "gateway service error, shutting down: {:?}", err);
                         return Ok(())
                     }
+                    // The follower service has closd or errored out. Give up
+                    // since the dispatcher will notice the disconnect/error and
+                    // reconnect a potentially different gateway
+                    None => {
+                        warn!(logger, "gateway service disconnected, shutting down");
+                        return Ok(())
+                    },
                 },
                 sc_message = self.state_channel.message() =>  match sc_message {
                     Ok(Some(message)) => {
@@ -222,11 +225,12 @@ impl RouterClient {
         self.send_packet_offers(logger).await
     }
 
-    async fn handle_state_channel_close_message(
+    async fn handle_state_channel_close_message<R: service::gateway::Response>(
         &mut self,
         logger: &Logger,
-        message: GatewayScFollowStreamedRespV1,
+        message: &R,
     ) -> Result {
+        let message = message.state_channel_response()?;
         let (txn, remove): (OptionFuture<_>, bool) = if let Some(entry) =
             self.store.get_state_channel_entry_mut(&message.sc_id)
         {
