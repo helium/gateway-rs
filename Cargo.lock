@@ -681,7 +681,7 @@ dependencies = [
  "tonic",
  "triggered",
  "xorf",
- "xxhash-c",
+ "xxhash-rust",
 ]
 
 [[package]]
@@ -2250,23 +2250,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "xxhash-c"
-version = "0.8.1"
+name = "xxhash-rust"
+version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "358a17f76ca4b5635742d22446aea1f7405479213a511bed6b6648f9864b6f66"
-dependencies = [
- "xxhash-c-sys",
-]
-
-[[package]]
-name = "xxhash-c-sys"
-version = "0.8.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "debe9444c21c1b40e4656122b08d363b5b910716d48002c0071e838b132aeae3"
-dependencies = [
- "cc",
- "libc",
-]
+checksum = "074914ea4eec286eb8d1fd745768504f420a1f7b7919185682a4a267bed7d2e7"
 
 [[package]]
 name = "zeroize"

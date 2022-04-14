@@ -43,7 +43,7 @@ tonic = "0"
 http = "*"
 log = "0"
 bytes = "*"
-xxhash-c = "0.8"
+xxhash-rust = { version = "0.8", features = ["xxh64"]}
 xorf = "0.7"
 sha2 = "0"
 signature = "*"

@@ -1,8 +1,8 @@
 use bytes::{Buf, BufMut};
 use helium_proto::Eui;
-use std::{fmt, hash::Hasher, sync::Arc};
+use std::{fmt, sync::Arc};
 use xorf::{Filter as XorFilter, Xor16};
-use xxhash_c::XXH64;
+use xxhash_rust::xxh64::Xxh64;
 
 #[derive(Clone)]
 pub struct EuiFilter(Arc<Xor16>);
@@ -44,9 +44,9 @@ impl EuiFilter {
         let mut buf = &mut data[..];
         buf.put_u64_le(*deveui);
         buf.put_u64_le(*appeui);
-        let mut hasher = XXH64::new(0);
-        hasher.write(&data);
-        let hash = hasher.finish();
+        let mut hasher = Xxh64::new(0);
+        hasher.update(&data);
+        let hash = hasher.digest();
         self.0.contains(&hash)
     }
 }
