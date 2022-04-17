@@ -356,9 +356,19 @@ impl RouterClient {
                                 .store_conflicting_state_channel(sc, conflicts_with)
                         }
                         StateChannelError::NotFound { sc_id } => {
-                            warn!(logger, "ignoring purchase with no local state channel";
+                            warn!(logger, "accepting purchase with no local state channel";
                                     "sc_id" => sc_id.to_b64url());
-                            Ok(())
+                            // Apparently we got an sc_diff on a purchase, but
+                            // we have no local knowledge of that state channel.
+                            // We tentatively accept the purchase by sending the
+                            // packet and request the full state channel in the
+                            // next offer.
+                            self.first_offer = true;
+                            let _ = self
+                                .send_packet(logger, packet_ref)
+                                .map_err(|err| warn!(logger, "ignoring packet send error: {err:?}"))
+                                .await;
+                            self.send_packet_offers(logger).await
                         }
                         err => {
                             info!(logger, "ignoring purchase: {err:?}");
