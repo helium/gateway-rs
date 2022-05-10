@@ -45,6 +45,25 @@ command = "/etc/helium_gateway/install_update"
 [cache]
 max_packets = 20
 
+## Default routers for various release channels
+[router.alpha]
+# staging: oui 4
+# pubkey = "11263KvqW3GZPAvag5sQYtBJSjb25azSTSwoi5Tza9kboaLRxcsv"
+# uri = "http://54.193.165.228:8080"
+# dev: oui 2
+pubkey = "1124CJ9yJaHq4D6ugyPCDnSBzQik61C1BqD9VMh1vsUmjwt16HNB"
+uri = "http://54.176.88.149:8080"
+
+[router.beta]
+# production
+pubkey = "112qB3YaH5bZkCnKA5uRH7tBtGNv2Y5B4smv1jsmvGUzgKT71QpE"
+uri = "http://52.8.80.146:8080"
+
+[router.release]
+# production: oui 1
+pubkey = "112qB3YaH5bZkCnKA5uRH7tBtGNv2Y5B4smv1jsmvGUzgKT71QpE"
+uri = "http://52.8.80.146:8080"
+
 # A list of gateway service keys and urls (note https is not supported
 [[gateways]]
 # lgw-ireland
@@ -71,21 +90,137 @@ uri = "http://3.38.70.101:8080"
 pubkey = "11Gx2yPEmBGUrbHUiUWQs9vV7JDHQLZSddQs6e3WB2uvqSMUDBW"
 uri = "http://54.251.77.229:8080"
 
-## Default routers for various release channels
-[router.alpha]
-# staging: oui 4
-# pubkey = "11263KvqW3GZPAvag5sQYtBJSjb25azSTSwoi5Tza9kboaLRxcsv"
-# uri = "http://54.193.165.228:8080"
-# dev: oui 2
-pubkey = "1124CJ9yJaHq4D6ugyPCDnSBzQik61C1BqD9VMh1vsUmjwt16HNB"
-uri = "http://54.176.88.149:8080"
+[[gateways]]
+# lgw1-frankfurt
+pubkey = "1123BGjiBwxdTHHjEuvF5mTQpHWwy9KP1JbgS8N4UKUa3Q2ya1W6"
+uri = "http://3.122.38.248:8080"
 
-[router.beta]
-# production
-pubkey = "112qB3YaH5bZkCnKA5uRH7tBtGNv2Y5B4smv1jsmvGUzgKT71QpE"
-uri = "http://52.8.80.146:8080"
+[[gateways]]
+# lgw1-saopaulo
+pubkey = "11BL23u2PbpTjuCyHQ6n35xD5a1QyhyuepCJYrqLVgD3fFewkJ2"
+uri = "http://18.228.115.118:8080"
 
-[router.release]
-# production: oui 1
-pubkey = "112qB3YaH5bZkCnKA5uRH7tBtGNv2Y5B4smv1jsmvGUzgKT71QpE"
-uri = "http://52.8.80.146:8080"
+[[gateways]]
+# lgw1-sydney
+pubkey = "11EQ9yjSuqBG1yV73YL1YRSX4QVwdQiiF9MJ1Bqngf9JwS2TGBi"
+uri = "http://13.237.155.172:8080"
+
+[[gateways]]
+# lgw2-frankfurt
+pubkey = "11pGEgAb8YhhFw64pxDLDsoaLQyQG1cijQjR1Ko6A2Q7EtwBcy9"
+uri = "http://3.72.143.228:8080"
+
+[[gateways]]
+# lgw2-ireland
+pubkey = "112qiiykzk7kTrnxNwnzf2EUsG9qoFPHG4Mau5hNsok8dLGf8ufB"
+uri = "http://52.30.1.39:8080"
+
+[[gateways]]
+# lgw2-ohio
+pubkey = "11fHGw18ySqmiBRhgBEXHS9xfSvBpmES5aeL1HNb5G79fQc67Ch"
+uri = "http://3.137.92.200:8080"
+
+[[gateways]]
+# lgw2-oregon
+pubkey = "112LdZBP1vtz3gdhVPRuQYGx1fLuBP5nqFWcE4L1dYXdNiMJRdF6"
+uri = "http://35.82.239.134:8080"
+
+[[gateways]]
+# lgw2-saopaulo
+pubkey = "11WUPL9y8pUfQg8wYvyJWbqEjnN7AzVGVWwHD8hmFFsXdaE3yh6"
+uri = "http://18.228.158.83:8080"
+
+[[gateways]]
+# lgw2-seoul
+pubkey = "11Gn8cr7tNDVv7GSnuDpJAqEjnDWRWkfEzW8zph7EQ9rr8MLhPJ"
+uri = "http://13.209.94.225:8080"
+
+[[gateways]]
+# lgw2-singapore
+pubkey = "112fVSokVAUxmD672gKbS86SuqKX3bTzu2SGNaGuq6vxESMGBqCN"
+uri = "http://52.220.227.216:8080"
+
+[[gateways]]
+# lgw2-sydney
+pubkey = "112Go1gHKBNBjSJztRD1x9m4H9krFiawrU444VC6PbEiwmWvFAUu"
+uri = "http://3.24.161.210:8080"
+
+[[gateways]]
+# lgw3-frankfurt
+pubkey = "11NeSZjVWK9SvXxfwaWc3vZU8df17TYbKQekywYktbUyow3efUm"
+uri = "http://3.70.55.231:8080"
+
+[[gateways]]
+# lgw3-ireland
+pubkey = "11vBe5pfSxH5QoEgFMVedA631YMEeBHipktJ2nybDe1EjkiKRXo"
+uri = "http://52.30.111.82:8080"
+
+[[gateways]]
+# lgw3-ohio
+pubkey = "112HUu9fVtpcNJtnnAwXTNPBPZjWZxV63angT5UJY529APS5hMDa"
+uri = "http://3.13.130.184:8080"
+
+[[gateways]]
+# lgw3-oregon
+pubkey = "112mjDiAz72CFxkjxBgwieP1LxAhV8oadqHNP2AyaiQQom4VN27"
+uri = "http://54.70.239.5:8080"
+
+[[gateways]]
+# lgw3-saopaulo
+pubkey = "11rfZwFwdDDtxYo34uYTXUKbkPhZofxJ2LbkduBZHPksHUsUdw8"
+uri = "http://18.230.8.198:8080"
+
+[[gateways]]
+# lgw3-seoul
+pubkey = "11BgGQp83rWWE8PHimZQPYxwMVD3oQw9JaVW7u3EUom6toh9568"
+uri = "http://13.125.32.225:8080"
+
+[[gateways]]
+# lgw3-singapore
+pubkey = "112fVGeUJf6aNc5z6d8rFDsgBnRj45BAxhdxaEVpQ58SGFJ1abk4"
+uri = "http://13.215.75.202:8080"
+
+[[gateways]]
+# lgw3-sydney
+pubkey = "11FiQQ2dGuwRi3XAWfGboPwgxH7JiNzak8BfGWpJTJ3NXHG3N6i"
+uri = "http://3.104.32.11:8080"
+
+[[gateways]]
+# lgw4-frankfurt
+pubkey = "112pcepAfZ8CWGFcRAq8hPP8dNcppRK8APSNfrKvqufyH3Keyhjb"
+uri = "http://3.72.215.7:8080"
+
+[[gateways]]
+# lgw4-ireland
+pubkey = "112wJBZBZH34G2NZ8XQx8ZpFXAhZf5FUhyKwbobknkBraP9pH2j8"
+uri = "http://52.210.14.128:8080"
+
+[[gateways]]
+# lgw4-ohio
+pubkey = "112hyDbnmq41LwyNynmSkcjoH414oEdANHiYduFygbLbJWBoLjsZ"
+uri = "http://3.131.232.233:8080"
+
+[[gateways]]
+# lgw4-oregon
+pubkey = "112N96HhzTGGwVeCengwf7CUoGK73GgLquZskDvRzrTqSQvsU3rM"
+uri = "http://52.89.130.114:8080"
+
+[[gateways]]
+# lgw4-saopaulo
+pubkey = "11Ka5aFf1heCuQLQWt3D2itZX89QJNetPHUeUdNcC55Jtp6SRaV"
+uri = "http://54.207.131.103:8080"
+
+[[gateways]]
+# lgw4-seoul
+pubkey = "112iJa3Ckk34eFiWSfDUkLz12qwdcJS4V3794zgCw2rJDHi4naiL"
+uri = "http://3.39.165.144:8080"
+
+[[gateways]]
+# lgw4-singapore
+pubkey = "112USfBeZqQwhQtgeTRwREauyxxFQdCw5eFw23GUa3eMqTRqyhXt"
+uri = "http://13.215.29.4:8080"
+
+[[gateways]]
+# lgw4-sydney
+pubkey = "112q3CB7MsFpi7Y3JuiHzF9h2ndH88KeZ3LUL6juJwMdo4g4Lsoq"
+uri = "http://13.211.55.217:8080"
