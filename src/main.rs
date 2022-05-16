@@ -50,7 +50,7 @@ fn mk_logger(settings: &Settings) -> Logger {
     let async_drain = match settings.log.method {
         LogMethod::Syslog => {
             let drain = slog_syslog::unix_3164(slog_syslog::Facility::LOG_USER)
-                .unwrap()
+                .expect("syslog drain")
                 .fuse();
             slog_async::Async::new(drain)
                 .build()
@@ -90,7 +90,7 @@ pub fn main() -> Result {
     let logger = mk_logger(&settings);
     let scope_guard = slog_scope::set_global_logger(logger);
     let run_logger = slog_scope::logger().new(o!());
-    let _log_guard = slog_stdlog::init().unwrap();
+    slog_stdlog::init().expect("log init");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()?;
