@@ -37,13 +37,13 @@ impl<'de> Deserialize<'de> for Region {
                     "CN470" => ProtoRegion::Cn470,
                     "AU915" => ProtoRegion::Au915,
                     "AS923_1" => ProtoRegion::As9231,
-                    "AS923_1B" => ProtoRegion::As9231B,
+                    "AS923_1B" => ProtoRegion::As9231b,
                     "AS923_2" => ProtoRegion::As9232,
                     "AS923_3" => ProtoRegion::As9233,
                     "AS923_4" => ProtoRegion::As9234,
                     "KR920" => ProtoRegion::Kr920,
                     "IN865" => ProtoRegion::In865,
-                    "CD900_1A" => ProtoRegion::Cd9001A,
+                    "CD900_1A" => ProtoRegion::Cd9001a,
                     unsupported => {
                         return Err(de::Error::custom(format!(
                             "unsupported region: {unsupported}"
@@ -67,13 +67,13 @@ impl fmt::Display for Region {
             ProtoRegion::Cn470 => f.write_str("CN470"),
             ProtoRegion::Au915 => f.write_str("AU915"),
             ProtoRegion::As9231 => f.write_str("AS923_1"),
-            ProtoRegion::As9231B => f.write_str("AS923_1B"),
+            ProtoRegion::As9231b => f.write_str("AS923_1B"),
             ProtoRegion::As9232 => f.write_str("AS923_2"),
             ProtoRegion::As9233 => f.write_str("AS923_3"),
             ProtoRegion::As9234 => f.write_str("AS923_4"),
             ProtoRegion::Kr920 => f.write_str("KR920"),
             ProtoRegion::In865 => f.write_str("IN865"),
-            ProtoRegion::Cd9001A => f.write_str("CD900_1A"),
+            ProtoRegion::Cd9001a => f.write_str("CD900_1A"),
         }
     }
 }
