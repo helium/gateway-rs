@@ -45,7 +45,7 @@ impl StateChannelService {
 
     pub async fn message(&mut self) -> Result<Option<BlockchainStateChannelMessageV1>> {
         if self.conduit.is_none() {
-            let () = futures::future::pending().await;
+            futures::future::pending::<()>().await;
             return Ok(None);
         }
         let (_, rx) = self.conduit.as_mut().unwrap();
