@@ -140,8 +140,8 @@ impl Packet {
             powe: 27,
             rfch: 0,
             tmst: match timestamp {
-                Some(t) => StringOrNum::N(t as u32),
-                None => StringOrNum::S("immediate".to_string()),
+                Some(t) => Some(StringOrNum::N(t as u32)),
+                None => Some(StringOrNum::S("immediate".to_string())),
             },
             tmms: None,
             fdev: None,
