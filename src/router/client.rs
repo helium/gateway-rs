@@ -31,7 +31,8 @@ pub const STATE_CHANNEL_CONNECT_INTERVAL: Duration = Duration::from_secs(60);
 pub enum Message {
     Uplink(Packet),
     Region(Region),
-    GatewayChanged,
+    GatewayChanged(Option<GatewayService>),
+    Stop,
 }
 
 #[derive(Clone, Debug)]
@@ -44,8 +45,8 @@ pub fn message_channel(size: usize) -> (MessageSender, MessageReceiver) {
 }
 
 impl MessageSender {
-    pub async fn gateway_changed(&self) {
-        let _ = self.0.send(Message::GatewayChanged).await;
+    pub async fn gateway_changed(&self, gateway: Option<GatewayService>) {
+        let _ = self.0.send(Message::GatewayChanged(gateway)).await;
     }
 
     pub async fn region_changed(&self, region: Region) {
@@ -58,6 +59,10 @@ impl MessageSender {
             .map_err(|_| Error::channel())
             .await
     }
+
+    pub async fn stop(&self) {
+        let _ = self.0.send(Message::Stop).await;
+    }
 }
 
 pub struct RouterClient {
@@ -66,7 +71,7 @@ pub struct RouterClient {
     region: Region,
     keypair: Arc<Keypair>,
     downlinks: gateway::MessageSender,
-    gateway: GatewayService,
+    gateway: Option<GatewayService>,
     state_channel_follower: StateChannelFollowService,
     store: RouterStore,
     // This allows an attempt to connect on an initial uplink without endlessly
@@ -92,6 +97,7 @@ impl RouterClient {
         let state_channel = router.state_channel()?;
         let state_channel_follower = gateway.follow_sc().await?;
         let store = RouterStore::new(&settings);
+        let gateway = Some(gateway);
         Ok(Self {
             router,
             oui,
@@ -139,13 +145,17 @@ impl RouterClient {
                             .unwrap_or_else(|err| warn!(logger, "ignoring failed uplink {:?}", err))
                             .await;
                     },
-                    Some(Message::GatewayChanged) => {
-                        info!(logger, "gateway changed, shutting down");
-                        return Ok(())
+                    Some(Message::GatewayChanged(gateway)) => {
+                        info!(logger, "gateway changed");
+                        self.gateway = gateway;
                     },
                     Some(Message::Region(region)) => {
                         self.region = region;
                         info!(logger, "updated region to {region}" );
+                    },
+                    Some(Message::Stop) => {
+                        info!(logger, "stop requested, shutting down");
+                        return Ok(())
                     },
                     None => warn!(logger, "ignoring closed uplinks channel"),
                 },
@@ -263,15 +273,18 @@ impl RouterClient {
         } else {
             (None.into(), false)
         };
-        if let Some(txn) = txn.await {
-            let _ = self
-                .gateway
-                .close_sc(txn)
-                .inspect_err(|err| warn!(logger, "ignoring gateway close_sc error: {:?}", err))
-                .await;
-        }
         if remove {
             self.store.remove_state_channel(&message.sc_id);
+        }
+        if let Some(txn) = txn.await {
+            if let Some(gateway) = &mut self.gateway {
+                let _ = gateway
+                    .close_sc(txn)
+                    .inspect_err(|err| warn!(logger, "ignoring gateway close_sc error: {:?}", err))
+                    .await;
+            } else {
+                return Err(Error::no_service());
+            }
         }
         Ok(())
     }
@@ -417,11 +430,15 @@ impl RouterClient {
         packet: Option<&QuePacket>,
         sc: &BlockchainStateChannelV1,
     ) -> Result<Option<StateChannel>> {
-        let public_key = self.keypair.public_key();
-        check_active(sc, &mut self.gateway, &self.store)
-            .await
-            .and_then(|prev_sc| prev_sc.is_valid_purchase_sc(public_key, packet, sc))
-            .map(Some)
+        if let Some(gateway) = &mut self.gateway {
+            let public_key = self.keypair.public_key();
+            check_active(sc, gateway, &self.store)
+                .await
+                .and_then(|prev_sc| prev_sc.is_valid_purchase_sc(public_key, packet, sc))
+                .map(Some)
+        } else {
+            Err(Error::no_service())
+        }
     }
 
     async fn handle_purchase_state_channel_diff(
