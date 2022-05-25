@@ -45,24 +45,17 @@ command = "/etc/helium_gateway/install_update"
 [cache]
 max_packets = 20
 
-## Default routers for various release channels
-[router.alpha]
-# staging: oui 4
-# pubkey = "11263KvqW3GZPAvag5sQYtBJSjb25azSTSwoi5Tza9kboaLRxcsv"
-# uri = "http://54.193.165.228:8080"
-# dev: oui 2
-pubkey = "1124CJ9yJaHq4D6ugyPCDnSBzQik61C1BqD9VMh1vsUmjwt16HNB"
-uri = "http://54.176.88.149:8080"
+# Default target routers for data packets that are not known to helium packet
+# routers. 
+[[routers]]
+# PP-US
+pubkey = "11w77YQLhgUt8HUJrMtntGGr97RyXmot1ofs5Ct2ELTmbFoYsQa"
+uri = "http://44.238.156.97:8080"
 
-[router.beta]
-# production
-pubkey = "112qB3YaH5bZkCnKA5uRH7tBtGNv2Y5B4smv1jsmvGUzgKT71QpE"
-uri = "http://52.8.80.146:8080"
-
-[router.release]
-# production: oui 1
-pubkey = "112qB3YaH5bZkCnKA5uRH7tBtGNv2Y5B4smv1jsmvGUzgKT71QpE"
-uri = "http://52.8.80.146:8080"
+[[routers]]
+# PP-EU
+pubkey = "11afuQSrmk52mgxLu91AdtDXbJ9wmqWBUxC3hvjejoXkxEZfPvY"
+uri = "http://13.37.13.24:8080"
 
 # A list of gateway service keys and urls (note https is not supported
 [[gateways]]
