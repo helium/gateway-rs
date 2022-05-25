@@ -254,6 +254,9 @@ impl Dispatcher {
             "pubkey" => gateway.uri.pubkey.to_string(),
             "uri" => gateway.uri.uri.to_string());
 
+        // Notify of gateway change
+        self.notify_gateway_change(Some(gateway.clone())).await;
+        // Initialize liveness check for gateway
         let mut gateway_check = time::interval(GATEWAY_CHECK_INTERVAL);
         loop {
             tokio::select! {
@@ -312,6 +315,12 @@ impl Dispatcher {
         Ok(())
     }
 
+    async fn notify_gateway_change(&self, gateway: Option<GatewayService>) {
+        for router_entry in self.routers.values() {
+            router_entry.dispatch.gateway_changed(gateway.clone()).await;
+        }
+    }
+
     async fn prepare_gateway_change(
         &mut self,
         backoff: &Backoff,
@@ -322,10 +331,9 @@ impl Dispatcher {
         if shutdown.is_triggered() {
             return;
         }
-        // Tell routers to stop
-        for (_, router_entry) in self.routers.drain() {
-            router_entry.dispatch.gateway_changed().await;
-        }
+        // Tell routers to clear their gateway entries
+        self.notify_gateway_change(None).await;
+
         // Reset routing and region heigth for the next gateway
         self.routing_height = 0;
         self.region_height = 0;
@@ -508,18 +516,23 @@ impl Dispatcher {
             }
         }
         // Remove any routers that are not in the new oui uri list
+        let mut removables = Vec::with_capacity(self.routers.len());
         self.routers.retain(|key, entry| {
             if key.oui == routing.oui && !entry.routing.contains_uri(&key.uri) {
                 // Router will be removed from the map. The router is expected
-                // to stop itself when it receives the routing message
+                // to stop itself when it receives the stop message
                 info!(logger, "removing router";
                     "oui" => key.oui,
                     "uri" => key.uri.to_string()
                 );
+                removables.push(entry.dispatch.clone());
                 return false;
             }
             true
         });
+        for removable in removables {
+            removable.stop().await;
+        }
     }
 
     async fn start_router(
