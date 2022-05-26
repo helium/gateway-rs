@@ -36,6 +36,7 @@ pub struct HeightResponse {
     pub gateway: KeyedUri,
     pub height: u64,
     pub block_age: u64,
+    pub gateway_version: Option<u64>,
 }
 
 pub type MessageSender = sync::MessageSender<Message>;
@@ -376,6 +377,7 @@ impl Dispatcher {
             }
             Message::Height { response } => {
                 let reply = if let Some(gateway) = gateway {
+                    let gateway_version = gateway.version().await.unwrap_or(None);
                     gateway
                         .height()
                         .await
@@ -383,6 +385,7 @@ impl Dispatcher {
                             gateway: gateway.uri.clone(),
                             height,
                             block_age,
+                            gateway_version,
                         })
                 } else {
                     Err(Error::no_service())

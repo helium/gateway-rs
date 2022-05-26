@@ -8,7 +8,8 @@ use helium_proto::{
     BlockchainTxnStateChannelCloseV1, BlockchainVarV1, GatewayConfigReqV1, GatewayConfigRespV1,
     GatewayRegionParamsUpdateReqV1, GatewayRespV1, GatewayRoutingReqV1, GatewayScCloseReqV1,
     GatewayScFollowReqV1, GatewayScFollowStreamedRespV1, GatewayScIsActiveReqV1,
-    GatewayScIsActiveRespV1, GatewayValidatorsReqV1, GatewayValidatorsRespV1, Routing,
+    GatewayScIsActiveRespV1, GatewayValidatorsReqV1, GatewayValidatorsRespV1, GatewayVersionReqV1,
+    GatewayVersionRespV1, Routing,
 };
 use rand::{rngs::OsRng, seq::SliceRandom};
 use std::{
@@ -21,6 +22,7 @@ use tokio::sync::mpsc;
 use tokio_stream::{wrappers::ReceiverStream, Stream};
 
 type GatewayClient = services::gateway::Client<Channel>;
+pub use crate::service::version::GatewayVersion;
 
 #[derive(Debug)]
 pub struct Streaming {
@@ -271,6 +273,24 @@ impl GatewayService {
                 "invalid validator response {other:?}"
             ))),
             None => Err(Error::custom("empty validator response")),
+        }
+    }
+
+    pub async fn version(&mut self) -> Result<Option<u64>> {
+        let resp = self
+            .client
+            .version(GatewayVersionReqV1 {})
+            .await?
+            .into_inner();
+        resp.verify(&self.uri.pubkey)?;
+        match resp.msg {
+            Some(gateway_resp_v1::Msg::Version(GatewayVersionRespV1 { version })) => {
+                Ok(Some(version))
+            }
+            Some(other) => Err(Error::custom(format!(
+                "invalid validator response {other:?}"
+            ))),
+            None => Ok(None),
         }
     }
 }
