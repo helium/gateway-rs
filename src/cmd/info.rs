@@ -2,6 +2,7 @@ use crate::{
     api::{HeightRes, LocalClient},
     cmd::*,
     keyed_uri::KeyedUri,
+    service::gateway::GatewayVersion,
     settings::{self, Settings},
     Error, Region, Result,
 };
@@ -176,6 +177,11 @@ impl InfoCache {
             .and_then(KeyedUri::try_from)
     }
 
+    async fn gateway_version(&mut self) -> Result<Option<GatewayVersion>> {
+        let height = self._height().await?;
+        Ok(height.gateway_version.map(GatewayVersion::from))
+    }
+
     async fn region(&mut self) -> Result<Region> {
         if let Some(region) = self.region {
             return Ok(region);
@@ -213,6 +219,7 @@ impl InfoKey {
                     "key" : gateway.pubkey.to_string(),
                     "height": cache.height().await?,
                     "block_age": cache.block_age().await?,
+                    "version": cache.gateway_version().await?,
                 })
             }
             Self::Region => {

@@ -157,6 +157,7 @@ impl Api for LocalServer {
             height: reply.height,
             block_age: reply.block_age,
             gateway: Some(reply.gateway.into()),
+            gateway_version: reply.gateway_version,
         }))
     }
 }
