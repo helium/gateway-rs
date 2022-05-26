@@ -10,7 +10,6 @@ use futures::{
     TryFutureExt,
 };
 use helium_proto::BlockchainVarV1;
-use http::uri::Uri;
 use slog::{debug, info, o, warn, Logger};
 use slog_scope;
 use std::{collections::HashMap, pin::Pin, sync::Arc, time::Duration};
@@ -90,13 +89,13 @@ pub struct Dispatcher {
     cache_settings: CacheSettings,
     gateway_retry: u32,
     routers: HashMap<RouterKey, RouterEntry>,
-    default_router: Option<KeyedUri>,
+    default_routers: Option<Vec<KeyedUri>>,
 }
 
 #[derive(PartialEq, Eq, Hash)]
 struct RouterKey {
     oui: u32,
-    uri: Uri,
+    uri: KeyedUri,
 }
 
 #[derive(Debug)]
@@ -131,7 +130,7 @@ impl Dispatcher {
     ) -> Result<Self> {
         let seed_gateways = settings.gateways.clone();
         let routers = HashMap::with_capacity(5);
-        let default_router = settings.default_router();
+        let default_routers = settings.routers.clone();
         let cache_settings = settings.cache.clone();
         Ok(Self {
             keypair: settings.keypair.clone(),
@@ -142,7 +141,7 @@ impl Dispatcher {
             routers,
             routing_height: 0,
             region_height: 0,
-            default_router,
+            default_routers,
             cache_settings,
             gateway_retry: 0,
         })
@@ -153,10 +152,12 @@ impl Dispatcher {
         info!(logger, "starting"; 
             "region" => self.region.to_string());
 
-        if let Some(default_router) = &self.default_router {
-            info!(logger, "default router";
-                "pubkey" => default_router.pubkey.to_string(),
-                "uri" => default_router.uri.to_string());
+        if let Some(default_routers) = &self.default_routers {
+            for default_router in default_routers {
+                info!(logger, "default router";
+                    "pubkey" => default_router.pubkey.to_string(),
+                    "uri" => default_router.uri.to_string());
+            }
         }
 
         let gateway_backoff = Backoff::new(
@@ -404,9 +405,9 @@ impl Dispatcher {
             }
         }
         if !handled {
-            if let Some(default_router) = &self.default_router {
+            if let Some(default_routers) = &self.default_routers {
                 for (router_key, router_entry) in &self.routers {
-                    if router_key.uri == default_router.uri {
+                    if default_routers.contains(&router_key.uri) {
                         debug!(logger, "sending to default router");
                         let _ = router_entry.dispatch.uplink(packet.clone()).await;
                     }
@@ -497,7 +498,7 @@ impl Dispatcher {
         while let Some(uri) = uris.next().await {
             let key = RouterKey {
                 oui: routing.oui,
-                uri: uri.uri.clone(),
+                uri: uri.to_owned(),
             };
             // We have to allow clippy::map_entry above since we need to borrow
             // immutable before borrowing as mutable to insert
@@ -523,7 +524,7 @@ impl Dispatcher {
                 // to stop itself when it receives the stop message
                 info!(logger, "removing router";
                     "oui" => key.oui,
-                    "uri" => key.uri.to_string()
+                    "uri" => key.uri.uri.to_string()
                 );
                 removables.push(entry.dispatch.clone());
                 return false;

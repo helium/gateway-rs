@@ -14,7 +14,7 @@ use helium_proto::{
 use sha2::{Digest, Sha256};
 use std::{convert::TryFrom, mem};
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Debug, Eq)]
 pub enum StateChannelCausality {
     Effect,
     Cause,

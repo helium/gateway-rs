@@ -1,7 +1,6 @@
 use super::{DevAddrFilter, EuiFilter};
 use crate::{KeyedUri, PublicKey, Result};
 use helium_proto::{routing_information::Data as RoutingData, RoutingInformation};
-use http::Uri;
 use slog::{warn, Logger};
 use std::{convert::TryFrom, sync::Arc};
 
@@ -14,8 +13,8 @@ pub struct Routing {
 }
 
 impl Routing {
-    pub fn contains_uri(&self, uri: &Uri) -> bool {
-        self.uris.iter().any(|keyed_uri| &keyed_uri.uri == uri)
+    pub fn contains_uri(&self, uri: &KeyedUri) -> bool {
+        self.uris.iter().any(|keyed_uri| keyed_uri == uri)
     }
 
     pub fn matches_routing_info(&self, routing_info: &Option<RoutingInformation>) -> bool {

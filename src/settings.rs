@@ -5,7 +5,7 @@ use config::{Config, Environment, File};
 use http::uri::Uri;
 pub use log_method::LogMethod;
 use serde::Deserialize;
-use std::{collections::HashMap, fmt, path::Path, str::FromStr, sync::Arc};
+use std::{fmt, path::Path, str::FromStr, sync::Arc};
 
 pub fn version() -> semver::Version {
     semver::Version::parse(env!("CARGO_PKG_VERSION")).expect("unable to parse version")
@@ -36,9 +36,9 @@ pub struct Settings {
     pub log: LogSettings,
     /// Update settings
     pub update: UpdateSettings,
-    /// The router to deliver packets to when no routers are found while
+    /// The routers to deliver packets to when no routers are found while
     /// processing a packet.
-    pub router: HashMap<String, KeyedUri>,
+    pub routers: Option<Vec<KeyedUri>>,
     /// The validator(s) to query for chain related state. Defaults to a Helium
     /// validator.
     pub gateways: Vec<KeyedUri>,
@@ -109,12 +109,6 @@ impl Settings {
             .build()
             .and_then(|config| config.try_deserialize())
             .map_err(|e| e.into())
-    }
-
-    pub fn default_router(&self) -> Option<KeyedUri> {
-        self.router
-            .get(&self.update.channel.to_string())
-            .map(|keyed_uri| keyed_uri.to_owned())
     }
 
     /// Returns the onboarding key for this gateway. The onboarding key is

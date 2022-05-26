@@ -1,7 +1,12 @@
 use crate::{PublicKey, Result};
 use http::Uri;
 use serde::Deserialize;
-use std::{fmt, str::FromStr, sync::Arc};
+use std::{
+    fmt,
+    hash::{Hash, Hasher},
+    str::FromStr,
+    sync::Arc,
+};
 
 /// A URI that has an associated public key
 #[derive(Clone, Deserialize, Eq)]
@@ -14,6 +19,13 @@ pub struct KeyedUri {
 impl PartialEq for KeyedUri {
     fn eq(&self, other: &Self) -> bool {
         self.uri.eq(&other.uri) && self.pubkey.eq(&other.pubkey)
+    }
+}
+
+impl Hash for KeyedUri {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.uri.hash(state);
+        self.pubkey.hash(state);
     }
 }
 
