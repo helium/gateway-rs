@@ -1,6 +1,7 @@
 pub mod releases;
 
 use crate::{settings, Result, Settings};
+use fork::{fork, Fork};
 use futures::TryStreamExt;
 use http::Uri;
 use releases::Channel;
@@ -83,22 +84,40 @@ impl Updater {
     /// Does a platform specific install of the given package. Some platform
     /// will remove the package into a staging location and reboot to trigger the
     /// install whereas others may just need a package install and service
-    /// restart.
+    /// restart. Calls the platform specific install from a fork as the install
+    /// may terminate the parent process.
     pub async fn install(&self, download_path: &Path, logger: &Logger) -> Result {
-        match process::Command::new(&self.install_command)
-            .arg(download_path)
-            .output()
-            .await
-        {
-            Ok(output) => {
-                if output.status.success() {
-                    return Ok(());
+        match fork() {
+            Ok(Fork::Child) => {
+                // run install script in fork
+                match process::Command::new(&self.install_command)
+                    .arg(download_path)
+                    .output()
+                    .await
+                {
+                    Ok(output) => {
+                        if output.status.success() {
+                            info!(logger, "Install script successful");
+                            std::process::exit(0);
+                        }
+                        let message = String::from_utf8(output.stderr).unwrap();
+                        error!(logger, "install script failed with message {}", message);
+                        std::process::exit(0);
+                    }
+                    Err(err) => {
+                        error!(logger, "failed to run install script with error {:?}", err);
+                        std::process::exit(0);
+                    }
                 }
-                let output = String::from_utf8(output.stderr).unwrap();
-                error!(logger, "failed to install update {}", output);
-                Err(io::Error::new(io::ErrorKind::Other, output).into())
             }
-            Err(err) => Err(err.into()),
+
+            Ok(Fork::Parent(_)) => return Ok(()),
+
+            Err(_) => {
+                return Err(
+                    io::Error::new(io::ErrorKind::Other, "failed to fork to call install").into(),
+                )
+            }
         }
     }
 }

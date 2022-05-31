@@ -1,4 +1,4 @@
 #!/bin/sh
 
 /etc/init.d/helium_gateway disable
-
+/etc/init.d/helium_gateway stop
