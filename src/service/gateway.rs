@@ -89,30 +89,50 @@ impl Response for GatewayRespV1 {
 
 #[derive(Debug)]
 pub struct StateChannelFollowService {
-    tx: mpsc::Sender<GatewayScFollowReqV1>,
-    rx: Streaming,
+    tx: Option<mpsc::Sender<GatewayScFollowReqV1>>,
+    rx: Option<Streaming>,
 }
 
 impl StateChannelFollowService {
-    pub async fn new(mut client: GatewayClient, verifier: Arc<PublicKey>) -> Result<Self> {
-        let (tx, client_rx) = mpsc::channel(3);
-        let streaming = client
-            .follow_sc(ReceiverStream::new(client_rx))
-            .await?
-            .into_inner();
-        let rx = Streaming {
-            streaming,
-            verifier,
-        };
-        Ok(Self { tx, rx })
+    pub async fn new(gateway: &mut GatewayService) -> Result<Self> {
+        let mut result = Self { tx: None, rx: None };
+        result.set_gateway(Some(gateway)).await?;
+        Ok(result)
     }
 
     pub async fn send(&mut self, id: &[u8], owner: &[u8]) -> Result {
-        let msg = GatewayScFollowReqV1 {
-            sc_id: id.into(),
-            sc_owner: owner.into(),
+        match self.tx.as_mut() {
+            Some(tx) => {
+                let msg = GatewayScFollowReqV1 {
+                    sc_id: id.into(),
+                    sc_owner: owner.into(),
+                };
+                Ok(tx.send(msg).await?)
+            }
+            None => Err(Error::no_service()),
+        }
+    }
+
+    pub async fn set_gateway(&mut self, gateway: Option<&mut GatewayService>) -> Result {
+        let (tx, rx) = match gateway {
+            Some(gateway) => {
+                let (tx, client_rx) = mpsc::channel(3);
+                let streaming = gateway
+                    .client
+                    .follow_sc(ReceiverStream::new(client_rx))
+                    .await?
+                    .into_inner();
+                let rx = Streaming {
+                    streaming,
+                    verifier: gateway.uri.pubkey.clone(),
+                };
+                (Some(tx), Some(rx))
+            }
+            None => (None, None),
         };
-        Ok(self.tx.send(msg).await?)
+        self.tx = tx;
+        self.rx = rx;
+        Ok(())
     }
 }
 
@@ -120,7 +140,11 @@ impl Stream for StateChannelFollowService {
     type Item = Result<GatewayRespV1>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        Pin::new(&mut self.rx).poll_next(cx)
+        if let Some(rx) = self.rx.as_mut() {
+            Pin::new(rx).poll_next(cx)
+        } else {
+            Poll::Pending
+        }
     }
 }
 
@@ -222,7 +246,7 @@ impl GatewayService {
     }
 
     pub async fn follow_sc(&mut self) -> Result<StateChannelFollowService> {
-        StateChannelFollowService::new(self.client.clone(), self.uri.pubkey.clone()).await
+        StateChannelFollowService::new(self).await
     }
 
     pub async fn close_sc(&mut self, close_txn: BlockchainTxnStateChannelCloseV1) -> Result {

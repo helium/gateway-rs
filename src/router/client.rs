@@ -148,6 +148,13 @@ impl RouterClient {
                     Some(Message::GatewayChanged(gateway)) => {
                         info!(logger, "gateway changed");
                         self.gateway = gateway;
+                        match self.state_channel_follower.set_gateway(self.gateway.as_mut()).await {
+                            Ok(()) => (),
+                            Err(err) => {
+                                warn!(logger, "ignoring gateway service setup error: {err:?}");
+                                let _ = self.state_channel_follower.set_gateway(None).await;
+                            }
+                        }
                     },
                     Some(Message::Region(region)) => {
                         self.region = region;
@@ -166,15 +173,14 @@ impl RouterClient {
                             .await
                     },
                     Some(Err(err)) => {
-                        warn!(logger, "gateway service error, shutting down: {:?}", err);
-                        return Ok(())
+                        warn!(logger, "ignoring gateway service error: {:?}", err);
                     }
                     // The follower service has closd or errored out. Give up
                     // since the dispatcher will notice the disconnect/error and
                     // reconnect a potentially different gateway
                     None => {
-                        warn!(logger, "gateway service disconnected, shutting down");
-                        return Ok(())
+                        warn!(logger, "gateway service disconnected");
+                        let _ = self.state_channel_follower.set_gateway(None).await;
                     },
                 },
                 sc_message = self.state_channel.message() =>  match sc_message {
