@@ -1,7 +1,6 @@
 pub mod releases;
 
 use crate::{settings, Result, Settings};
-use fork::{fork, Fork};
 use futures::TryStreamExt;
 use http::Uri;
 use releases::Channel;
@@ -87,9 +86,17 @@ impl Updater {
     /// restart. Calls the platform specific install from a fork as the install
     /// may terminate the parent process.
     pub async fn install(&self, download_path: &Path, logger: &Logger) -> Result {
-        match fork() {
-            Ok(Fork::Child) => {
-                // run install script in fork
+        // create daemonized fork to run installer so it outlives parent
+        match daemonize::Daemonize::new()
+            .stdout(daemonize::Stdio::keep())
+            .execute()
+        {
+            daemonize::Outcome::Child(Ok(_)) => {
+                // create child logger
+                let logger = logger.new(o!("module" => "updater install process"));
+
+                // run install script 
+                info!(logger, "starting install command");
                 match process::Command::new(&self.install_command)
                     .arg(download_path)
                     .output()
@@ -97,7 +104,7 @@ impl Updater {
                 {
                     Ok(output) => {
                         if output.status.success() {
-                            info!(logger, "Install script successful");
+                            info!(logger, "install child process successfully ran script");
                             std::process::exit(0);
                         }
                         let message = String::from_utf8(output.stderr).unwrap();
@@ -109,14 +116,16 @@ impl Updater {
                         std::process::exit(0);
                     }
                 }
+
             }
 
-            Ok(Fork::Parent(_)) => return Ok(()),
+            daemonize::Outcome::Child(Err(_)) => Ok(()),
 
-            Err(_) => {
-                return Err(
-                    io::Error::new(io::ErrorKind::Other, "failed to fork to call install").into(),
-                )
+            daemonize::Outcome::Parent(Ok(_)) => Ok(()),
+
+            daemonize::Outcome::Parent(Err(_)) => {
+                error!(logger,"failed to create fork to install update");
+                Err(io::Error::new(io::ErrorKind::Other, "failed to fork to call install").into())
             }
         }
     }

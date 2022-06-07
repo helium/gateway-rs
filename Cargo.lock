@@ -203,12 +203,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "boxfnonce"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5988cb1d626264ac94100be357308f29ff7cbdd3b36bda27f450a4ee3f713426"
-
-[[package]]
 name = "bs58"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -361,11 +355,9 @@ dependencies = [
 
 [[package]]
 name = "daemonize"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "70c24513e34f53b640819f0ac9f705b673fcf4006d7aab8778bee72ebfc89815"
+version = "0.5.0"
+source = "git+https://github.com/knsd/daemonize?rev=f7be28e#f7be28efa1b4a70e43bb37b5f4ff4d664992edca"
 dependencies = [
- "boxfnonce",
  "libc",
 ]
 
@@ -541,15 +533,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 
 [[package]]
-name = "fork"
-version = "0.1.19"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57b4f1a740392e495821244cc1658d86496ac6e67a47da67e243ed401b937717"
-dependencies = [
- "libc",
-]
-
-[[package]]
 name = "form_urlencoded"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -659,7 +642,6 @@ dependencies = [
  "config",
  "daemonize",
  "exponential-backoff",
- "fork",
  "futures",
  "helium-crypto",
  "helium-proto",
