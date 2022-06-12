@@ -21,7 +21,7 @@ pub use error::{Error, Result};
 pub use keyed_uri::KeyedUri;
 pub use keypair::{Keypair, PublicKey};
 pub use packet::Packet;
-pub use region::Region;
+pub use region::{Region, RegionParams};
 pub use settings::{CacheSettings, Settings};
 pub use traits::*;
 pub use updater::{releases, Updater};

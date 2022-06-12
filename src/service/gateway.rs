@@ -1,6 +1,6 @@
 use crate::{
     service::{CONNECT_TIMEOUT, RPC_TIMEOUT},
-    Error, KeyedUri, Keypair, MsgSign, MsgVerify, PublicKey, Region, Result,
+    Error, KeyedUri, Keypair, MsgSign, MsgVerify, PublicKey, RegionParams, Result,
 };
 use helium_proto::{
     gateway_resp_v1,
@@ -48,7 +48,7 @@ impl Stream for Streaming {
 pub(crate) trait Response {
     fn height(&self) -> u64;
     fn routings(&self) -> Result<&[Routing]>;
-    fn region(&self) -> Result<Region>;
+    fn region_params(&self) -> Result<RegionParams>;
     fn state_channel_response(&self) -> Result<&GatewayScFollowStreamedRespV1>;
 }
 
@@ -66,10 +66,10 @@ impl Response for GatewayRespV1 {
         }
     }
 
-    fn region(&self) -> Result<Region> {
+    fn region_params(&self) -> Result<RegionParams> {
         match &self.msg {
             Some(gateway_resp_v1::Msg::RegionParamsStreamedResp(params)) => {
-                Region::from_i32(params.region)
+                RegionParams::try_from(params.to_owned())
             }
             msg => Err(Error::custom(
                 format!("Unexpected gateway message {msg:?}",),

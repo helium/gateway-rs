@@ -112,7 +112,7 @@ impl Packet {
             .map_err(Error::from)
     }
 
-    pub fn to_pull_resp(&self, use_rx2: bool) -> Result<Option<pull_resp::TxPk>> {
+    pub fn to_pull_resp(&self, use_rx2: bool, tx_power: u32) -> Result<Option<pull_resp::TxPk>> {
         let (timestamp, frequency, datarate) = if use_rx2 {
             if let Some(rx2) = &self.0.rx2_window {
                 (Some(rx2.timestamp), rx2.frequency, rx2.datarate.parse()?)
@@ -137,7 +137,7 @@ impl Packet {
             freq: frequency as f64,
             data: self.0.payload.clone(),
             size: self.0.payload.len() as u64,
-            powe: 27,
+            powe: tx_power as u64,
             rfch: 0,
             tmst: match timestamp {
                 Some(t) => Some(StringOrNum::N(t as u32)),

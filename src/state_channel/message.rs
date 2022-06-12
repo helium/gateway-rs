@@ -12,7 +12,7 @@ impl StateChannelMessage {
     pub async fn packet(
         packet: Packet,
         keypair: Arc<Keypair>,
-        region: Region,
+        region: &Region,
         hold_time: u64,
     ) -> Result<Self> {
         let mut packet = BlockchainStateChannelPacketV1 {
@@ -29,7 +29,7 @@ impl StateChannelMessage {
     pub async fn offer(
         packet: Packet,
         keypair: Arc<Keypair>,
-        region: Region,
+        region: &Region,
         req_diff: bool,
     ) -> Result<Self> {
         let frame = Packet::parse_frame(lorawan::Direction::Uplink, packet.payload())?;

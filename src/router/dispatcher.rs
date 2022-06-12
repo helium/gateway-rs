@@ -116,7 +116,7 @@ const GATEWAY_MAX_BLOCK_AGE: Duration = Duration::from_secs(1800); // 30 minutes
 #[derive(Debug, Hash, PartialEq, Eq, Clone)]
 enum GatewayStream {
     Routing,
-    Region,
+    RegionParams,
 }
 
 type GatewayStreams = StreamMap<GatewayStream, service::gateway::Streaming>;
@@ -151,7 +151,7 @@ impl Dispatcher {
     pub async fn run(&mut self, shutdown: triggered::Listener, logger: &Logger) -> Result {
         let logger = logger.new(o!("module" => "dispatcher"));
         info!(logger, "starting"; 
-            "region" => self.region.to_string());
+            "region" => self.region);
 
         if let Some(default_routers) = &self.default_routers {
             for default_router in default_routers {
@@ -229,10 +229,10 @@ impl Dispatcher {
         let routing = routing_gateway.routing(self.routing_height);
         let region_params = gateway.region_params(self.keypair.clone());
         match tokio::try_join!(routing, region_params) {
-            Ok((routing, region)) => {
+            Ok((routing, region_params)) => {
                 let stream_map = StreamMap::from_iter([
                     (GatewayStream::Routing, routing),
-                    (GatewayStream::Region, region),
+                    (GatewayStream::RegionParams, region_params),
                 ]);
                 Ok(Some((gateway, stream_map)))
             }
@@ -269,12 +269,12 @@ impl Dispatcher {
                 gateway_message = streams.next() => match gateway_message {
                     Some((gateway_stream, Ok(gateway_message))) => match gateway_stream {
                         GatewayStream::Routing => self.handle_routing_update(&mut gateway, &gateway_message, &shutdown, logger).await,
-                        GatewayStream::Region => self.handle_region_update(&gateway_message, logger).await,
+                        GatewayStream::RegionParams => self.handle_region_params_update(&gateway_message, logger).await,
                     },
                     Some((gateway_stream, Err(err))) =>  {
                         match gateway_stream {
                             GatewayStream::Routing =>  warn!(logger, "gateway routing stream error: {err:?}"),
-                            GatewayStream::Region =>  warn!(logger, "gateway region stream error: {err:?}"),
+                            GatewayStream::RegionParams =>  warn!(logger, "gateway region_params stream error: {err:?}"),
                         }
                         return Ok(())
                     },
@@ -419,7 +419,7 @@ impl Dispatcher {
         }
     }
 
-    async fn handle_region_update<R: service::gateway::Response>(
+    async fn handle_region_params_update<R: service::gateway::Response>(
         &mut self,
         response: &R,
         logger: &Logger,
@@ -429,21 +429,26 @@ impl Dispatcher {
         if update_height <= self.region_height {
             warn!(
                 logger,
-                "region returned invalid height {update_height} while at {current_height}"
+                "region_params returned invalid height {update_height} while at {current_height}"
             );
             return;
         }
-        match response.region() {
-            Ok(region) => {
+        match response.region_params() {
+            Ok(region_params) => {
                 self.region_height = update_height;
-                self.region = region;
+                self.region = region_params.region;
                 info!(
-                    logger,
-                    "updated region to {region} at height {update_height}"
+                    logger, "updated region";
+                    "region" => self.region,
+                    "height" => update_height
                 );
+                // Tell downlink handler
+                self.downlinks
+                    .region_params_changed(region_params.clone())
+                    .await;
                 // Tell routers about it
                 for router_entry in self.routers.values() {
-                    router_entry.dispatch.region_changed(region).await;
+                    router_entry.dispatch.region_changed(self.region).await;
                 }
             }
             Err(err) => {

@@ -1,5 +1,7 @@
-use crate::{Error, Result};
-use helium_proto::Region as ProtoRegion;
+use crate::{error::RegionError, Error, Result};
+use helium_proto::{
+    BlockchainRegionParamV1, GatewayRegionParamsStreamedRespV1, Region as ProtoRegion,
+};
 use serde::{de, Deserialize, Deserializer};
 use std::fmt;
 
@@ -97,5 +99,58 @@ impl Region {
         ProtoRegion::from_i32(v)
             .map(Self)
             .ok_or_else(|| Error::custom(format!("unsupported region {v}")))
+    }
+}
+
+impl slog::Value for Region {
+    fn serialize(
+        &self,
+        _record: &slog::Record,
+        key: slog::Key,
+        serializer: &mut dyn slog::Serializer,
+    ) -> slog::Result {
+        serializer.emit_str(key, &self.to_string())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct RegionParams {
+    pub gain: u64,
+    pub region: Region,
+    pub params: Vec<BlockchainRegionParamV1>,
+}
+
+impl TryFrom<GatewayRegionParamsStreamedRespV1> for RegionParams {
+    type Error = Error;
+    fn try_from(value: GatewayRegionParamsStreamedRespV1) -> Result<Self> {
+        let region = Region::from_i32(value.region)?;
+        let params = if let Some(params) = value.params {
+            params.region_params
+        } else {
+            return Err(RegionError::no_region_params());
+        };
+        Ok(Self {
+            gain: value.gain,
+            params,
+            region,
+        })
+    }
+}
+
+impl RegionParams {
+    pub fn max_eirp(&self) -> Option<u32> {
+        self.params.iter().map(|p| p.max_eirp).max()
+    }
+
+    pub fn tx_power(&self) -> Option<u32> {
+        self.max_eirp()
+            .map(|max_eirp| ((max_eirp - self.gain as u32) as f32 / 10.0).trunc() as u32)
+    }
+
+    pub fn to_string(v: &Option<Self>) -> String {
+        match v {
+            None => "none".to_string(),
+            Some(params) => params.region.to_string(),
+        }
     }
 }
