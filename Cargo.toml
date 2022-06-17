@@ -50,6 +50,7 @@ signature = "*"
 async-trait = "0"
 angry-purple-tiger = "0"
 lorawan = { package = "lorawan", path = "lorawan" }
+rust_decimal = {version = "1", features = ["serde-with-float"]}
 exponential-backoff = {git = "https://github.com/yoshuawuyts/exponential-backoff", branch = "master"}
 semtech-udp = { version = ">=0.9.4,<1", default-features=false, features=["server"] }
 helium-proto = { git = "https://github.com/helium/proto", branch="master", features=["services"]}

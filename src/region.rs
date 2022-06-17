@@ -2,6 +2,7 @@ use crate::{error::RegionError, Error, Result};
 use helium_proto::{
     BlockchainRegionParamV1, GatewayRegionParamsStreamedRespV1, Region as ProtoRegion,
 };
+use rust_decimal::Decimal;
 use serde::{de, Deserialize, Deserializer};
 use std::fmt;
 
@@ -115,7 +116,7 @@ impl slog::Value for Region {
 
 #[derive(Debug, Clone)]
 pub struct RegionParams {
-    pub gain: u64,
+    pub gain: Decimal,
     pub region: Region,
     pub params: Vec<BlockchainRegionParamV1>,
 }
@@ -130,7 +131,7 @@ impl TryFrom<GatewayRegionParamsStreamedRespV1> for RegionParams {
             return Err(RegionError::no_region_params());
         };
         Ok(Self {
-            gain: value.gain,
+            gain: Decimal::new(value.gain as i64, 1),
             params,
             region,
         })
@@ -138,13 +139,17 @@ impl TryFrom<GatewayRegionParamsStreamedRespV1> for RegionParams {
 }
 
 impl RegionParams {
-    pub fn max_eirp(&self) -> Option<u32> {
-        self.params.iter().map(|p| p.max_eirp).max()
+    pub fn max_eirp(&self) -> Option<Decimal> {
+        self.params
+            .iter()
+            .max_by_key(|p| p.max_eirp)
+            .map(|v| Decimal::new(v.max_eirp as i64, 1))
     }
 
     pub fn tx_power(&self) -> Option<u32> {
+        use rust_decimal::prelude::ToPrimitive;
         self.max_eirp()
-            .map(|max_eirp| ((max_eirp - self.gain as u32) as f32 / 10.0).trunc() as u32)
+            .and_then(|max_eirp| (max_eirp - self.gain).trunc().to_u32())
     }
 
     pub fn to_string(v: &Option<Self>) -> String {
