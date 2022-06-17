@@ -148,7 +148,7 @@ impl RouterClient {
                     Some(Message::GatewayChanged(gateway)) => {
                         info!(logger, "gateway changed");
                         self.gateway = gateway;
-                        match self.state_channel_follower.set_gateway(self.gateway.as_mut()).await {
+                        match self.state_channel_follower.set_gateway(self.gateway.clone()).await {
                             Ok(()) => (),
                             Err(err) => {
                                 warn!(logger, "ignoring gateway service setup error: {err:?}");
