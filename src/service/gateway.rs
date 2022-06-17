@@ -12,6 +12,7 @@ use helium_proto::{
     GatewayVersionRespV1, Routing,
 };
 use rand::{rngs::OsRng, seq::SliceRandom};
+use slog::{info, Logger};
 use std::{
     pin::Pin,
     sync::Arc,
@@ -105,8 +106,8 @@ impl StateChannelFollowService {
         Ok(result)
     }
 
-    pub async fn send(&mut self, id: &[u8], owner: &[u8]) -> Result {
-        self.connect().await?;
+    pub async fn send(&mut self, id: &[u8], owner: &[u8], logger: &Logger) -> Result {
+        self.connect(logger).await?;
         match self.tx.as_mut() {
             Some(tx) => {
                 let msg = GatewayScFollowReqV1 {
@@ -119,12 +120,13 @@ impl StateChannelFollowService {
         }
     }
 
-    pub async fn connect(&mut self) -> Result {
+    pub async fn connect(&mut self, logger: &Logger) -> Result {
         if self.tx.is_some() {
             return Ok(());
         }
         match self.gateway.as_mut() {
             Some(gateway) => {
+                info!(logger, "connecting to gateway state channel updates");
                 let (tx, client_rx) = mpsc::channel(3);
                 let streaming = gateway
                     .client

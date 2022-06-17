@@ -356,7 +356,7 @@ impl RouterClient {
                             info!(logger, "accepting new state channel";
                                     "sc_id" => sc.id().to_b64url());
                             self.state_channel_follower
-                                .send(sc.id(), sc.owner())
+                                .send(sc.id(), sc.owner(), logger)
                                 .await?;
                             self.store.store_state_channel(sc)?;
                             let _ = self
