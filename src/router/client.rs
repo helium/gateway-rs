@@ -30,7 +30,7 @@ pub const STATE_CHANNEL_CONNECT_INTERVAL: Duration = Duration::from_secs(60);
 #[derive(Debug)]
 pub enum Message {
     Uplink(Packet),
-    Region(Region),
+    RegionChanged(Region),
     GatewayChanged(Option<GatewayService>),
     Stop,
 }
@@ -50,7 +50,7 @@ impl MessageSender {
     }
 
     pub async fn region_changed(&self, region: Region) {
-        let _ = self.0.send(Message::Region(region)).await;
+        let _ = self.0.send(Message::RegionChanged(region)).await;
     }
 
     pub async fn uplink(&self, packet: Packet) -> Result {
@@ -156,9 +156,10 @@ impl RouterClient {
                             }
                         }
                     },
-                    Some(Message::Region(region)) => {
+                    Some(Message::RegionChanged(region)) => {
                         self.region = region;
-                        info!(logger, "updated region to {region}" );
+                        info!(logger, "updated region";
+                            "region" => region);
                     },
                     Some(Message::Stop) => {
                         info!(logger, "stop requested, shutting down");
@@ -495,7 +496,7 @@ impl RouterClient {
         StateChannelMessage::offer(
             packet.packet().clone(),
             self.keypair.clone(),
-            self.region,
+            &self.region,
             !first_offer,
         )
         .and_then(|message| self.state_channel.send(message.to_message()))
@@ -512,7 +513,7 @@ impl RouterClient {
         StateChannelMessage::packet(
             packet.packet().clone(),
             self.keypair.clone(),
-            self.region,
+            &self.region,
             packet.hold_time().as_millis() as u64,
         )
         .and_then(|message| self.state_channel.send(message.to_message()))

@@ -1,5 +1,8 @@
-use crate::{Error, Result};
-use helium_proto::Region as ProtoRegion;
+use crate::{error::RegionError, Error, Result};
+use helium_proto::{
+    BlockchainRegionParamV1, GatewayRegionParamsStreamedRespV1, Region as ProtoRegion,
+};
+use rust_decimal::Decimal;
 use serde::{de, Deserialize, Deserializer};
 use std::fmt;
 
@@ -97,5 +100,62 @@ impl Region {
         ProtoRegion::from_i32(v)
             .map(Self)
             .ok_or_else(|| Error::custom(format!("unsupported region {v}")))
+    }
+}
+
+impl slog::Value for Region {
+    fn serialize(
+        &self,
+        _record: &slog::Record,
+        key: slog::Key,
+        serializer: &mut dyn slog::Serializer,
+    ) -> slog::Result {
+        serializer.emit_str(key, &self.to_string())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct RegionParams {
+    pub gain: Decimal,
+    pub region: Region,
+    pub params: Vec<BlockchainRegionParamV1>,
+}
+
+impl TryFrom<GatewayRegionParamsStreamedRespV1> for RegionParams {
+    type Error = Error;
+    fn try_from(value: GatewayRegionParamsStreamedRespV1) -> Result<Self> {
+        let region = Region::from_i32(value.region)?;
+        let params = if let Some(params) = value.params {
+            params.region_params
+        } else {
+            return Err(RegionError::no_region_params());
+        };
+        Ok(Self {
+            gain: Decimal::new(value.gain as i64, 1),
+            params,
+            region,
+        })
+    }
+}
+
+impl RegionParams {
+    pub fn max_eirp(&self) -> Option<Decimal> {
+        self.params
+            .iter()
+            .max_by_key(|p| p.max_eirp)
+            .map(|v| Decimal::new(v.max_eirp as i64, 1))
+    }
+
+    pub fn tx_power(&self) -> Option<u32> {
+        use rust_decimal::prelude::ToPrimitive;
+        self.max_eirp()
+            .and_then(|max_eirp| (max_eirp - self.gain).trunc().to_u32())
+    }
+
+    pub fn to_string(v: &Option<Self>) -> String {
+        match v {
+            None => "none".to_string(),
+            Some(params) => params.region.to_string(),
+        }
     }
 }

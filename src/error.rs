@@ -26,6 +26,8 @@ pub enum Error {
     Semtech(#[from] semtech_udp::server_runtime::Error),
     #[error("time error")]
     Time(#[from] std::time::SystemTimeError),
+    #[error("region error")]
+    Region(#[from] RegionError),
 }
 
 #[derive(Error, Debug)]
@@ -117,6 +119,12 @@ pub enum StateChannelSummaryError {
     PacketDCMismatch,
     #[error("invalid address")]
     InvalidAddress,
+}
+
+#[derive(Debug, Error)]
+pub enum RegionError {
+    #[error("no region params found or active")]
+    NoRegionParams,
 }
 
 macro_rules! from_err {
@@ -217,6 +225,12 @@ impl StateChannelError {
 
     pub fn low_balance() -> Error {
         Error::StateChannel(Box::new(Self::LowBalance))
+    }
+}
+
+impl RegionError {
+    pub fn no_region_params() -> Error {
+        Error::Region(RegionError::NoRegionParams)
     }
 }
 

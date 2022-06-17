@@ -95,11 +95,9 @@ impl<'de> Deserialize<'de> for Channel {
                 let value = value.to_lowercase();
                 match value.parse::<releases::Channel>() {
                     Ok(channel) => Ok(channel),
-                    Err(_) => {
-                        return Err(de::Error::custom(format!(
-                            "unsupported update channel: \"{value}\"",
-                        )))
-                    }
+                    Err(_) => Err(de::Error::custom(format!(
+                        "unsupported update channel: \"{value}\"",
+                    ))),
                 }
             }
         }

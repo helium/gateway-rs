@@ -157,7 +157,7 @@ impl Fhdr {
         let dev_addr = reader.read_u32::<LittleEndian>()?;
         let fctrl = FCtrl::read(direction, reader)?;
         let fcnt = reader.read_u16::<LittleEndian>()?;
-        let mut fopts = Vec::with_capacity(fctrl.fopts_len().into());
+        let mut fopts = vec![0u8; fctrl.fopts_len().into()];
         reader.read_exact(&mut fopts)?;
         let res = Self {
             dev_addr,
