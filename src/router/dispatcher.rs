@@ -441,21 +441,18 @@ impl Dispatcher {
             Ok(region_params) => {
                 self.region_height = update_height;
 
+                let mut reason = "updated region";
                 if update {
                     self.region = region_params.region;
-
-                    info!(
-                        logger, "updated region";
-                        "region" => self.region,
-                        "height" => update_height
-                    );
                 } else {
-                    info!(
-                        logger, "using region specified in settings";
-                        "region" => self.region,
-                        "height" => update_height
-                    );
+                    reason = "using region specified in settings";
                 }
+
+                info!(
+                    logger, "{}", reason;
+                    "region" => self.region,
+                    "height" => update_height
+                );
 
                 // Tell downlink handler
                 self.downlinks
