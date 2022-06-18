@@ -20,6 +20,8 @@ keypair = "/etc/helium_gateway/gateway_key.bin"
 listen = "127.0.0.1:1680"
 api = 4467
 region = "US915"
+# Allow region to be updated automatically, disable to force using region set here.
+region_update = true
 
 [log]
 method = "stdio"

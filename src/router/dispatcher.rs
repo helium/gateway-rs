@@ -82,6 +82,7 @@ impl MessageSender {
 pub struct Dispatcher {
     keypair: Arc<Keypair>,
     region: Region,
+    region_update: bool,
     messages: MessageReceiver,
     downlinks: gateway::MessageSender,
     seed_gateways: Vec<KeyedUri>,
@@ -136,6 +137,7 @@ impl Dispatcher {
         Ok(Self {
             keypair: settings.keypair.clone(),
             region: settings.region,
+            region_update: settings.region_update,
             messages,
             downlinks,
             seed_gateways,
@@ -187,7 +189,7 @@ impl Dispatcher {
                     .and_then(|service | self.setup_gateway_streams(service, &logger))
                      => match gateway {
                         Ok(Some((service, gateway_streams))) =>
-                            self.run_with_gateway(service, gateway_streams, shutdown.clone(), &logger)
+                            self.run_with_gateway(service, gateway_streams, shutdown.clone(), &logger, self.region_update)
                                 .await?,
                         Ok(None) =>
                             return Ok(()),
@@ -251,6 +253,7 @@ impl Dispatcher {
         mut streams: GatewayStreams,
         shutdown: triggered::Listener,
         logger: &Logger,
+        region_update: bool,
     ) -> Result {
         info!(logger, "using gateway";
             "pubkey" => gateway.uri.pubkey.to_string(),
@@ -269,7 +272,7 @@ impl Dispatcher {
                 gateway_message = streams.next() => match gateway_message {
                     Some((gateway_stream, Ok(gateway_message))) => match gateway_stream {
                         GatewayStream::Routing => self.handle_routing_update(&mut gateway, &gateway_message, &shutdown, logger).await,
-                        GatewayStream::RegionParams => self.handle_region_params_update(&gateway_message, logger).await,
+                        GatewayStream::RegionParams => self.handle_region_params_update(&gateway_message, logger, region_update).await,
                     },
                     Some((gateway_stream, Err(err))) =>  {
                         match gateway_stream {
@@ -423,6 +426,7 @@ impl Dispatcher {
         &mut self,
         response: &R,
         logger: &Logger,
+        update: bool,
     ) {
         let update_height = response.height();
         let current_height = self.region_height;
@@ -436,12 +440,23 @@ impl Dispatcher {
         match response.region_params() {
             Ok(region_params) => {
                 self.region_height = update_height;
-                self.region = region_params.region;
-                info!(
-                    logger, "updated region";
-                    "region" => self.region,
-                    "height" => update_height
-                );
+
+                if update {
+                    self.region = region_params.region;
+
+                    info!(
+                        logger, "updated region";
+                        "region" => self.region,
+                        "height" => update_height
+                    );
+                } else {
+                    info!(
+                        logger, "using region specified in settings";
+                        "region" => self.region,
+                        "height" => update_height
+                    );
+                }
+
                 // Tell downlink handler
                 self.downlinks
                     .region_params_changed(region_params.clone())

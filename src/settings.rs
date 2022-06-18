@@ -32,6 +32,8 @@ pub struct Settings {
     /// The lorawan region to use. This value should line up with the configured
     /// region of the semtech packet forwarder. Defaults to "US915"
     pub region: Region,
+    /// Use the region provided in settings or allow updating region automatically
+    pub region_update: bool,
     /// Log settings
     pub log: LogSettings,
     /// Update settings
