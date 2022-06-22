@@ -7,6 +7,8 @@ TAR = { source = "${CARGO_MAKE_RUST_TARGET_OS}", default_value = "linux", mappin
 AR = "ar"
 PKG_BUILD_DIR ="target/pkg/${CARGO_MAKE_PROFILE}"
 PKG_SRC_DIR = "package/${CARGO_MAKE_PROFILE}"
+FEATURES = "ecc608"
+BUILD_COMMAND = "cross"
 
 [env.raspi01]
 CROSS_TARGET = "arm-unknown-linux-gnueabihf"
@@ -23,6 +25,12 @@ PKG = "deb"
 [env.x86_64]
 CROSS_TARGET = "x86_64-unknown-linux-gnu"
 PKG = "deb"
+
+[env.freedomfi]
+CROSS_TARGET = "x86_64-unknown-linux-gnu"
+PKG = "deb"
+BUILD_COMMAND = "cargo"
+FEATURES = "tpm"
 
 [env.klkgw]
 CROSS_TARGET = "armv7-unknown-linux-musleabihf"
@@ -82,16 +90,19 @@ CROSS_TARGET = "armv5te-unknown-linux-musleabi"
 PKG = "ipk"
 IPK_USE_AR = true
 
-[tasks.cross]
-description = "Runs the cross rust compiler."
+[tasks.build]
+description = "Runs the cross/cargo rust compiler."
 category = "Build"
 install_crate = false
-condition = { env_set = ["CROSS_TARGET"] }
-command = "cross"
+condition = { env_set = ["CROSS_TARGET", "BUILD_COMMAND"] }
+command = "${BUILD_COMMAND}"
 args = [
   "build",
   "--target",
   "${CROSS_TARGET}",
+  "--no-default-features",
+  "--features",
+  "${FEATURES}",
   "--release"
 ]
 
@@ -108,7 +119,7 @@ run_task = [
 [tasks.ipk]
 description = "Builds an ipk for openwrt/opk based targets"
 category = "Package"
-dependencies = ["cross"]
+dependencies = ["build"]
 condition = { env_set = ["CROSS_TARGET", "TAR", "AR", "PKG_NAME", "IPK_USE_AR"] }
 env = { "PKG_BUILD_DIR" = "target/pkg/${CARGO_MAKE_PROFILE}", "PKG_SRC_DIR" = "package/${CARGO_MAKE_PROFILE}" }
 script = '''
@@ -158,7 +169,7 @@ script = '''
 [tasks.deb]
 description = "Builds a deb package for debian based targets"
 category = "Package"
-dependencies = ["cross"]
+dependencies = ["build"]
 condition = { env_set = ["CROSS_TARGET", "PKG_NAME"] }
 script = '''
 	# make base folder
