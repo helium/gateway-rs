@@ -71,6 +71,8 @@ If your [supported LoRa gateway](#supported-platforms) did not come with helium-
 
 If this command succeeds the logs on the gateway will show the service starting and the local packet forwarder client connecting to the gateway service.
 
+ **NOTE**: This regionnal setting is only used for uplinks, due to TX power regulations the gateway location needs to be asserted on the blockchain to be able to send downlinks. See [this documentation](https://docs.helium.com/mine-hnt/data-only-hotspots) to assert a gateway location.
+
 ## Supported Platforms
 
 The following platforms have already been tested by Helium and our community. Our plan is to test this on all relevant hardware platforms used by the Helium Network. If your preferred platform isn't listed yet, here's how to get it added.
