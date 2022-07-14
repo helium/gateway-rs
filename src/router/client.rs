@@ -74,6 +74,9 @@ pub struct RouterClient {
     gateway: Option<GatewayService>,
     state_channel_follower: StateChannelFollowService,
     store: RouterStore,
+    // This allows an attempt to connect on an initial uplink without endlessly
+    // trying to connect to a failing state channel
+    first_uplink: bool,
     // This is used to request state channel diffs on anything but the first
     // offer sent to the state channel
     first_offer: bool,
@@ -105,6 +108,7 @@ impl RouterClient {
             state_channel,
             gateway,
             state_channel_follower,
+            first_uplink: true,
             first_offer: true,
         })
     }
@@ -228,11 +232,14 @@ impl RouterClient {
     }
 
     async fn handle_uplink(&mut self, logger: &Logger, uplink: Packet) -> Result {
-        // REVIEW: There was previously logic to handle first connection attempts.
-        // Is that still necessary, or will this just send packets into the void
-        // until a good connection can be made?
-        let packet = QuePacket::from(uplink);
-        self.send_packet(logger, Some(&packet)).await
+        self.store.store_waiting_packet(uplink)?;
+        // First uplink is used to get a quicker state channel connect then
+        // waiting for the state channel connect timer to trigger
+        if self.first_uplink {
+            self.first_uplink = false;
+            self.maybe_connect_state_channel(logger).await;
+        }
+        self.send_packets(logger).await
     }
 
     async fn handle_state_channel_close_message<R: service::gateway::Response>(
@@ -476,6 +483,17 @@ impl RouterClient {
             if self.state_channel.capacity() == 0 || self.store.packet_queue_full() {
                 return Ok(());
             }
+        }
+        Ok(())
+    }
+
+    async fn send_packets(&mut self, logger: &Logger) -> Result {
+        if !self.state_channel.is_connected() {
+            return Ok(());
+        }
+
+        while let Some(p) = self.store.pop_waiting_packet() {
+            self.send_packet(logger, Some(&p)).await?;
         }
         Ok(())
     }
