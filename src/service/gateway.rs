@@ -5,22 +5,18 @@ use crate::{
 use helium_proto::{
     gateway_resp_v1,
     services::{self, Channel, Endpoint},
-    BlockchainTxnStateChannelCloseV1, BlockchainVarV1, GatewayConfigReqV1, GatewayConfigRespV1,
-    GatewayRegionParamsUpdateReqV1, GatewayRespV1, GatewayRoutingReqV1, GatewayScCloseReqV1,
-    GatewayScFollowReqV1, GatewayScFollowStreamedRespV1, GatewayScIsActiveReqV1,
-    GatewayScIsActiveRespV1, GatewayValidatorsReqV1, GatewayValidatorsRespV1, GatewayVersionReqV1,
-    GatewayVersionRespV1, Routing,
+    BlockchainVarV1, GatewayConfigReqV1, GatewayConfigRespV1, GatewayRegionParamsUpdateReqV1,
+    GatewayRespV1, GatewayRoutingReqV1, GatewayScIsActiveReqV1, GatewayScIsActiveRespV1,
+    GatewayValidatorsReqV1, GatewayValidatorsRespV1, GatewayVersionReqV1, GatewayVersionRespV1,
+    Routing,
 };
 use rand::{rngs::OsRng, seq::SliceRandom};
-use slog::{info, Logger};
 use std::{
     pin::Pin,
     sync::Arc,
     task::{Context, Poll},
-    time::Duration,
 };
-use tokio::sync::mpsc;
-use tokio_stream::{wrappers::ReceiverStream, Stream};
+use tokio_stream::Stream;
 
 type GatewayClient = services::gateway::Client<Channel>;
 pub use crate::service::version::GatewayVersion;
@@ -50,7 +46,6 @@ pub(crate) trait Response {
     fn height(&self) -> u64;
     fn routings(&self) -> Result<&[Routing]>;
     fn region_params(&self) -> Result<RegionParams>;
-    fn state_channel_response(&self) -> Result<&GatewayScFollowStreamedRespV1>;
 }
 
 impl Response for GatewayRespV1 {
@@ -77,92 +72,6 @@ impl Response for GatewayRespV1 {
             )),
         }
     }
-
-    fn state_channel_response(&self) -> Result<&GatewayScFollowStreamedRespV1> {
-        match &self.msg {
-            Some(gateway_resp_v1::Msg::FollowStreamedResp(res)) => Ok(res),
-            msg => Err(Error::custom(
-                format!("Unexpected gateway message {msg:?}",),
-            )),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct StateChannelFollowService {
-    gateway: Option<GatewayService>,
-    tx: Option<mpsc::Sender<GatewayScFollowReqV1>>,
-    rx: Option<Streaming>,
-}
-
-impl StateChannelFollowService {
-    pub async fn new(gateway: GatewayService) -> Result<Self> {
-        let mut result = Self {
-            tx: None,
-            rx: None,
-            gateway: None,
-        };
-        result.set_gateway(Some(gateway)).await?;
-        Ok(result)
-    }
-
-    pub async fn send(&mut self, id: &[u8], owner: &[u8], logger: &Logger) -> Result {
-        self.connect(logger).await?;
-        match self.tx.as_mut() {
-            Some(tx) => {
-                let msg = GatewayScFollowReqV1 {
-                    sc_id: id.into(),
-                    sc_owner: owner.into(),
-                };
-                Ok(tx.send(msg).await?)
-            }
-            None => Err(Error::no_service()),
-        }
-    }
-
-    pub async fn connect(&mut self, logger: &Logger) -> Result {
-        if self.tx.is_some() {
-            return Ok(());
-        }
-        match self.gateway.as_mut() {
-            Some(gateway) => {
-                info!(logger, "connecting to gateway state channel updates");
-                let (tx, client_rx) = mpsc::channel(3);
-                let streaming = gateway
-                    .client
-                    .follow_sc(ReceiverStream::new(client_rx))
-                    .await?
-                    .into_inner();
-                let rx = Streaming {
-                    streaming,
-                    verifier: gateway.uri.pubkey.clone(),
-                };
-                self.tx = Some(tx);
-                self.rx = Some(rx);
-                Ok(())
-            }
-            None => Err(Error::no_service()),
-        }
-    }
-
-    pub async fn set_gateway(&mut self, gateway: Option<GatewayService>) -> Result {
-        self.gateway = gateway;
-        self.tx = None;
-        self.rx = None;
-        Ok(())
-    }
-}
-
-impl Stream for StateChannelFollowService {
-    type Item = Result<GatewayRespV1>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        if let Some(rx) = self.rx.as_mut() {
-            Pin::new(rx).poll_next(cx)
-        } else {
-            Poll::Pending
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -174,8 +83,8 @@ pub struct GatewayService {
 impl GatewayService {
     pub fn new(keyed_uri: &KeyedUri) -> Result<Self> {
         let channel = Endpoint::from(keyed_uri.uri.clone())
-            .connect_timeout(Duration::from_secs(CONNECT_TIMEOUT))
-            .timeout(Duration::from_secs(RPC_TIMEOUT))
+            .connect_timeout(CONNECT_TIMEOUT)
+            .timeout(RPC_TIMEOUT)
             .connect_lazy();
         Ok(Self {
             uri: keyed_uri.clone(),
@@ -260,20 +169,6 @@ impl GatewayService {
             ))),
             None => Err(Error::custom("empty is_active response")),
         }
-    }
-
-    pub async fn follow_sc(&mut self) -> Result<StateChannelFollowService> {
-        StateChannelFollowService::new(self.clone()).await
-    }
-
-    pub async fn close_sc(&mut self, close_txn: BlockchainTxnStateChannelCloseV1) -> Result {
-        let _ = self
-            .client
-            .close_sc(GatewayScCloseReqV1 {
-                close_txn: Some(close_txn),
-            })
-            .await?;
-        Ok(())
     }
 
     async fn get_config(&mut self, keys: Vec<String>) -> Result<GatewayRespV1> {

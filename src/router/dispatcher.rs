@@ -256,8 +256,6 @@ impl Dispatcher {
             "pubkey" => gateway.uri.pubkey.to_string(),
             "uri" => gateway.uri.uri.to_string());
 
-        // Notify of gateway change
-        self.notify_gateway_change(Some(gateway.clone())).await;
         // Initialize liveness check for gateway
         let mut gateway_check = time::interval(GATEWAY_CHECK_INTERVAL);
         loop {
@@ -268,7 +266,7 @@ impl Dispatcher {
                 },
                 gateway_message = streams.next() => match gateway_message {
                     Some((gateway_stream, Ok(gateway_message))) => match gateway_stream {
-                        GatewayStream::Routing => self.handle_routing_update(&mut gateway, &gateway_message, &shutdown, logger).await,
+                        GatewayStream::Routing => self.handle_routing_update(&gateway_message, &shutdown, logger).await,
                         GatewayStream::RegionParams => self.handle_region_params_update(&gateway_message, logger).await,
                     },
                     Some((gateway_stream, Err(err))) =>  {
@@ -317,12 +315,6 @@ impl Dispatcher {
         Ok(())
     }
 
-    async fn notify_gateway_change(&self, gateway: Option<GatewayService>) {
-        for router_entry in self.routers.values() {
-            router_entry.dispatch.gateway_changed(gateway.clone()).await;
-        }
-    }
-
     async fn prepare_gateway_change(
         &mut self,
         backoff: &Backoff,
@@ -333,8 +325,6 @@ impl Dispatcher {
         if shutdown.is_triggered() {
             return;
         }
-        // Tell routers to clear their gateway entries
-        self.notify_gateway_change(None).await;
 
         // Reset routing and region heigth for the next gateway
         self.routing_height = 0;
@@ -459,7 +449,6 @@ impl Dispatcher {
 
     async fn handle_routing_update<R: service::gateway::Response>(
         &mut self,
-        gateway: &mut GatewayService,
         response: &R,
         shutdown: &triggered::Listener,
         logger: &Logger,
@@ -484,7 +473,7 @@ impl Dispatcher {
         while let Some(proto) = proto_stream.next().await {
             match Routing::from_proto(logger, proto) {
                 Ok(routing) => {
-                    self.handle_oui_routing_update(gateway, &routing, shutdown, logger)
+                    self.handle_oui_routing_update(&routing, shutdown, logger)
                         .await
                 }
                 Err(err) => warn!(logger, "failed to parse routing: {err:?}"),
@@ -497,7 +486,6 @@ impl Dispatcher {
     #[allow(clippy::map_entry)]
     async fn handle_oui_routing_update(
         &mut self,
-        gateway: &mut GatewayService,
         routing: &Routing,
         shutdown: &triggered::Listener,
         logger: &Logger,
@@ -512,7 +500,7 @@ impl Dispatcher {
             // immutable before borrowing as mutable to insert
             if !self.routers.contains_key(&key) {
                 match self
-                    .start_router(gateway, shutdown.clone(), routing.clone(), uri.clone())
+                    .start_router(shutdown.clone(), routing.clone(), uri.clone())
                     .await
                 {
                     Ok(router_entry) => {
@@ -546,7 +534,6 @@ impl Dispatcher {
 
     async fn start_router(
         &self,
-        gateway: &mut GatewayService,
         shutdown: triggered::Listener,
         routing: Routing,
         uri: KeyedUri,
@@ -559,7 +546,6 @@ impl Dispatcher {
             routing.oui,
             self.region,
             uri,
-            gateway.clone(),
             self.downlinks.clone(),
             self.keypair.clone(),
             self.cache_settings.clone(),

@@ -1,8 +1,7 @@
 use crate::{Error, Result};
 use helium_crypto::{PublicKey, Verify};
 use helium_proto::{
-    BlockchainStateChannelMessageV1, BlockchainStateChannelOfferV1, BlockchainStateChannelPacketV1,
-    BlockchainStateChannelV1, GatewayRespV1, Message,
+    BlockchainStateChannelMessageV1, BlockchainStateChannelPacketV1, GatewayRespV1, Message,
 };
 
 pub trait MsgVerify {
@@ -25,8 +24,6 @@ macro_rules! impl_msg_verify {
 
 impl_msg_verify!(GatewayRespV1, signature);
 impl_msg_verify!(BlockchainStateChannelPacketV1, signature);
-impl_msg_verify!(BlockchainStateChannelOfferV1, signature);
-impl_msg_verify!(BlockchainStateChannelV1, signature);
 
 impl MsgVerify for BlockchainStateChannelMessageV1 {
     fn verify(&self, verifier: &PublicKey) -> Result {
@@ -34,7 +31,7 @@ impl MsgVerify for BlockchainStateChannelMessageV1 {
         match &self.msg {
             Some(Msg::Response(_m)) => Ok(()),
             Some(Msg::Packet(m)) => m.verify(verifier),
-            Some(Msg::Offer(m)) => m.verify(verifier),
+            Some(Msg::Offer(_m)) => Ok(()),
             Some(Msg::Purchase(_m)) => Ok(()),
             Some(Msg::Banner(_m)) => Ok(()),
             Some(Msg::Reject(_m)) => Ok(()),
