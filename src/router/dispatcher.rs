@@ -1,8 +1,8 @@
 use crate::{
     gateway,
-    router::{self, QuePacket, RouterClient, Routing},
+    router::{self, RouterClient, Routing},
     service::{self, gateway::GatewayService},
-    sync, CacheSettings, Error, KeyedUri, Keypair, Region, Result, Settings,
+    sync, CacheSettings, Error, KeyedUri, Keypair, Packet, Region, Result, Settings,
 };
 use exponential_backoff::Backoff;
 use futures::{
@@ -18,7 +18,7 @@ use tokio_stream::{self, StreamExt, StreamMap};
 
 #[derive(Debug)]
 pub enum Message {
-    Uplink(QuePacket),
+    Uplink(Packet),
     Config {
         keys: Vec<String>,
         response: sync::ResponseSender<Result<Vec<BlockchainVarV1>>>,
@@ -59,7 +59,7 @@ impl MessageSender {
         rx.recv().await?
     }
 
-    pub async fn uplink(&self, packet: QuePacket) -> Result {
+    pub async fn uplink(&self, packet: Packet) -> Result {
         self.0
             .send(Message::Uplink(packet))
             .map_err(|_| Error::channel())
@@ -386,7 +386,7 @@ impl Dispatcher {
         }
     }
 
-    async fn handle_uplink(&self, packet: &QuePacket, logger: &Logger) {
+    async fn handle_uplink(&self, packet: &Packet, logger: &Logger) {
         let mut handled = false;
         for router_entry in self.routers.values() {
             if router_entry.routing.matches_routing_info(packet.routing()) {
