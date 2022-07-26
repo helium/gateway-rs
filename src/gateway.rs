@@ -1,4 +1,7 @@
-use crate::{router::dispatcher, Error, Packet, RegionParams, Result, Settings};
+use crate::{
+    router::{dispatcher, QuePacket},
+    Error, Packet, RegionParams, Result, Settings,
+};
 use futures::TryFutureExt;
 use semtech_udp::{
     server_runtime::{Error as SemtechError, Event, UdpRuntime},
@@ -108,7 +111,7 @@ impl Gateway {
             Event::ClientDisconnected((mac, addr)) => {
                 info!(logger, "disconnected packet forwarder: {mac}, {addr}")
             }
-            Event::PacketReceived(rxpk, _gateway_mac) => match Packet::try_from(rxpk) {
+            Event::PacketReceived(rxpk, _gateway_mac) => match QuePacket::try_from(rxpk) {
                 Ok(packet) if packet.is_longfi() => {
                     info!(logger, "ignoring longfi packet");
                 }
@@ -127,7 +130,7 @@ impl Gateway {
         Ok(())
     }
 
-    async fn handle_uplink(&mut self, logger: &Logger, packet: Packet) {
+    async fn handle_uplink(&mut self, logger: &Logger, packet: QuePacket) {
         info!(logger, "uplink {} from {}", packet, self.downlink_mac);
         match self.uplinks.uplink(packet).await {
             Ok(()) => (),

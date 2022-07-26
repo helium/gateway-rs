@@ -1,6 +1,9 @@
-use crate::{CacheSettings, Packet, Result};
+use semtech_udp::push_data;
+
+use crate::{CacheSettings, Error, Packet, Result};
 use std::{
     collections::VecDeque,
+    fmt,
     ops::Deref,
     time::{Duration, Instant},
 };
@@ -10,7 +13,7 @@ pub struct RouterStore {
     max_packets: u16,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct QuePacket {
     received: Instant,
     packet: Packet,
@@ -41,6 +44,21 @@ impl From<Packet> for QuePacket {
     }
 }
 
+impl fmt::Display for QuePacket {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_fmt(format_args!("since: {:?}, {}", self.received, self.packet))
+    }
+}
+
+impl TryFrom<push_data::RxPk> for QuePacket {
+    type Error = Error;
+
+    fn try_from(rxpk: push_data::RxPk) -> Result<Self> {
+        let packet = Packet::try_from(rxpk)?;
+        Ok(Self::from(packet))
+    }
+}
+
 impl RouterStore {
     pub fn new(settings: &CacheSettings) -> Self {
         let max_packets = settings.max_packets;
@@ -51,8 +69,8 @@ impl RouterStore {
         }
     }
 
-    pub fn store_waiting_packet(&mut self, packet: Packet) -> Result {
-        self.waiting_packets.push_back(QuePacket::from(packet));
+    pub fn store_waiting_packet(&mut self, packet: QuePacket) -> Result {
+        self.waiting_packets.push_back(packet);
         if self.waiting_packets_len() > self.max_packets as usize {
             self.waiting_packets.pop_front();
         }
