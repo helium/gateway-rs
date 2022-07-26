@@ -19,7 +19,7 @@ pub const STATE_CHANNEL_CONNECT_INTERVAL: Duration = Duration::from_secs(60);
 
 #[derive(Debug)]
 pub enum Message {
-    Uplink(QuePacket),
+    Uplink(Packet),
     RegionChanged(Region),
     Stop,
 }
@@ -38,7 +38,7 @@ impl MessageSender {
         let _ = self.0.send(Message::RegionChanged(region)).await;
     }
 
-    pub async fn uplink(&self, packet: QuePacket) -> Result {
+    pub async fn uplink(&self, packet: Packet) -> Result {
         self.0
             .send(Message::Uplink(packet))
             .map_err(|_| Error::channel())
@@ -130,7 +130,7 @@ impl RouterClient {
         }
     }
 
-    async fn handle_uplink(&mut self, logger: &Logger, uplink: QuePacket) -> Result {
+    async fn handle_uplink(&mut self, logger: &Logger, uplink: Packet) -> Result {
         self.store.store_waiting_packet(uplink)?;
         self.send_waiting_packets(logger).await
     }
