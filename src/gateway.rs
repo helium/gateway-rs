@@ -5,7 +5,10 @@ use semtech_udp::{
     tx_ack, MacAddress,
 };
 use slog::{debug, info, o, warn, Logger};
-use std::{convert::TryFrom, time::Duration};
+use std::{
+    convert::TryFrom,
+    time::{Duration, Instant},
+};
 use tokio::sync::mpsc;
 
 pub const DOWNLINK_TIMEOUT_SECS: u64 = 5;
@@ -112,7 +115,7 @@ impl Gateway {
                 Ok(packet) if packet.is_longfi() => {
                     info!(logger, "ignoring longfi packet");
                 }
-                Ok(packet) => self.handle_uplink(logger, packet).await,
+                Ok(packet) => self.handle_uplink(logger, packet, Instant::now()).await,
                 Err(err) => {
                     warn!(logger, "ignoring push_data: {err:?}");
                 }
@@ -127,9 +130,9 @@ impl Gateway {
         Ok(())
     }
 
-    async fn handle_uplink(&mut self, logger: &Logger, packet: Packet) {
+    async fn handle_uplink(&mut self, logger: &Logger, packet: Packet, received: Instant) {
         info!(logger, "uplink {} from {}", packet, self.downlink_mac);
-        match self.uplinks.uplink(packet).await {
+        match self.uplinks.uplink(packet, received).await {
             Ok(()) => (),
             Err(err) => warn!(logger, "ignoring uplink error {:?}", err),
         }

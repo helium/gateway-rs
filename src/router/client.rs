@@ -8,7 +8,7 @@ use crate::{
 };
 use futures::TryFutureExt;
 use slog::{debug, info, o, warn, Logger};
-use std::sync::Arc;
+use std::{sync::Arc, time::Instant};
 use tokio::{
     sync::mpsc,
     time::{self, Duration, MissedTickBehavior},
@@ -19,7 +19,7 @@ pub const STATE_CHANNEL_CONNECT_INTERVAL: Duration = Duration::from_secs(60);
 
 #[derive(Debug)]
 pub enum Message {
-    Uplink(Packet),
+    Uplink { packet: Packet, received: Instant },
     RegionChanged(Region),
     Stop,
 }
@@ -38,9 +38,9 @@ impl MessageSender {
         let _ = self.0.send(Message::RegionChanged(region)).await;
     }
 
-    pub async fn uplink(&self, packet: Packet) -> Result {
+    pub async fn uplink(&self, packet: Packet, received: Instant) -> Result {
         self.0
-            .send(Message::Uplink(packet))
+            .send(Message::Uplink { packet, received })
             .map_err(|_| Error::channel())
             .await
     }
@@ -104,8 +104,8 @@ impl RouterClient {
                     return Ok(())
                 },
                 message = messages.recv() => match message {
-                    Some(Message::Uplink(packet)) => {
-                        self.handle_uplink(&logger, packet)
+                    Some(Message::Uplink{packet, received}) => {
+                        self.handle_uplink(&logger, packet, received)
                             .unwrap_or_else(|err| warn!(logger, "ignoring failed uplink {:?}", err))
                             .await;
                     },
@@ -130,8 +130,13 @@ impl RouterClient {
         }
     }
 
-    async fn handle_uplink(&mut self, logger: &Logger, uplink: Packet) -> Result {
-        self.store.store_waiting_packet(uplink)?;
+    async fn handle_uplink(
+        &mut self,
+        logger: &Logger,
+        uplink: Packet,
+        received: Instant,
+    ) -> Result {
+        self.store.store_waiting_packet(uplink, received)?;
         self.send_waiting_packets(logger).await
     }
 
