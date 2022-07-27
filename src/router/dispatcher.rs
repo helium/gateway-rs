@@ -12,13 +12,21 @@ use futures::{
 use helium_proto::BlockchainVarV1;
 use slog::{debug, info, o, warn, Logger};
 use slog_scope;
-use std::{collections::HashMap, pin::Pin, sync::Arc, time::Duration};
+use std::{
+    collections::HashMap,
+    pin::Pin,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 use tokio::{task::JoinHandle, time};
 use tokio_stream::{self, StreamExt, StreamMap};
 
 #[derive(Debug)]
 pub enum Message {
-    Uplink(Packet),
+    Uplink {
+        packet: Packet,
+        received_time: Instant,
+    },
     Config {
         keys: Vec<String>,
         response: sync::ResponseSender<Result<Vec<BlockchainVarV1>>>,
@@ -59,9 +67,12 @@ impl MessageSender {
         rx.recv().await?
     }
 
-    pub async fn uplink(&self, packet: Packet) -> Result {
+    pub async fn uplink(&self, packet: Packet, received_time: Instant) -> Result {
         self.0
-            .send(Message::Uplink(packet))
+            .send(Message::Uplink {
+                packet,
+                received_time,
+            })
             .map_err(|_| Error::channel())
             .await
     }
@@ -356,7 +367,10 @@ impl Dispatcher {
         logger: &Logger,
     ) {
         match message {
-            Message::Uplink(packet) => self.handle_uplink(&packet, logger).await,
+            Message::Uplink {
+                packet,
+                received_time,
+            } => self.handle_uplink(&packet, received_time, logger).await,
             Message::Config { keys, response } => {
                 let reply = if let Some(gateway) = gateway {
                     gateway.config(keys).await
@@ -386,11 +400,11 @@ impl Dispatcher {
         }
     }
 
-    async fn handle_uplink(&self, packet: &Packet, logger: &Logger) {
+    async fn handle_uplink(&self, packet: &Packet, received: Instant, logger: &Logger) {
         let mut handled = false;
         for router_entry in self.routers.values() {
             if router_entry.routing.matches_routing_info(packet.routing()) {
-                match router_entry.dispatch.uplink(packet.clone()).await {
+                match router_entry.dispatch.uplink(packet.clone(), received).await {
                     Ok(()) => (),
                     Err(err) => warn!(logger, "ignoring router dispatch error: {err:?}"),
                 }
@@ -402,7 +416,7 @@ impl Dispatcher {
                 for (router_key, router_entry) in &self.routers {
                     if default_routers.contains(&router_key.uri) {
                         debug!(logger, "sending to default router");
-                        let _ = router_entry.dispatch.uplink(packet.clone()).await;
+                        let _ = router_entry.dispatch.uplink(packet.clone(), received).await;
                     }
                 }
             }

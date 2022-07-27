@@ -34,13 +34,6 @@ impl Deref for QuePacket {
     }
 }
 
-impl From<Packet> for QuePacket {
-    fn from(packet: Packet) -> Self {
-        let received = Instant::now();
-        Self { received, packet }
-    }
-}
-
 impl RouterStore {
     pub fn new(settings: &CacheSettings) -> Self {
         let max_packets = settings.max_packets;
@@ -51,8 +44,9 @@ impl RouterStore {
         }
     }
 
-    pub fn store_waiting_packet(&mut self, packet: Packet) -> Result {
-        self.waiting_packets.push_back(QuePacket::from(packet));
+    pub fn store_waiting_packet(&mut self, packet: Packet, received: Instant) -> Result {
+        self.waiting_packets
+            .push_back(QuePacket { packet, received });
         if self.waiting_packets_len() > self.max_packets as usize {
             self.waiting_packets.pop_front();
         }
