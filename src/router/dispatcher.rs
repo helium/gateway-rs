@@ -512,8 +512,9 @@ impl Dispatcher {
             };
             // We have to allow clippy::map_entry above since we need to borrow
             // immutable before borrowing as mutable to insert
-            if !self.routers.contains_key(&key) {
-                match self
+            match self.routers.get_mut(&key) {
+                Some(router_entry) => router_entry.routing = routing.clone(),
+                None => match self
                     .start_router(shutdown.clone(), routing.clone(), uri.clone())
                     .await
                 {
@@ -523,7 +524,7 @@ impl Dispatcher {
                     Err(err) => {
                         warn!(logger, "faild to construct router: {err:?}");
                     }
-                }
+                },
             }
         }
         // Remove any routers that are not in the new oui uri list
