@@ -1,3 +1,4 @@
+pub mod beaconing;
 pub mod cmd;
 pub mod curl;
 pub mod error;
@@ -20,7 +21,7 @@ mod traits;
 pub use error::{Error, Result};
 pub use keyed_uri::KeyedUri;
 pub use keypair::{Keypair, PublicKey};
-pub use packet::Packet;
+pub use packet::{Packet, RawPacket};
 pub use region::{Region, RegionParams};
 pub use settings::{CacheSettings, Settings};
 pub use traits::*;

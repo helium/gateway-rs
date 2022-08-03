@@ -44,6 +44,8 @@ pub struct Settings {
     pub gateways: Vec<KeyedUri>,
     /// Cache settings
     pub cache: CacheSettings,
+    /// Beacon interval in seconds
+    pub beacon_interval: Option<u64>,
 }
 
 /// Settings for log method and level to be used by the running service.
