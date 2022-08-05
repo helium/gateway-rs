@@ -2,7 +2,7 @@ use crate::{
     gateway,
     router::{self, RouterClient, Routing},
     service::{self, gateway::GatewayService},
-    sync, CacheSettings, Error, KeyedUri, Keypair, Packet, Region, Result, Settings,
+    sync, CacheSettings, Error, KeyedUri, Keypair, Packet, Region, RegionParams, Result, Settings,
 };
 use exponential_backoff::Backoff;
 use futures::{
@@ -197,9 +197,11 @@ impl Dispatcher {
                 gateway = Self::select_gateway(seed_gateway, &shutdown, &logger)
                     .and_then(|service | self.setup_gateway_streams(service, &logger))
                      => match gateway {
-                        Ok(Some((service, gateway_streams))) =>
-                            self.run_with_gateway(service, gateway_streams, shutdown.clone(), &logger)
-                                .await?,
+                        Ok(Some((service, gateway_streams, default_region_params))) => {
+                            self.downlinks.region_params_changed(default_region_params).await;
+                            self.run_with_gateway(service, gateway_streams,  shutdown.clone(), &logger)
+                                .await?;
+                            },
                         Ok(None) =>
                             return Ok(()),
                         Err(_err) => ()
@@ -231,13 +233,14 @@ impl Dispatcher {
         &mut self,
         gateway: Option<GatewayService>,
         logger: &Logger,
-    ) -> Result<Option<(GatewayService, GatewayStreams)>> {
+    ) -> Result<Option<(GatewayService, GatewayStreams, RegionParams)>> {
         if gateway.is_none() {
             return Ok(None);
         }
         let mut gateway = gateway.unwrap();
         let mut routing_gateway = gateway.clone();
         let routing = routing_gateway.routing(self.routing_height);
+        let default_region_params = gateway.region_params_for(&self.region).await?;
         let region_params = gateway.region_params(self.keypair.clone());
         match tokio::try_join!(routing, region_params) {
             Ok((routing, region_params)) => {
@@ -245,7 +248,7 @@ impl Dispatcher {
                     (GatewayStream::Routing, routing),
                     (GatewayStream::RegionParams, region_params),
                 ]);
-                Ok(Some((gateway, stream_map)))
+                Ok(Some((gateway, stream_map, default_region_params)))
             }
             Err(err) => {
                 warn!(logger, "gateway stream setup error: {err:?} "; 

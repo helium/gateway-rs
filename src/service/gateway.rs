@@ -1,14 +1,14 @@
 use crate::{
     service::{CONNECT_TIMEOUT, RPC_TIMEOUT},
-    Error, KeyedUri, Keypair, MsgSign, MsgVerify, PublicKey, RegionParams, Result,
+    Error, KeyedUri, Keypair, MsgSign, MsgVerify, PublicKey, Region, RegionParams, Result,
 };
 use helium_proto::{
     gateway_resp_v1,
     services::{self, Channel, Endpoint},
-    BlockchainVarV1, GatewayConfigReqV1, GatewayConfigRespV1, GatewayRegionParamsUpdateReqV1,
-    GatewayRespV1, GatewayRoutingReqV1, GatewayScIsActiveReqV1, GatewayScIsActiveRespV1,
-    GatewayValidatorsReqV1, GatewayValidatorsRespV1, GatewayVersionReqV1, GatewayVersionRespV1,
-    Routing,
+    BlockchainVarV1, GatewayConfigReqV1, GatewayConfigRespV1, GatewayRegionParamsReqV1,
+    GatewayRegionParamsUpdateReqV1, GatewayRespV1, GatewayRoutingReqV1, GatewayScIsActiveReqV1,
+    GatewayScIsActiveRespV1, GatewayValidatorsReqV1, GatewayValidatorsRespV1, GatewayVersionReqV1,
+    GatewayVersionRespV1, Routing,
 };
 use rand::{rngs::OsRng, seq::SliceRandom};
 use std::{
@@ -65,6 +65,9 @@ impl Response for GatewayRespV1 {
     fn region_params(&self) -> Result<RegionParams> {
         match &self.msg {
             Some(gateway_resp_v1::Msg::RegionParamsStreamedResp(params)) => {
+                RegionParams::try_from(params.to_owned())
+            }
+            Some(gateway_resp_v1::Msg::RegionParamsResp(params)) => {
                 RegionParams::try_from(params.to_owned())
             }
             msg => Err(Error::custom(
@@ -137,6 +140,14 @@ impl GatewayService {
             streaming: stream.into_inner(),
             verifier: self.uri.pubkey.clone(),
         })
+    }
+
+    pub async fn region_params_for(&mut self, region: &Region) -> Result<RegionParams> {
+        let req = GatewayRegionParamsReqV1 {
+            region: i32::from(region),
+        };
+        let region_params = self.client.region_params(req).await?;
+        region_params.into_inner().region_params()
     }
 
     pub async fn is_active_sc(
