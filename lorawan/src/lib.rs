@@ -20,6 +20,7 @@ pub enum MType {
     UnconfirmedDown,
     ConfirmedUp,
     ConfirmedDown,
+    Proprietary,
     Invalid(u8),
 }
 
@@ -32,6 +33,7 @@ impl From<u8> for MType {
             0b011 => MType::UnconfirmedDown,
             0b100 => MType::ConfirmedUp,
             0b101 => MType::ConfirmedDown,
+            0b111 => MType::Proprietary,
             _ => MType::Invalid(v),
         }
     }
@@ -79,7 +81,8 @@ impl PHYPayload {
             MType::UnconfirmedUp
             | MType::UnconfirmedDown
             | MType::ConfirmedUp
-            | MType::ConfirmedDown => phy_len < DATA_MIN_LEN,
+            | MType::ConfirmedDown
+            | MType::Proprietary => phy_len < DATA_MIN_LEN,
             MType::Invalid(_) => false,
         };
         if invalid {
