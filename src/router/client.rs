@@ -52,7 +52,6 @@ impl MessageSender {
 
 pub struct RouterClient {
     router: RouterService,
-
     region: Region,
     keypair: Arc<Keypair>,
     downlinks: gateway::MessageSender,

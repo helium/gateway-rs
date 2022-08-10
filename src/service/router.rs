@@ -4,7 +4,6 @@ use crate::{
 };
 
 use helium_proto::services::{
-    self,
     router::{PacketRouterClient, PacketRouterPacketDownV1, PacketRouterPacketUpV1},
     Channel, Endpoint,
 };
@@ -12,9 +11,7 @@ use helium_proto::services::{
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
-// type RouterClient = services::router::RouterClient<Channel>;
-
-type PacketClient = services::router::PacketRouterClient<Channel>;
+type PacketClient = PacketRouterClient<Channel>;
 
 type PacketSender = mpsc::Sender<PacketRouterPacketUpV1>;
 type PacketReceiver = tonic::Streaming<PacketRouterPacketDownV1>;
@@ -22,7 +19,7 @@ type PacketReceiver = tonic::Streaming<PacketRouterPacketDownV1>;
 #[derive(Debug)]
 pub struct RouterService {
     pub uri: KeyedUri,
-    packet_router_client: PacketRouterClient<Channel>,
+    packet_router_client: PacketClient,
     conduit: Option<(PacketSender, PacketReceiver)>,
 }
 
@@ -59,7 +56,7 @@ impl RouterService {
         let (tx, client_rx) = mpsc::channel(CONDUIT_CAPACITY);
         let rx = self
             .packet_router_client
-            .msg(ReceiverStream::new(client_rx))
+            .send_packet(ReceiverStream::new(client_rx))
             .await?
             .into_inner();
         Ok((tx, rx))
