@@ -52,7 +52,7 @@ impl MessageSender {
 
 pub struct RouterClient {
     router: RouterService,
-    oui: u32,
+
     region: Region,
     keypair: Arc<Keypair>,
     downlinks: gateway::MessageSender,
@@ -61,7 +61,6 @@ pub struct RouterClient {
 
 impl RouterClient {
     pub async fn new(
-        oui: u32,
         region: Region,
         uri: KeyedUri,
         downlinks: gateway::MessageSender,
@@ -72,7 +71,6 @@ impl RouterClient {
         let store = RouterStore::new(&settings);
         Ok(Self {
             router,
-            oui,
             region,
             keypair,
             downlinks,
@@ -90,7 +88,6 @@ impl RouterClient {
             "module" => "router",
             "pubkey" => self.router.uri.pubkey.to_string(),
             "uri" => self.router.uri.uri.to_string(),
-            "oui" => self.oui,
         ));
         info!(logger, "starting");
 
