@@ -125,14 +125,29 @@ impl Gateway {
                 info!(logger, "disconnected packet forwarder: {mac}, {addr}")
             }
             Event::PacketReceived(rxpk, _gateway_mac) => match Packet::try_from(rxpk) {
-                Ok(packet) if packet.is_longfi() => {
-                    info!(logger, "ignoring longfi packet");
-                }
-                Ok(packet) => self.handle_uplink(logger, packet, Instant::now()).await,
                 Err(err) => {
                     warn!(logger, "ignoring push_data: {err:?}");
                 }
+                Ok(packet) => {
+                    if packet.is_longfi() {
+                        info!(logger, "ignoring longfi packet");
+                    } else {
+                        match Packet::parse_frame(lorawan::Direction::Uplink, packet.payload()) {
+                            // We special case proprietary frames since they are possibly PoC
+                            Ok(lorawan::PHYPayloadFrame::Proprietary(proprietary_payload)) => {
+                                debug!(
+                                    logger,
+                                    "received possible-PoC proprietary lorawan frame {:?}",
+                                    proprietary_payload
+                                );
+                                // TODO: send the frame somewhere
+                            }
+                            _ => self.handle_uplink(logger, packet, Instant::now()).await,
+                        }
+                    }
+                }
             },
+
             Event::NoClientWithMac(_packet, mac) => {
                 info!(logger, "ignoring send to client with unknown MAC: {mac}")
             }
