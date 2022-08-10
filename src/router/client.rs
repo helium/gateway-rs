@@ -3,10 +3,10 @@ use crate::{
     gateway,
     router::{QuePacket, RouterStore},
     service::router::RouterService,
-    state_channel::StateChannelMessage,
-    Base64, CacheSettings, KeyedUri, Keypair, Packet, Region, Result,
+    Base64, CacheSettings, KeyedUri, Keypair, MsgSign, Packet, Region, Result,
 };
 use futures::TryFutureExt;
+use helium_proto::services::router::PacketRouterPacketUpV1;
 use slog::{debug, info, o, warn, Logger};
 use std::{sync::Arc, time::Instant};
 use tokio::{
@@ -125,6 +125,16 @@ impl RouterClient {
                     if removed > 0 {
                         info!(logger, "discarded {} queued packets", removed);
                     }
+                },
+                downlink_message = self.router.message() => match downlink_message {
+                    Ok(Some(message)) => {
+                        match Packet::try_from(message) {
+                            Ok(packet) => self.handle_downlink(&logger, packet).await,
+                            Err(err) => warn!(logger, "could not convert packet to downlink {:?}", err),
+                        };
+                    },
+                    Ok(None) => warn!(logger, "router disconnected"),
+                    Err(err) => warn!(logger, "router error {:?}", err),
                 }
             }
         }
@@ -150,32 +160,27 @@ impl RouterClient {
 
     async fn send_waiting_packets(&mut self, logger: &Logger) -> Result {
         while let Some(packet) = self.store.pop_waiting_packet() {
-            if let Some(message) = self.send_packet(logger, &packet).await? {
-                match message.to_downlink() {
-                    Ok(Some(packet)) => self.handle_downlink(logger, packet).await,
-                    Ok(None) => (),
-                    Err(err) => warn!(logger, "ignoring router response: {err:?}"),
-                }
-            }
+            self.send_packet(logger, &packet).await?
         }
         Ok(())
     }
 
-    async fn send_packet(
-        &mut self,
-        logger: &Logger,
-        packet: &QuePacket,
-    ) -> Result<Option<StateChannelMessage>> {
+    async fn send_packet(&mut self, logger: &Logger, packet: &QuePacket) -> Result<()> {
         debug!(logger, "sending packet";
             "packet_hash" => packet.hash().to_b64());
-        StateChannelMessage::packet(
-            packet.packet().clone(),
-            self.keypair.clone(),
-            &self.region,
-            packet.hold_time().as_millis() as u64,
-        )
-        .and_then(|message| self.router.route(message.to_message()))
-        .map_ok(StateChannelMessage::from_message)
-        .await
+        let mut pr_packet = PacketRouterPacketUpV1 {
+            payload: packet.payload.clone(),
+            timestamp: packet.timestamp,
+            signal_strength: packet.signal_strength,
+            frequency: packet.frequency,
+            datarate: packet.datarate.clone(),
+            snr: packet.snr,
+            region: self.region.into(),
+            hold_time: packet.hold_time().as_millis() as u64,
+            hotspot: self.keypair.public_key().into(),
+            signature: vec![],
+        };
+        pr_packet.signature = pr_packet.sign(self.keypair.clone()).await?;
+        self.router.route(pr_packet).await
     }
 }

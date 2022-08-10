@@ -2,9 +2,10 @@ use crate::{Error, Keypair, Result};
 use futures::TryFutureExt;
 use helium_crypto::Sign;
 use helium_proto::{
-    services::poc_lora, BlockchainStateChannelOfferV1, BlockchainStateChannelPacketV1,
-    BlockchainTxnAddGatewayV1, BlockchainTxnStateChannelCloseV1, GatewayRegionParamsReqV1,
-    GatewayRegionParamsUpdateReqV1, Message,
+    services::{poc_lora, router::PacketRouterPacketUpV1},
+    BlockchainStateChannelOfferV1, BlockchainStateChannelPacketV1, BlockchainTxnAddGatewayV1,
+    BlockchainTxnStateChannelCloseV1, GatewayRegionParamsReqV1, GatewayRegionParamsUpdateReqV1,
+    Message,
 };
 
 #[async_trait::async_trait]
@@ -37,6 +38,7 @@ impl_msg_sign!(GatewayRegionParamsUpdateReqV1, signature);
 impl_msg_sign!(BlockchainStateChannelPacketV1, signature);
 impl_msg_sign!(BlockchainStateChannelOfferV1, signature);
 impl_msg_sign!(BlockchainTxnStateChannelCloseV1, signature);
+impl_msg_sign!(PacketRouterPacketUpV1, signature);
 impl_msg_sign!(
     BlockchainTxnAddGatewayV1,
     owner_signature,

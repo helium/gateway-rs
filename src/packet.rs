@@ -1,6 +1,8 @@
 use crate::{error::DecodeError, Error, Result};
 use helium_proto::{
-    packet::PacketType, routing_information::Data as RoutingData, services::poc_lora,
+    packet::PacketType,
+    routing_information::Data as RoutingData,
+    services::{poc_lora, router::PacketRouterPacketDownV1},
     BlockchainStateChannelResponseV1, DataRate as ProtoDataRate, Eui, RoutingInformation,
 };
 use lorawan::{Direction, PHYPayloadFrame, MHDR};
@@ -64,6 +66,38 @@ impl TryFrom<push_data::RxPk> for Packet {
         } else {
             Err(DecodeError::invalid_crc())
         }
+    }
+}
+
+impl TryFrom<PacketRouterPacketDownV1> for Packet {
+    type Error = Error;
+
+    fn try_from(pr_down: PacketRouterPacketDownV1) -> Result<Self> {
+        // FIXME: this doesn't seem correct
+        let window = match pr_down.rx1 {
+            Some(rx1) => rx1,
+            None => return Err(Error::custom("no rx1")),
+        };
+        let packet = helium_proto::Packet {
+            oui: 0,
+            r#type: PacketType::Lorawan.into(),
+            payload: pr_down.payload,
+            timestamp: window.timestamp,
+            signal_strength: 0.0,
+            frequency: window.frequency,
+            datarate: window.datarate,
+            snr: 0.0,
+            routing: None,
+            rx2_window: match pr_down.rx2.clone() {
+                Some(window) => Some(helium_proto::Window {
+                    timestamp: window.timestamp,
+                    frequency: window.frequency,
+                    datarate: window.datarate,
+                }),
+                None => None,
+            },
+        };
+        Ok(Self(packet))
     }
 }
 
