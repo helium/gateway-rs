@@ -5,6 +5,7 @@
 //! TODO: what to beacon?
 
 use crate::{gateway::MessageSender, RawPacket, Result};
+use lorawan::{MType, PHYPayload, PHYPayloadFrame, MHDR};
 use slog::{self, Logger};
 use std::time::Duration;
 use tokio::time;
@@ -15,12 +16,28 @@ use triggered::Listener;
 /// We use this value if it's provided `Beaconer::new`.
 const DEFAULT_BEACON_INTERVAL_SECS: u64 = 5 * 60;
 
+/// Construct a proprietary LoRaWAN packet which we use our beacons.
+fn make_beacon(payload: impl Into<Vec<u8>>) -> PHYPayload {
+    PHYPayload {
+        mhdr: {
+            let mut mhdr = MHDR(0);
+            mhdr.set_mtype(MType::Proprietary);
+            mhdr
+        },
+        payload: PHYPayloadFrame::Proprietary(payload.into()),
+        // TODO: get rid of MIC?
+        mic: [0, 1, 2, 3],
+    }
+}
+
 #[derive(Debug)]
 pub struct Beaconer {
     /// gateway packet transmit message queue.
     txq: MessageSender,
     /// Beacon interval
     interval: Duration,
+    /// Monotonic Beacon counter
+    ctr: u32,
     ///
     logger: Logger,
 }
@@ -51,6 +68,7 @@ impl Beaconer {
         Self {
             txq: transmit_queue,
             interval,
+            ctr: 0,
             logger,
         }
     }
@@ -58,12 +76,27 @@ impl Beaconer {
     /// Sends a gateway-to-gateway packet.
     ///
     /// See [`MessageSender::transmit_raw`]
-    pub async fn send_broadcast(&self) -> Result {
+    pub async fn send_broadcast(&mut self) -> Result {
+        let payload = {
+            // Packet bytes:
+            // [ 'p', 'o', 'c', Ctr_byte_0, Ctr_byte_b1, Ctr_byte_b2, Ctr_byte_b3 ]
+            let phy_payload_frame = b"poc"
+                .iter()
+                .chain(self.ctr.to_le_bytes().iter())
+                .copied()
+                .collect::<Vec<u8>>();
+            let phy_payload = make_beacon(phy_payload_frame);
+            slog::debug!(self.logger, "beacon {:?}", phy_payload);
+            let mut payload = vec![];
+            phy_payload.write(&mut &mut payload)?;
+            self.ctr += 1;
+            payload
+        };
         let packet = RawPacket {
             downlink: false,
             frequency: 903_900_000,
             datarate: "SF7BW125".parse()?,
-            payload: b"hello".to_vec(),
+            payload,
             // Will be overridden by regional parameters
             power_dbm: 0,
         };
@@ -96,4 +129,23 @@ impl Beaconer {
             }
         }
     }
+}
+
+#[test]
+fn test_beacon_roundtrip() {
+    let phy_payload_a = {
+        let ctr = 12345_u32;
+        // Packet bytes:
+        // [ 'p', 'o', 'c', Ctr_byte_0, Ctr_byte_b1, Ctr_byte_b2, Ctr_byte_b3 ]
+        let phy_payload_frame = b"poc"
+            .iter()
+            .chain(ctr.to_le_bytes().iter())
+            .copied()
+            .collect::<Vec<u8>>();
+        make_beacon(phy_payload_frame)
+    };
+    let mut payload = vec![];
+    phy_payload_a.write(&mut &mut payload).unwrap();
+    let phy_payload_b = PHYPayload::read(lorawan::Direction::Uplink, &mut &payload[..]).unwrap();
+    assert_eq!(phy_payload_a, phy_payload_b);
 }
