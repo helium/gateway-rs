@@ -1,7 +1,11 @@
-use crate::{CacheSettings, Packet, Result};
+use helium_proto::{services::router::PacketRouterPacketUpV1, DataRate};
+
+use crate::{CacheSettings, Keypair, MsgSign, Packet, Region, Result};
 use std::{
     collections::VecDeque,
     ops::Deref,
+    str::FromStr,
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -23,6 +27,30 @@ impl QuePacket {
 
     pub fn packet(&self) -> &Packet {
         &self.packet
+    }
+
+    pub async fn to_uplink(
+        &self,
+        keypair: Arc<Keypair>,
+        region: &Region,
+    ) -> Result<PacketRouterPacketUpV1> {
+        let packet = self.packet();
+
+        let mut up = PacketRouterPacketUpV1 {
+            payload: packet.payload.clone(),
+            timestamp: packet.timestamp,
+            rssi: packet.signal_strength as i32,
+            frequency: (packet.frequency * 1_000_000.0) as u32,
+            datarate: DataRate::from_str(&packet.datarate)? as i32,
+            snr: packet.snr,
+            region: region.into(),
+            hold_time: self.hold_time().as_millis() as u64,
+            gateway: keypair.public_key().into(),
+            signature: vec![],
+        };
+        up.signature = up.sign(keypair.clone()).await?;
+
+        Ok(up)
     }
 }
 

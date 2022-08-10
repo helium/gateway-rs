@@ -33,13 +33,13 @@ impl LocalServer {
         })
     }
 
-    pub async fn run(self, shutdown: triggered::Listener, logger: &Logger) -> Result {
+    pub async fn run(self, shutdown: &triggered::Listener, logger: &Logger) -> Result {
         let addr = listen_addr(self.listen_port).parse().unwrap();
         let logger = logger.new(o!("module" => "api", "listen" => addr));
         info!(logger, "starting");
         TransportServer::builder()
             .add_service(Server::new(self))
-            .serve_with_shutdown(addr, shutdown)
+            .serve_with_shutdown(addr, shutdown.clone())
             .map_err(Error::from)
             .await
     }

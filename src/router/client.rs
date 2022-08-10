@@ -3,10 +3,11 @@ use crate::{
     gateway,
     router::{QuePacket, RouterStore},
     service::router::RouterService,
-    state_channel::StateChannelMessage,
-    Base64, CacheSettings, KeyedUri, Keypair, Packet, Region, Result,
+    Base64, CacheSettings, Keypair, Packet, Region, Result,
 };
 use futures::TryFutureExt;
+use helium_proto::services::router::PacketRouterPacketDownV1;
+use http::Uri;
 use slog::{debug, info, o, warn, Logger};
 use std::{sync::Arc, time::Instant};
 use tokio::{
@@ -15,7 +16,7 @@ use tokio::{
 };
 
 pub const STORE_GC_INTERVAL: Duration = Duration::from_secs(60);
-pub const STATE_CHANNEL_CONNECT_INTERVAL: Duration = Duration::from_secs(60);
+const RECONNECT_INTERVAL: Duration = Duration::from_secs(1800); // 30 minutes
 
 #[derive(Debug)]
 pub enum Message {
@@ -52,7 +53,6 @@ impl MessageSender {
 
 pub struct RouterClient {
     router: RouterService,
-    oui: u32,
     region: Region,
     keypair: Arc<Keypair>,
     downlinks: gateway::MessageSender,
@@ -61,18 +61,16 @@ pub struct RouterClient {
 
 impl RouterClient {
     pub async fn new(
-        oui: u32,
         region: Region,
-        uri: KeyedUri,
+        uri: Uri,
         downlinks: gateway::MessageSender,
         keypair: Arc<Keypair>,
         settings: CacheSettings,
     ) -> Result<Self> {
-        let router = RouterService::new(uri)?;
+        let router = RouterService::new(uri, keypair.clone())?;
         let store = RouterStore::new(&settings);
         Ok(Self {
             router,
-            oui,
             region,
             keypair,
             downlinks,
@@ -88,14 +86,15 @@ impl RouterClient {
     ) -> Result {
         let logger = logger.new(o!(
             "module" => "router",
-            "pubkey" => self.router.uri.pubkey.to_string(),
-            "uri" => self.router.uri.uri.to_string(),
-            "oui" => self.oui,
+            "uri" => self.router.uri.to_string(),
         ));
         info!(logger, "starting");
 
         let mut store_gc_timer = time::interval(STORE_GC_INTERVAL);
-        store_gc_timer.set_missed_tick_behavior(MissedTickBehavior::Delay);
+        store_gc_timer.set_missed_tick_behavior(MissedTickBehavior::Burst);
+
+        let mut reconnect_timer = time::interval(RECONNECT_INTERVAL);
+        reconnect_timer.set_missed_tick_behavior(MissedTickBehavior::Burst);
 
         loop {
             tokio::select! {
@@ -104,11 +103,8 @@ impl RouterClient {
                     return Ok(())
                 },
                 message = messages.recv() => match message {
-                    Some(Message::Uplink{packet, received}) => {
-                        self.handle_uplink(&logger, packet, received)
-                            .unwrap_or_else(|err| warn!(logger, "ignoring failed uplink {:?}", err))
-                            .await;
-                    },
+                    Some(Message::Uplink{packet, received}) =>
+                        self.handle_uplink(&logger, packet, received).await,
                     Some(Message::RegionChanged(region)) => {
                         self.region = region;
                         info!(logger, "updated region";
@@ -125,57 +121,57 @@ impl RouterClient {
                     if removed > 0 {
                         info!(logger, "discarded {} queued packets", removed);
                     }
+                },
+                _ = reconnect_timer.tick() =>
+                    self.handle_reconnect(&logger).await,
+                downlink_message = self.router.message() => match downlink_message {
+                    Ok(Some(message)) => self.handle_downlink(&logger, message).await,
+                    Ok(None) => warn!(logger, "router disconnected"),
+                    Err(err) => warn!(logger, "router error {:?}", err),
                 }
             }
         }
     }
 
-    async fn handle_uplink(
-        &mut self,
-        logger: &Logger,
-        uplink: Packet,
-        received: Instant,
-    ) -> Result {
-        self.store.store_waiting_packet(uplink, received)?;
-        self.send_waiting_packets(logger).await
+    async fn handle_reconnect(&mut self, logger: &Logger) {
+        info!(logger, "reconnecting");
+        self.router.disconnect();
+        match self.router.connect().await {
+            Ok(_) => info!(logger, "reconnected"),
+            Err(err) => warn!(logger, "could not reconnect {err:?}"),
+        }
     }
 
-    async fn handle_downlink(&mut self, logger: &Logger, packet: Packet) {
-        let _ = self
-            .downlinks
-            .downlink(packet)
-            .inspect_err(|_| warn!(logger, "failed to push downlink"))
-            .await;
+    async fn handle_uplink(&mut self, logger: &Logger, uplink: Packet, received: Instant) {
+        match self.store.store_waiting_packet(uplink, received) {
+            Ok(_) => self.send_waiting_packets(logger).await,
+            Err(err) => warn!(logger, "ignoring failed uplink {:?}", err),
+        }
     }
 
-    async fn send_waiting_packets(&mut self, logger: &Logger) -> Result {
+    async fn handle_downlink(&mut self, logger: &Logger, message: PacketRouterPacketDownV1) {
+        match Packet::try_from(message) {
+            Ok(packet) => self.downlinks.downlink(packet).await,
+            Err(err) => warn!(logger, "could not convert packet to downlink {:?}", err),
+        };
+    }
+
+    async fn send_waiting_packets(&mut self, logger: &Logger) {
         while let Some(packet) = self.store.pop_waiting_packet() {
-            if let Some(message) = self.send_packet(logger, &packet).await? {
-                match message.to_downlink() {
-                    Ok(Some(packet)) => self.handle_downlink(logger, packet).await,
-                    Ok(None) => (),
-                    Err(err) => warn!(logger, "ignoring router response: {err:?}"),
-                }
+            match self.send_packet(logger, &packet).await {
+                Ok(()) => (),
+                Err(err) => warn!(logger, "failed to send uplink {err:?}"),
             }
         }
-        Ok(())
     }
 
-    async fn send_packet(
-        &mut self,
-        logger: &Logger,
-        packet: &QuePacket,
-    ) -> Result<Option<StateChannelMessage>> {
+    async fn send_packet(&mut self, logger: &Logger, packet: &QuePacket) -> Result<()> {
         debug!(logger, "sending packet";
             "packet_hash" => packet.hash().to_b64());
-        StateChannelMessage::packet(
-            packet.packet().clone(),
-            self.keypair.clone(),
-            &self.region,
-            packet.hold_time().as_millis() as u64,
-        )
-        .and_then(|message| self.router.route(message.to_message()))
-        .map_ok(StateChannelMessage::from_message)
-        .await
+
+        packet
+            .to_uplink(self.keypair.clone(), &self.region)
+            .and_then(|up| self.router.route(up))
+            .await
     }
 }

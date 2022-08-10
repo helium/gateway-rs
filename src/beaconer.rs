@@ -13,14 +13,12 @@ use rand::{rngs::OsRng, Rng};
 use slog::{self, info, warn, Logger};
 use std::{sync::Arc, time::Duration};
 use tokio::time;
-use triggered::Listener;
 use xxhash_rust::xxh64::xxh64;
 
-/// To prevent a thundering herd of hotspots all beaconing at the same
-/// time, we add a randomized jitter value of up to
-/// `BEACON_INTERVAL_JITTER_PERCENTAGE` to the configured beacon
-/// interval. This jitter factor is one time only, and will only
-/// change when this process or task restarts.
+/// To prevent a thundering herd of hotspots all beaconing at the same time, we
+/// add a randomized jitter value of up to `BEACON_INTERVAL_JITTER_PERCENTAGE`
+/// to the configured beacon interval. This jitter factor is one time only, and
+/// will only change when this process or task restarts.
 const BEACON_INTERVAL_JITTER_PERCENTAGE: u64 = 10;
 
 /// Message types that can be sent to `Beaconer`'s inbox.
@@ -31,37 +29,29 @@ pub enum Message {
 }
 
 pub type MessageSender = sync::MessageSender<Message>;
-pub type MessageReceiver = sync::MessageReceiver<Message>;
+pub type MessageChannel = sync::MessageChannel<Message>;
 
-pub fn message_channel(size: usize) -> (MessageSender, MessageReceiver) {
-    sync::message_channel(size)
+pub fn message_channel() -> MessageChannel {
+    MessageChannel::new(10)
 }
 
 impl MessageSender {
     pub async fn received_beacon(&self, packet: Packet) {
-        let _ = self
-            .0
-            .send(Message::ReceivedBeacon(packet))
-            .map_err(|_| Error::channel())
-            .await;
+        self.send(Message::ReceivedBeacon(packet)).await
     }
 
     pub async fn region_params_changed(&self, region_params: RegionParams) {
-        let _ = self
-            .0
-            .send(Message::RegionParamsChanged(region_params))
-            .await;
+        self.send(Message::RegionParamsChanged(region_params)).await;
     }
 }
 
-#[derive(Debug)]
 pub struct Beaconer {
     /// keypair to sign reports with
     keypair: Arc<Keypair>,
     /// gateway packet transmit message queue
     transmit: gateway::MessageSender,
     /// Our receive queue.
-    messages: MessageReceiver,
+    messages: MessageChannel,
     /// Beacon interval
     interval: Duration,
     /// The last beacon that was transitted
@@ -76,7 +66,7 @@ impl Beaconer {
     pub fn new(
         settings: &Settings,
         transmit: gateway::MessageSender,
-        messages: MessageReceiver,
+        messages: MessageChannel,
     ) -> Self {
         let interval = {
             let base_interval = settings.poc.interval;
@@ -153,7 +143,7 @@ impl Beaconer {
     }
 
     async fn mk_witness_report(&self, packet: Packet) -> Result<poc_lora::LoraWitnessReportReqV1> {
-        let mut report = packet.to_witness_report()?;
+        let mut report = poc_lora::LoraWitnessReportReqV1::try_from(packet)?;
         report.pub_key = self.keypair.public_key().to_vec();
         report.signature = report.sign(self.keypair.clone()).await?;
         Ok(report)
@@ -253,7 +243,7 @@ impl Beaconer {
     ///
     /// This routine is will run forever and only returns on error or
     /// shut-down event (.e.g. Control-C, signal).
-    pub async fn run(&mut self, shutdown: Listener, logger: &Logger) -> Result {
+    pub async fn run(&mut self, shutdown: &triggered::Listener, logger: &Logger) -> Result {
         let logger = logger.new(slog::o!("module" => "beacon"));
         info!(logger, "starting";  "beacon_interval" => self.interval.as_secs());
 

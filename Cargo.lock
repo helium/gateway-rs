@@ -791,6 +791,7 @@ dependencies = [
  "helium-proto",
  "http",
  "http-serde",
+ "lazy_static",
  "log",
  "lorawan",
  "prost",

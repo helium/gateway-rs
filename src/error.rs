@@ -61,6 +61,14 @@ pub enum DecodeError {
     InvalidCrc,
     #[error("unexpected transaction in envelope")]
     InvalidEnvelope,
+    #[error("no rx1 window in downlink packet")]
+    NoRx1Window,
+    #[error("no datarate found in packet")]
+    NoDataRate,
+    #[error("packet is a beacon")]
+    NotBeacon,
+    #[error("invalid beacon datarate: {0}")]
+    InvalidBeaconDataRate(String),
 }
 
 #[derive(Error, Debug)]
@@ -136,6 +144,22 @@ impl DecodeError {
 
     pub fn keypair_uri<T: ToString>(msg: T) -> Error {
         Error::Decode(DecodeError::KeypairUri(msg.to_string()))
+    }
+
+    pub fn no_rx1_window() -> Error {
+        Error::Decode(DecodeError::NoRx1Window)
+    }
+
+    pub fn no_data_rate() -> Error {
+        Error::Decode(DecodeError::NoDataRate)
+    }
+
+    pub fn invalid_beacon_data_rate(datarate: String) -> Error {
+        Error::Decode(DecodeError::InvalidBeaconDataRate(datarate))
+    }
+
+    pub fn not_beacon() -> Error {
+        Error::Decode(DecodeError::NotBeacon)
     }
 }
 
