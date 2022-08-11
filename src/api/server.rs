@@ -52,7 +52,7 @@ impl LocalServer {
         let reply = self
             .dispatcher
             .config(&keys)
-            .map_err(|err| Status::internal(format!("{err}")))
+            .map_err(|err| Status::internal(format!("{}", err)))
             .await?;
         let values = reply.into_iter().map(ConfigValue::from).collect();
         Ok(values)
@@ -151,7 +151,7 @@ impl Api for LocalServer {
         let reply = self
             .dispatcher
             .height()
-            .map_err(|err| Status::internal(format!("{err}")))
+            .map_err(|err| Status::internal(format!("{}", err)))
             .await?;
         Ok(Response::new(HeightRes {
             height: reply.height,

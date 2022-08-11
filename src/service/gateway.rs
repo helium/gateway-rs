@@ -56,9 +56,10 @@ impl Response for GatewayRespV1 {
     fn routings(&self) -> Result<&[Routing]> {
         match &self.msg {
             Some(gateway_resp_v1::Msg::RoutingStreamedResp(routings)) => Ok(&routings.routings),
-            msg => Err(Error::custom(
-                format!("Unexpected gateway message {msg:?}",),
-            )),
+            msg => Err(Error::custom(format!(
+                "Unexpected gateway message {:?}",
+                msg
+            ))),
         }
     }
 
@@ -70,9 +71,10 @@ impl Response for GatewayRespV1 {
             Some(gateway_resp_v1::Msg::RegionParamsResp(params)) => {
                 RegionParams::try_from(params.to_owned())
             }
-            msg => Err(Error::custom(
-                format!("Unexpected gateway message {msg:?}",),
-            )),
+            msg => Err(Error::custom(format!(
+                "Unexpected gateway message {:?}",
+                msg
+            ))),
         }
     }
 }
@@ -184,7 +186,8 @@ impl GatewayService {
                 }
             }
             Some(other) => Err(Error::custom(format!(
-                "invalid is_active response {other:?}",
+                "invalid is_active response {:?}",
+                other
             ))),
             None => Err(Error::custom("empty is_active response")),
         }
@@ -203,7 +206,10 @@ impl GatewayService {
     pub async fn config(&mut self, keys: Vec<String>) -> Result<Vec<BlockchainVarV1>> {
         match self.get_config(keys).await?.msg {
             Some(gateway_resp_v1::Msg::ConfigResp(GatewayConfigRespV1 { result })) => Ok(result),
-            Some(other) => Err(Error::custom(format!("invalid config response {other:?}"))),
+            Some(other) => Err(Error::custom(format!(
+                "invalid config response {:?}",
+                other
+            ))),
             None => Err(Error::custom("empty config response")),
         }
     }
@@ -225,7 +231,8 @@ impl GatewayService {
                 result.into_iter().map(KeyedUri::try_from).collect()
             }
             Some(other) => Err(Error::custom(format!(
-                "invalid validator response {other:?}"
+                "invalid validator response {:?}",
+                other
             ))),
             None => Err(Error::custom("empty validator response")),
         }
@@ -241,7 +248,8 @@ impl GatewayService {
         match resp.msg {
             Some(gateway_resp_v1::Msg::Version(GatewayVersionRespV1 { version })) => Ok(version),
             Some(other) => Err(Error::custom(format!(
-                "invalid validator response {other:?}"
+                "invalid validator response {:?}",
+                other
             ))),
             None => Err(Error::custom("empty version response")),
         }

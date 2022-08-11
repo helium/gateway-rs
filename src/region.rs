@@ -51,7 +51,8 @@ impl<'de> Deserialize<'de> for Region {
                     "CD900_1A" => ProtoRegion::Cd9001a,
                     unsupported => {
                         return Err(de::Error::custom(format!(
-                            "unsupported region: {unsupported}"
+                            "unsupported region: {}",
+                            unsupported
                         )))
                     }
                 };
@@ -100,7 +101,7 @@ impl Region {
     pub fn from_i32(v: i32) -> Result<Self> {
         ProtoRegion::from_i32(v)
             .map(Self)
-            .ok_or_else(|| Error::custom(format!("unsupported region {v}")))
+            .ok_or_else(|| Error::custom(format!("unsupported region {}", v)))
     }
 }
 

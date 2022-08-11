@@ -48,7 +48,7 @@ impl FromStr for Keypair {
     fn from_str(str: &str) -> Result<Self> {
         let url: Uri = str
             .parse()
-            .map_err(|err| uri_error!("invalid keypair url \"{str}\": {err:?}"))?;
+            .map_err(|err| uri_error!("invalid keypair url \"{}\": {:?}", str, err))?;
         match url.scheme_str() {
             Some("file") | None => match load_from_file(url.path()) {
                 Ok(k) => Ok(k),
@@ -64,12 +64,13 @@ impl FromStr for Keypair {
                     )
                     .into();
                     save_to_file(&new_key, url.path()).map_err(|err| {
-                        uri_error!("unable to save key file \"{}\": {err:?}", url.path())
+                        uri_error!("unable to save key file \"{}\": {:?}", url.path(), err)
                     })?;
                     Ok(new_key)
                 }
                 Err(err) => Err(uri_error!(
-                    "unable to load key file \"{}\": {err:?}",
+                    "unable to load key file \"{}\": {:?}",
+                    err,
                     url.path()
                 )),
             },
@@ -87,15 +88,17 @@ impl FromStr for Keypair {
                 let keypair = ecc608::init(&path.to_string_lossy(), bus_address)
                     .map_err(|err| {
                         uri_error!(
-                            "could not initialize ecc \"{}:{bus_address}\": {err:?}",
-                            path.to_string_lossy()
+                            "could not initialize ecc \"{}:{}\": {:?}",
+                            path.to_string_lossy(),
+                            bus_address,
+                            err
                         )
                     })
                     .and_then(|_| {
                         ecc608::Keypair::from_slot(network, slot)
                             .map(helium_crypto::Keypair::from)
                             .map_err(|err| {
-                                uri_error!("could not load ecc keypair in slot {slot}: {err:?}")
+                                uri_error!("could not load ecc keypair in slot {}: {:?}", slot, err)
                             })
                     })?;
                 Ok(keypair.into())
@@ -114,7 +117,7 @@ impl FromStr for Keypair {
 
                 Ok(keypair.into())
             }
-            Some(unknown) => Err(uri_error!("unkown keypair scheme: \"{unknown}\"")),
+            Some(unknown) => Err(uri_error!("unkown keypair scheme: \"{}\"", unknown)),
         }
     }
 }
@@ -137,7 +140,7 @@ impl KeypairArgs {
                 || Ok(HashMap::new()),
                 serde_urlencoded::from_str::<HashMap<String, String>>,
             )
-            .map_err(|err| uri_error!("invalid keypair url \"{url}\": {err:?}"))?;
+            .map_err(|err| uri_error!("invalid keypair url \"{}\": {:?}", url, err))?;
         Ok(Self(args))
     }
 
@@ -150,7 +153,7 @@ impl KeypairArgs {
             .get(name)
             .map(|s| s.parse::<T>())
             .unwrap_or(Ok(default))
-            .map_err(|err| uri_error!("invalid uri argument for {name}: {err:?}"))
+            .map_err(|err| uri_error!("invalid uri argument for {}: {:?}", name, err))
     }
 }
 

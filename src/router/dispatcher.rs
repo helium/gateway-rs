@@ -221,7 +221,7 @@ impl Dispatcher {
         match seed_gateway.random_new(5, shutdown.clone()).await {
             Ok(result) => Ok(result),
             Err(err) => {
-                warn!(logger, "gateway selection error: {err:?}";
+                warn!(logger, "gateway selection error: {:?}", err;
                     "pubkey" => seed_gateway.uri.pubkey.to_string(),
                     "uri" => seed_gateway.uri.uri.to_string());
                 Err(err)
@@ -253,7 +253,7 @@ impl Dispatcher {
                 Ok(Some((gateway, stream_map, default_region_params)))
             }
             Err(err) => {
-                warn!(logger, "gateway stream setup error: {err:?} "; 
+                warn!(logger, "gateway stream setup error: {:?} ", err;
                     "pubkey" => gateway.uri.pubkey.to_string(),
                     "uri" => gateway.uri.uri.to_string());
                 Err(err)
@@ -287,8 +287,8 @@ impl Dispatcher {
                     },
                     Some((gateway_stream, Err(err))) =>  {
                         match gateway_stream {
-                            GatewayStream::Routing =>  warn!(logger, "gateway routing stream error: {err:?}"),
-                            GatewayStream::RegionParams =>  warn!(logger, "gateway region_params stream error: {err:?}"),
+                            GatewayStream::Routing =>  warn!(logger, "gateway routing stream error: {:?}", err),
+                            GatewayStream::RegionParams =>  warn!(logger, "gateway region_params stream error: {:?}", err),
                         }
                         return Ok(())
                     },
@@ -302,7 +302,7 @@ impl Dispatcher {
                         self.gateway_retry = 0
                     },
                     Err(err) => {
-                        warn!(logger, "gateway check error: {err}");
+                        warn!(logger, "gateway check error: {}", err);
                         return Ok(())
                     }
                 },
@@ -411,7 +411,7 @@ impl Dispatcher {
             if router_entry.routing.matches_routing_info(packet.routing()) {
                 match router_entry.dispatch.uplink(packet.clone(), received).await {
                     Ok(()) => (),
-                    Err(err) => warn!(logger, "ignoring router dispatch error: {err:?}"),
+                    Err(err) => warn!(logger, "ignoring router dispatch error: {:?}", err),
                 }
                 handled = true;
             }
@@ -438,7 +438,9 @@ impl Dispatcher {
         if update_height <= self.region_height {
             warn!(
                 logger,
-                "region_params returned invalid height {update_height} while at {current_height}"
+                "region_params returned invalid height {} while at {}",
+                update_height,
+                current_height
             );
             return;
         }
@@ -461,7 +463,7 @@ impl Dispatcher {
                 }
             }
             Err(err) => {
-                warn!(logger, "error decoding region: {err:?}");
+                warn!(logger, "error decoding region: {:?}", err);
             }
         }
     }
@@ -477,14 +479,14 @@ impl Dispatcher {
         if update_height <= self.routing_height {
             warn!(
                 logger,
-                "routing returned invalid height {update_height} while at {current_height}",
+                "routing returned invalid height {} while at {}", update_height, current_height
             );
             return;
         }
         let routing_protos = match response.routings() {
             Ok(v) => v,
             Err(err) => {
-                warn!(logger, "error decoding routing {err:?}");
+                warn!(logger, "error decoding routing {:?}", err);
                 return;
             }
         };
@@ -495,7 +497,7 @@ impl Dispatcher {
                     self.handle_oui_routing_update(&routing, shutdown, logger)
                         .await
                 }
-                Err(err) => warn!(logger, "failed to parse routing: {err:?}"),
+                Err(err) => warn!(logger, "failed to parse routing: {:?}", err),
             }
         }
         self.routing_height = update_height;
@@ -527,7 +529,7 @@ impl Dispatcher {
                         self.routers.insert(key, router_entry);
                     }
                     Err(err) => {
-                        warn!(logger, "faild to construct router: {err:?}");
+                        warn!(logger, "faild to construct router: {:?}", err);
                     }
                 },
             }

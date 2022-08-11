@@ -111,22 +111,22 @@ impl Gateway {
             Event::UnableToParseUdpFrame(e, buf) => {
                 warn!(
                     logger,
-                    "ignoring semtech udp parsing error {e}, raw bytes {buf:?}"
+                    "ignoring semtech udp parsing error {}, raw bytes {:?}", e, buf
                 );
             }
             Event::NewClient((mac, addr)) => {
-                info!(logger, "new packet forwarder client: {mac}, {addr}");
+                info!(logger, "new packet forwarder client: {}, {}", mac, addr);
                 self.downlink_mac = mac;
             }
             Event::UpdateClient((mac, addr)) => {
-                info!(logger, "mac existed, but IP updated: {mac}, {addr}")
+                info!(logger, "mac existed, but IP updated: {}, {}", mac, addr)
             }
             Event::ClientDisconnected((mac, addr)) => {
-                info!(logger, "disconnected packet forwarder: {mac}, {addr}")
+                info!(logger, "disconnected packet forwarder: {}, {}", mac, addr)
             }
             Event::PacketReceived(rxpk, _gateway_mac) => match Packet::try_from(rxpk) {
                 Err(err) => {
-                    warn!(logger, "ignoring push_data: {err:?}");
+                    warn!(logger, "ignoring push_data: {:?}", err);
                 }
                 Ok(packet) => {
                     if packet.is_longfi() {
@@ -149,10 +149,10 @@ impl Gateway {
             },
 
             Event::NoClientWithMac(_packet, mac) => {
-                info!(logger, "ignoring send to client with unknown MAC: {mac}")
+                info!(logger, "ignoring send to client with unknown MAC: {}", mac)
             }
             Event::StatReceived(stat, mac) => {
-                debug!(logger, "mac: {mac}, stat: {stat:?}")
+                debug!(logger, "mac: {}, stat: {:?}", mac, stat)
             }
         };
         Ok(())

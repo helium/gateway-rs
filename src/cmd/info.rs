@@ -199,7 +199,7 @@ impl InfoKey {
             Self::Fw => {
                 let platform = &cache.platform;
                 let version = settings::version();
-                json!(format!("{platform}-{version}"))
+                json!(format!("{}-{}", platform, version))
             }
             Self::Key => {
                 json!(cache.public_key().await?.to_string())

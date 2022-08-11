@@ -114,7 +114,7 @@ pub fn main() -> Result {
     runtime.shutdown_timeout(Duration::from_secs(0));
 
     if let Err(e) = &res {
-        error!(&run_logger, "{e}");
+        error!(&run_logger, "{}", e);
     };
     drop(scope_guard);
     Ok(())

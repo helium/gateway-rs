@@ -154,7 +154,7 @@ impl RouterClient {
                 match message.to_downlink() {
                     Ok(Some(packet)) => self.handle_downlink(logger, packet).await,
                     Ok(None) => (),
-                    Err(err) => warn!(logger, "ignoring router response: {err:?}"),
+                    Err(err) => warn!(logger, "ignoring router response: {:?}", err),
                 }
             }
         }
