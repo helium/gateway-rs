@@ -100,6 +100,7 @@ impl Beaconer {
             // Will be overridden by regional parameters
             power_dbm: 0,
         };
+        slog::info!(self.logger, "sending beacon {:?}", packet);
         self.txq.transmit_raw(packet).await?;
         Ok(())
     }
