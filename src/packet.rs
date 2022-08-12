@@ -186,7 +186,7 @@ impl RawPacket {
         let size = self.payload.len() as u64;
         let ipol = self.downlink;
         let datr = self.datarate;
-        let freq = self.frequency as f64;
+        let freq = self.frequency as f64 / 1e6;
         let data = self.payload;
         let powe = self.power_dbm as u64;
 
