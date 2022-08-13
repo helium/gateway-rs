@@ -11,7 +11,6 @@ pub mod router;
 pub mod server;
 pub mod service;
 pub mod settings;
-pub mod state_channel;
 pub mod sync;
 pub mod updater;
 

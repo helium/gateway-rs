@@ -3,10 +3,10 @@ use crate::{
     gateway,
     router::{QuePacket, RouterStore},
     service::router::RouterService,
-    Base64, CacheSettings, KeyedUri, Keypair, MsgSign, Packet, Region, Result,
+    Base64, CacheSettings, KeyedUri, Keypair, Packet, Region, Result,
 };
 use futures::TryFutureExt;
-use helium_proto::services::router::PacketRouterPacketUpV1;
+
 use slog::{debug, info, o, warn, Logger};
 use std::{sync::Arc, time::Instant};
 use tokio::{
@@ -164,19 +164,10 @@ impl RouterClient {
     async fn send_packet(&mut self, logger: &Logger, packet: &QuePacket) -> Result<()> {
         debug!(logger, "sending packet";
             "packet_hash" => packet.hash().to_b64());
-        let mut pr_packet = PacketRouterPacketUpV1 {
-            payload: packet.payload.clone(),
-            timestamp: packet.timestamp,
-            signal_strength: packet.signal_strength,
-            frequency: packet.frequency,
-            datarate: packet.datarate.clone(),
-            snr: packet.snr,
-            region: self.region.into(),
-            hold_time: packet.hold_time().as_millis() as u64,
-            hotspot: self.keypair.public_key().into(),
-            signature: vec![],
-        };
-        pr_packet.signature = pr_packet.sign(self.keypair.clone()).await?;
-        self.router.route(pr_packet).await
+
+        packet
+            .to_packet_up(self.keypair.clone(), &self.region)
+            .and_then(|up| self.router.route(up))
+            .await
     }
 }
