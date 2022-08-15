@@ -15,7 +15,10 @@ use triggered::Listener;
 /// How often we send a beacon.
 ///
 /// We use this value if it's provided `Beaconer::new`.
-const DEFAULT_BEACON_INTERVAL_SECS: u64 = 5 * 60;
+///
+/// Make sure we get a change to beacon 3x daily with a few seconds to
+/// spare.
+const DEFAULT_BEACON_INTERVAL_SECS: u64 = 8 * (3600 - 1);
 
 /// Construct a proprietary LoRaWAN packet which we use our beacons.
 fn make_beacon(payload: impl Into<Vec<u8>>) -> PHYPayload {
@@ -161,12 +164,12 @@ impl Beaconer {
     }
 
     fn handle_packet(&mut self, packet: Packet) {
-        if let Ok(lorawan::PHYPayloadFrame::Proprietary(proprietary_payload)) =
+        if let Ok(lorawan::PHYPayloadFrame::Proprietary(_proprietary_payload)) =
             Packet::parse_frame(lorawan::Direction::Uplink, packet.payload())
         {
             info!(
                 self.logger,
-                "received possible-PoC proprietary lorawan frame {:?}", proprietary_payload
+                "received possible-PoC proprietary lorawan frame {:?}", packet
             );
         }
     }

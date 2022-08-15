@@ -145,7 +145,7 @@ impl Gateway {
                     self.handle_uplink(logger, packet, Instant::now()).await;
                 }
                 Err(err) => {
-                    warn!(logger, "ignoring push_data: {err:?}");
+                    warn!(logger, "ignoring push_data: {:?}", err);
                 }
             },
             Event::NoClientWithMac(_packet, mac) => {
