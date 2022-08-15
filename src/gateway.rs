@@ -1,10 +1,12 @@
-use crate::{router::dispatcher, Error, Packet, RawPacket, RegionParams, Result, Settings};
+use crate::{
+    beaconing, router::dispatcher, Error, Packet, RawPacket, RegionParams, Result, Settings,
+};
 use futures::TryFutureExt;
 use semtech_udp::{
     server_runtime::{Error as SemtechError, Event, UdpRuntime},
     tx_ack, MacAddress,
 };
-use slog::{debug, info, o, warn, Logger};
+use slog::{debug, error, info, o, warn, Logger};
 use std::{
     convert::TryFrom,
     time::{Duration, Instant},
@@ -61,6 +63,7 @@ impl MessageSender {
 pub struct Gateway {
     uplinks: dispatcher::MessageSender,
     messages: MessageReceiver,
+    beaconing_sender: beaconing::MessageSender,
     downlink_mac: MacAddress,
     udp_runtime: UdpRuntime,
     listen_address: String,
@@ -71,12 +74,14 @@ impl Gateway {
     pub async fn new(
         uplinks: dispatcher::MessageSender,
         messages: MessageReceiver,
+        beaconing_sender: beaconing::MessageSender,
         settings: &Settings,
     ) -> Result<Self> {
         let gateway = Gateway {
             uplinks,
             downlink_mac: Default::default(),
             messages,
+            beaconing_sender,
             listen_address: settings.listen.clone(),
             udp_runtime: UdpRuntime::new(&settings.listen).await?,
             region_params: None,
@@ -124,33 +129,25 @@ impl Gateway {
             Event::ClientDisconnected((mac, addr)) => {
                 info!(logger, "disconnected packet forwarder: {}, {}", mac, addr)
             }
-            Event::PacketReceived(rxpk, _gateway_mac) => {
-                match Packet::try_from(rxpk) {
-                    Err(err) => {
-                        warn!(logger, "ignoring push_data: {:?}", err);
-                    }
-                    Ok(packet) => {
-                        if packet.is_longfi() {
-                            info!(logger, "ignoring longfi packet");
-                        } else {
-                            match Packet::parse_frame(lorawan::Direction::Uplink, packet.payload())
-                            {
-                                // We special case proprietary frames since they are possibly PoC
-                                Ok(lorawan::PHYPayloadFrame::Proprietary(proprietary_payload)) => {
-                                    info!(
-                                        logger,
-                                        "received possible-PoC proprietary lorawan frame {:?}",
-                                        proprietary_payload
-                                    );
-                                    // TODO: send the frame somewhere
-                                }
-                                _ => self.handle_uplink(logger, packet, Instant::now()).await,
-                            }
-                        }
-                    }
+            Event::PacketReceived(rxpk, _gateway_mac) => match Packet::try_from(rxpk) {
+                Ok(packet) if packet.is_longfi() => {
+                    info!(logger, "ignoring longfi packet");
                 }
-            }
-
+                Ok(packet) => {
+                    if self
+                        .beaconing_sender
+                        .send(beaconing::Message::RxPk(packet.clone()))
+                        .await
+                        .is_err()
+                    {
+                        error!(logger, "beaconer channel closed")
+                    };
+                    self.handle_uplink(logger, packet, Instant::now()).await;
+                }
+                Err(err) => {
+                    warn!(logger, "ignoring push_data: {err:?}");
+                }
+            },
             Event::NoClientWithMac(_packet, mac) => {
                 info!(logger, "ignoring send to client with unknown MAC: {}", mac)
             }
@@ -174,6 +171,16 @@ impl Gateway {
             Message::Downlink(packet) => self.handle_downlink(logger, packet).await,
             Message::TransmitRaw(packet) => self.handle_raw_tx(logger, packet).await,
             Message::RegionParamsChanged(region_params) => {
+                if self
+                    .beaconing_sender
+                    .send(beaconing::Message::RegionParamsChanged(
+                        region_params.clone(),
+                    ))
+                    .await
+                    .is_err()
+                {
+                    error!(logger, "beaconer channel closed")
+                };
                 self.region_params = Some(region_params);
                 info!(logger, "updated region";
                     "region" => RegionParams::to_string(&self.region_params));
