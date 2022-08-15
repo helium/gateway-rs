@@ -156,7 +156,7 @@ impl PHYPayloadFrame {
             MType::JoinAccept => Self::JoinAccept(JoinAccept::read(reader)?),
             MType::Proprietary => {
                 let mut proprietary_payload = vec![];
-                reader.read_to_end(&mut &mut proprietary_payload)?;
+                reader.read_to_end(&mut proprietary_payload)?;
                 Self::Proprietary(proprietary_payload)
             }
             _ => Self::MACPayload(MACPayload::read(packet_type, direction, reader)?),
@@ -169,7 +169,7 @@ impl PHYPayloadFrame {
             Self::MACPayload(mp) => mp.write(output),
             Self::JoinRequest(jr) => jr.write(output),
             Self::JoinAccept(ja) => ja.write(output),
-            Self::Proprietary(v) => Ok(output.write(&v)?),
+            Self::Proprietary(v) => Ok(output.write(v)?),
         }
     }
 

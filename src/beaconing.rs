@@ -6,6 +6,7 @@
 
 use crate::{gateway, Packet, RawPacket, RegionParams, Result};
 use lorawan::{MType, PHYPayload, PHYPayloadFrame, MHDR};
+use rand::{rngs::StdRng, Rng, SeedableRng};
 use slog::{self, debug, error, info, warn, Logger};
 use std::time::Duration;
 use tokio::{sync::mpsc, time};
@@ -56,7 +57,7 @@ pub struct Beaconer {
     ctr: u32,
     /// Use for channel plan and FR parameters
     region_params: Option<RegionParams>,
-    ///
+    rng: StdRng,
     logger: Logger,
 }
 
@@ -89,7 +90,32 @@ impl Beaconer {
             interval,
             ctr: 0,
             region_params: None,
+            rng: StdRng::from_entropy(),
             logger,
+        }
+    }
+
+    // Randomly choose a frequency from our current regional
+    // parameters, if any.
+    fn rand_freq(&mut self) -> u32 {
+        if let Some(RegionParams { params, .. }) = &self.region_params {
+            let index = self.rng.gen_range(0..params.len());
+            params
+                .get(index)
+                .map(|p| p.channel_frequency as u32)
+                .unwrap_or_else(|| {
+                    warn!(
+                        self.logger,
+                        "TODO: empty channel plan for reagion, using hardcoded freq"
+                    );
+                    903_900_000
+                })
+        } else {
+            warn!(
+                self.logger,
+                "TODO: no regional parameters, using hardcoded freq"
+            );
+            903_900_000
         }
     }
 
@@ -97,14 +123,7 @@ impl Beaconer {
     ///
     /// See [`MessageSender::transmit_raw`]
     pub async fn send_broadcast(&mut self) -> Result {
-        let region_params = if let Some(region_params) = &self.region_params {
-            region_params
-        } else {
-            warn!(self.logger, "ignoring beacon transmit, no region params");
-            return Ok(());
-        };
-
-        let payload = {
+        let lora_frame = {
             // Packet bytes:
             // [ 'p', 'o', 'c', Ctr_byte_0, Ctr_byte_b1, Ctr_byte_b2, Ctr_byte_b3 ]
             let phy_payload_frame = b"poc"
@@ -119,11 +138,12 @@ impl Beaconer {
             self.ctr += 1;
             payload
         };
+        let frequency = self.rand_freq();
         let packet = RawPacket {
             downlink: false,
-            frequency: 903_900_000,
+            frequency,
             datarate: "SF7BW125".parse()?,
-            payload,
+            payload: lora_frame,
             // Will be overridden by regional parameters
             power_dbm: 0,
         };
