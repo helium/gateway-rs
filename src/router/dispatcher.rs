@@ -240,7 +240,9 @@ impl Dispatcher {
         let mut gateway = gateway.unwrap();
         let mut routing_gateway = gateway.clone();
         let routing = routing_gateway.routing(self.routing_height);
-        let default_region_params = gateway.region_params_for(&self.region).await?;
+        let default_region_params = gateway
+            .region_params_for(&self.region, self.keypair.clone())
+            .await?;
         let region_params = gateway.region_params(self.keypair.clone());
         match tokio::try_join!(routing, region_params) {
             Ok((routing, region_params)) => {

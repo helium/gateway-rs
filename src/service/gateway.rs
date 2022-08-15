@@ -142,10 +142,18 @@ impl GatewayService {
         })
     }
 
-    pub async fn region_params_for(&mut self, region: &Region) -> Result<RegionParams> {
-        let req = GatewayRegionParamsReqV1 {
+    pub async fn region_params_for(
+        &mut self,
+        region: &Region,
+        keypair: Arc<Keypair>,
+    ) -> Result<RegionParams> {
+        let mut req = GatewayRegionParamsReqV1 {
+            address: keypair.public_key().to_vec(),
+            signature: vec![],
             region: i32::from(region),
         };
+        req.signature = req.sign(keypair).await?;
+
         let region_params = self.client.region_params(req).await?;
         region_params.into_inner().region_params()
     }
