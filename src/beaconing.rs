@@ -3,10 +3,12 @@
 //! TODO: where to get beacon interval from?
 //!
 //! TODO: what to beacon?
+//!
+//! TODO: fuzz beacon interval to prevent thundering herd.
 
 use crate::{gateway, Packet, RawPacket, RegionParams, Result};
 use lorawan::{MType, PHYPayload, PHYPayloadFrame, MHDR};
-use rand::{rngs::StdRng, Rng, SeedableRng};
+use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
 use slog::{self, debug, error, info, warn, Logger};
 use std::time::Duration;
 use tokio::{sync::mpsc, time};
@@ -100,12 +102,12 @@ impl Beaconer {
 
     // Randomly choose a frequency from our current regional
     // parameters, if any.
-    fn rand_freq(&mut self) -> u32 {
+    fn rand_freq(&mut self) -> u64 {
         if let Some(RegionParams { params, .. }) = &self.region_params {
-            let index = self.rng.gen_range(0..params.len());
             params
-                .get(index)
-                .map(|p| p.channel_frequency as u32)
+                .as_slice()
+                .choose(&mut self.rng)
+                .map(|params| params.channel_frequency)
                 .unwrap_or_else(|| {
                     warn!(
                         self.logger,

@@ -174,7 +174,7 @@ impl Packet {
 #[derive(Debug, Clone)]
 pub struct RawPacket {
     pub downlink: bool,
-    pub frequency: u32,
+    pub frequency: u64,
     pub datarate: DataRate,
     pub payload: Vec<u8>,
     pub power_dbm: u32,
