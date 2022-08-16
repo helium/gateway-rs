@@ -45,6 +45,9 @@ impl MessageSender {
     ///
     /// Essentially, this packet looks like a regular uplink packet to
     /// other gateways until further inspection.
+    ///
+    /// TODO: can we refactor downlink into a more generic `send` that
+    ///       handles packets with `IPOL == true|false`?
     pub async fn transmit_raw(&self, packet: RawPacket) -> Result {
         self.0
             .send(Message::TransmitRaw(packet))

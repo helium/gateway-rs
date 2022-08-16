@@ -126,7 +126,7 @@ impl Beaconer {
 
     /// Sends a gateway-to-gateway packet.
     ///
-    /// See [`MessageSender::transmit_raw`]
+    /// See [`gateway::MessageSender::transmit_raw`]
     pub async fn send_broadcast(&mut self) -> Result {
         let lora_frame = {
             // Packet bytes:

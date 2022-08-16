@@ -74,7 +74,7 @@ pub struct UpdateSettings {
     /// The platform identifier to use for released packages (default: klkgw)
     pub platform: String,
     /// The github release url to use (default
-    /// https://api.github.com/repos/helium/gateway-rs/releases)
+    /// <https://api.github.com/repos/helium/gateway-rs/releases>)
     #[serde(with = "http_serde::uri")]
     pub uri: Uri,
     /// The command to use to install an update. There will be just one
