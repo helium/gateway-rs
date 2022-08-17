@@ -3,7 +3,8 @@ use futures::TryFutureExt;
 use helium_crypto::Sign;
 use helium_proto::{
     BlockchainStateChannelOfferV1, BlockchainStateChannelPacketV1, BlockchainTxnAddGatewayV1,
-    BlockchainTxnStateChannelCloseV1, GatewayRegionParamsUpdateReqV1, Message,
+    BlockchainTxnStateChannelCloseV1, GatewayRegionParamsReqV1, GatewayRegionParamsUpdateReqV1,
+    Message,
 };
 
 #[async_trait::async_trait]
@@ -42,3 +43,5 @@ impl_msg_sign!(
     payer_signature,
     gateway_signature
 );
+
+impl_msg_sign!(GatewayRegionParamsReqV1, signature);

@@ -1,6 +1,7 @@
 use crate::{error::RegionError, Error, Result};
 use helium_proto::{
-    BlockchainRegionParamV1, GatewayRegionParamsStreamedRespV1, Region as ProtoRegion,
+    BlockchainRegionParamV1, GatewayRegionParamsRespV1, GatewayRegionParamsStreamedRespV1,
+    Region as ProtoRegion,
 };
 use rust_decimal::Decimal;
 use serde::{de, Deserialize, Deserializer};
@@ -124,6 +125,23 @@ pub struct RegionParams {
 impl TryFrom<GatewayRegionParamsStreamedRespV1> for RegionParams {
     type Error = Error;
     fn try_from(value: GatewayRegionParamsStreamedRespV1) -> Result<Self> {
+        let region = Region::from_i32(value.region)?;
+        let params = if let Some(params) = value.params {
+            params.region_params
+        } else {
+            return Err(RegionError::no_region_params());
+        };
+        Ok(Self {
+            gain: Decimal::new(value.gain as i64, 1),
+            params,
+            region,
+        })
+    }
+}
+
+impl TryFrom<GatewayRegionParamsRespV1> for RegionParams {
+    type Error = Error;
+    fn try_from(value: GatewayRegionParamsRespV1) -> Result<Self> {
         let region = Region::from_i32(value.region)?;
         let params = if let Some(params) = value.params {
             params.region_params

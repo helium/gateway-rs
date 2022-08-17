@@ -177,9 +177,9 @@ impl InfoCache {
             .and_then(KeyedUri::try_from)
     }
 
-    async fn gateway_version(&mut self) -> Result<Option<GatewayVersion>> {
+    async fn gateway_version(&mut self) -> Result<GatewayVersion> {
         let height = self._height().await?;
-        Ok(height.gateway_version.map(GatewayVersion::from))
+        Ok(GatewayVersion::from(height.gateway_version))
     }
 
     async fn region(&mut self) -> Result<Region> {
