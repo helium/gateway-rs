@@ -1,7 +1,7 @@
 [package]
 name = "gateway-rs"
 description = "Helium Gateway for LoRa packet forwarders"
-version = "1.0.0-alpha.30"
+version = "1.0.0-alpha.31"
 authors = ["Marc Nijdam <marc@helium.com>"]
 edition = "2021"
 license = "Apache-2.0"
