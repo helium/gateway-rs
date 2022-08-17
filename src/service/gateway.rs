@@ -231,7 +231,7 @@ impl GatewayService {
         }
     }
 
-    pub async fn version(&mut self) -> Result<Option<u64>> {
+    pub async fn version(&mut self) -> Result<u64> {
         let resp = self
             .client
             .version(GatewayVersionReqV1 {})
@@ -239,13 +239,11 @@ impl GatewayService {
             .into_inner();
         resp.verify(&self.uri.pubkey)?;
         match resp.msg {
-            Some(gateway_resp_v1::Msg::Version(GatewayVersionRespV1 { version })) => {
-                Ok(Some(version))
-            }
+            Some(gateway_resp_v1::Msg::Version(GatewayVersionRespV1 { version })) => Ok(version),
             Some(other) => Err(Error::custom(format!(
                 "invalid validator response {other:?}"
             ))),
-            None => Ok(None),
+            None => Err(Error::custom("empty version response")),
         }
     }
 }
