@@ -6,11 +6,15 @@
 //!
 //! TODO: fuzz beacon interval to prevent thundering herd.
 
-use crate::{gateway, Packet, RawPacket, RegionParams, Result};
+use crate::{
+    gateway, service::poc::PocLoraService, settings::Settings, Packet, RawPacket, RegionParams,
+    Result,
+};
+use helium_proto::services::poc_lora;
 use lorawan::{MType, PHYPayload, PHYPayloadFrame, MHDR};
 use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
 use slog::{self, debug, error, info, warn, Logger};
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::{sync::mpsc, time};
 use triggered::Listener;
 
@@ -62,20 +66,21 @@ pub struct Beaconer {
     ctr: u32,
     /// Use for channel plan and FR parameters
     region_params: Option<RegionParams>,
+    poc_service: PocLoraService,
     rng: StdRng,
     logger: Logger,
 }
 
 impl Beaconer {
     pub fn new(
+        settings: &Settings,
         transmit_queue: gateway::MessageSender,
         receiver: MessageReceiver,
-        beacon_interval_secs: Option<u64>,
         logger: &Logger,
     ) -> Self {
         let logger = logger.new(slog::o!("module" => "beacon"));
 
-        let interval = match beacon_interval_secs {
+        let interval = match settings.beacon_interval {
             None => {
                 info!(
                     logger,
@@ -89,12 +94,15 @@ impl Beaconer {
             }
         };
 
+        let poc_service = PocLoraService::new(settings.poc.clone());
+
         Self {
             txq: transmit_queue,
             inbox: receiver,
             interval,
             ctr: 0,
             region_params: None,
+            poc_service,
             rng: StdRng::from_entropy(),
             logger,
         }
@@ -144,6 +152,19 @@ impl Beaconer {
             payload
         };
         let frequency = self.rand_freq();
+        let beacon_report = poc_lora::LoraBeaconReportReqV1 {
+            beacon_id: vec![],
+            pub_key: vec![],
+            local_entropy: vec![],
+            remote_entropy: vec![],
+            data: lora_frame.clone(),
+            frequency: frequency as f32,
+            channel: 0,
+            datarate: poc_lora::DataRate::Sf7bw125 as i32,
+            tx_power: 27,
+            timestamp: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
+            signature: vec![],
+        };
         let packet = RawPacket {
             downlink: false,
             frequency,
@@ -154,6 +175,17 @@ impl Beaconer {
         };
         info!(self.logger, "sending beacon {:?}", packet);
         self.txq.transmit_raw(packet).await?;
+
+        match self.poc_service.submit_beacon(beacon_report.clone()).await {
+            Ok(resp) => info!(
+                self.logger,
+                "poc beacon submitted: {:?}, response: {}", beacon_report, resp
+            ),
+            Err(e) => warn!(
+                self.logger,
+                "poc beacon submitted: {:?}, err: {}", beacon_report, e
+            ),
+        }
 
         Ok(())
     }

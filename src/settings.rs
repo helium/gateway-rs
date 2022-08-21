@@ -42,6 +42,9 @@ pub struct Settings {
     /// The validator(s) to query for chain related state. Defaults to a Helium
     /// validator.
     pub gateways: Vec<KeyedUri>,
+    /// PoC server.
+    #[serde(with = "http_serde::uri")]
+    pub poc: Uri,
     /// Cache settings
     pub cache: CacheSettings,
     /// Beacon interval in seconds

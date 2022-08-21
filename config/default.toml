@@ -20,6 +20,7 @@ keypair = "/etc/helium_gateway/gateway_key.bin"
 listen = "127.0.0.1:1680"
 api = 4467
 region = "US915"
+poc = "http://34.194.18.21:8080"
 
 [log]
 method = "stdio"
