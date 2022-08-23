@@ -192,19 +192,57 @@ impl Beaconer {
 
     async fn handle_message(&mut self, message: Message) {
         match message {
-            Message::RxPk(packet) => self.handle_packet(packet),
+            Message::RxPk(packet) => self.handle_packet(packet).await,
             Message::RegionParamsChanged(region_params) => self.handle_region_params(region_params),
         }
     }
 
-    fn handle_packet(&mut self, packet: Packet) {
-        if let Ok(lorawan::PHYPayloadFrame::Proprietary(_proprietary_payload)) =
+    async fn handle_packet(&mut self, packet: Packet) {
+        if let Ok(lorawan::PHYPayloadFrame::Proprietary(proprietary_payload)) =
             Packet::parse_frame(lorawan::Direction::Uplink, packet.payload())
         {
             info!(
                 self.logger,
                 "received possible-PoC proprietary lorawan frame {:?}", packet
             );
+            let dr = match packet.datarate.as_str() {
+                "SF7BW125" => poc_lora::DataRate::Sf7bw125,
+                "SF8BW125" => poc_lora::DataRate::Sf8bw125,
+                "SF9BW125" => poc_lora::DataRate::Sf9bw125,
+                "SF10BW125" => poc_lora::DataRate::Sf10bw125,
+                "SF12BW125" => poc_lora::DataRate::Sf12bw125,
+                &_ => {
+                    warn!(self.logger, "unknown datarate {}", packet.datarate);
+                    return;
+                }
+            };
+            let witness_report = poc_lora::LoraWitnessReportReqV1 {
+                beacon_id: vec![],
+                pub_key: vec![],
+                packet: proprietary_payload,
+                timestamp: packet.timestamp,
+                ts_res: 0,
+                signal: 0,
+                snr: packet.snr,
+                frequency: packet.frequency,
+                channel: 0,
+                datarate: dr as i32,
+                signature: vec![],
+            };
+            match self
+                .poc_service
+                .submit_witness(witness_report.clone())
+                .await
+            {
+                Ok(resp) => info!(
+                    self.logger,
+                    "poc witness submitted: {:?}, response: {}", witness_report, resp
+                ),
+                Err(e) => warn!(
+                    self.logger,
+                    "poc witness submitted: {:?}, err: {}", witness_report, e
+                ),
+            }
         }
     }
 
