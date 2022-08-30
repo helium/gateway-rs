@@ -80,7 +80,7 @@ impl Beaconer {
     ) -> Self {
         let logger = logger.new(slog::o!("module" => "beacon"));
 
-        let interval = match settings.beacon_interval {
+        let interval = match settings.poc.beacon_interval {
             None => {
                 info!(
                     logger,
@@ -94,7 +94,7 @@ impl Beaconer {
             }
         };
 
-        let poc_service = PocLoraService::new(settings.poc.clone());
+        let poc_service = PocLoraService::new(settings.poc.remote.clone());
 
         Self {
             txq: transmit_queue,

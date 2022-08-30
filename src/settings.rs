@@ -42,13 +42,10 @@ pub struct Settings {
     /// The validator(s) to query for chain related state. Defaults to a Helium
     /// validator.
     pub gateways: Vec<KeyedUri>,
-    /// PoC server.
-    #[serde(with = "http_serde::uri")]
-    pub poc: Uri,
     /// Cache settings
     pub cache: CacheSettings,
-    /// Beacon interval in seconds
-    pub beacon_interval: Option<u64>,
+    /// Proof-of-coverage (PoC) settings.
+    pub poc: PocSettings,
 }
 
 /// Settings for log method and level to be used by the running service.
@@ -90,6 +87,16 @@ pub struct UpdateSettings {
 pub struct CacheSettings {
     // Maximum number of packets to queue up per router client
     pub max_packets: u16,
+}
+
+/// Settings for proof-of-coverage (PoC).
+#[derive(Debug, Deserialize, Clone)]
+pub struct PocSettings {
+    /// Remote ingestor URL.
+    #[serde(with = "http_serde::uri")]
+    pub remote: Uri,
+    /// Beacon interval in seconds.
+    pub beacon_interval: Option<u64>,
 }
 
 impl Settings {
