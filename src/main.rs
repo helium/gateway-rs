@@ -87,37 +87,55 @@ pub fn main() -> Result {
     }
 
     let settings = Settings::new(&cli.config)?;
-    let logger = mk_logger(&settings);
-    let scope_guard = slog_scope::set_global_logger(logger);
-    let run_logger = slog_scope::logger().new(o!());
-    slog_stdlog::init().expect("log init");
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()?;
 
-    // Start the runtime after the daemon fork
-    let res = runtime.block_on(async {
-        let (shutdown_trigger, shutdown_listener) = triggered::trigger();
-        tokio::spawn(async move {
-            let mut in_buf = [0u8; 64];
-            let mut stdin = tokio::io::stdin();
-            loop {
-                tokio::select!(
-                    _ = signal::ctrl_c() => break,
-                    read = stdin.read(&mut in_buf), if cli.stdin => if let Ok(0) = read { break },
-                )
-            }
-            shutdown_trigger.trigger()
+    // This `main()` returns a result only for errors we can't easily
+    // intercept and log. An example is config file parsing. The
+    // config file is the source of truth for the kind of logger we
+    // need to build. Any `Err's returned are displayed to STDERR and
+    // result in a non-zero exit code. And due to the behavior of our
+    // logger, simply calling `exit()` early prevents any error
+    // logging from reaching its destination.
+    let retcode = {
+        let logger = mk_logger(&settings);
+        // This guard protects the global logger and needs live until
+        // the end of this block, despite being used directly.
+        let _scope_guard = slog_scope::set_global_logger(logger);
+        let run_logger = slog_scope::logger().new(o!());
+        slog_stdlog::init().expect("log init");
+
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime build");
+
+        // Start the runtime after the daemon fork
+        let res = runtime.block_on(async {
+            let (shutdown_trigger, shutdown_listener) = triggered::trigger();
+            tokio::spawn(async move {
+                let mut in_buf = [0u8; 64];
+                let mut stdin = tokio::io::stdin();
+                loop {
+                    tokio::select!(
+                        _ = signal::ctrl_c() => break,
+                        read = stdin.read(&mut in_buf), if cli.stdin => if let Ok(0) = read { break },
+                    )
+                }
+                shutdown_trigger.trigger()
+            });
+            run(cli, settings, &shutdown_listener, run_logger.clone()).await
         });
-        run(cli, settings, &shutdown_listener, run_logger.clone()).await
-    });
-    runtime.shutdown_timeout(Duration::from_secs(0));
+        runtime.shutdown_timeout(Duration::from_secs(0));
 
-    if let Err(e) = &res {
-        error!(&run_logger, "{e}");
+        match res {
+            Err(e) => {
+                error!(&run_logger, "{e}");
+                1
+            }
+            _ => 0,
+        }
     };
-    drop(scope_guard);
-    Ok(())
+
+    std::process::exit(retcode);
 }
 
 pub async fn run(
