@@ -128,7 +128,7 @@ pub fn main() -> Result {
 
         match res {
             Err(e) => {
-                error!(&run_logger, "{e}");
+                error!(&run_logger, "{}", e);
                 1
             }
             _ => 0,
