@@ -38,13 +38,13 @@ impl QuePacket {
         let mut up = PacketRouterPacketUpV1 {
             payload: packet.payload.clone(),
             timestamp: packet.timestamp,
-            signal_strength: packet.signal_strength,
-            frequency: packet.frequency,
-            datarate: packet.datarate.clone(),
+            rssi: packet.signal_strength as u32,
+            frequency_mhz: packet.frequency,
+            datarate: serde_json::from_str(&packet.datarate)?,
             snr: packet.snr,
             region: region.into(),
             hold_time: self.hold_time().as_millis() as u64,
-            hotspot: keypair.public_key().into(),
+            gateway: keypair.public_key().into(),
             signature: vec![],
         };
         up.signature = up.sign(keypair.clone()).await?;

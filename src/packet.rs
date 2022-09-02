@@ -85,14 +85,14 @@ impl TryFrom<PacketRouterPacketDownV1> for Packet {
             timestamp: window.timestamp,
             signal_strength: 0.0,
             frequency: window.frequency,
-            datarate: window.datarate,
+            datarate: window.datarate.to_string(),
             snr: 0.0,
             routing: None,
             rx2_window: match pr_down.rx2.clone() {
                 Some(window) => Some(helium_proto::Window {
                     timestamp: window.timestamp,
                     frequency: window.frequency,
-                    datarate: window.datarate,
+                    datarate: window.datarate.to_string(),
                 }),
                 None => None,
             },
