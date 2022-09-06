@@ -45,7 +45,7 @@ fn fetch_releases(url: String, page: u32) -> Future<((String, u32), Vec<Release>
     let curl_url = format!("{url}?per_page={GH_PAGE_SIZE}&page={page}");
     curl::get(
         curl_url,
-        &["-H", "Accept: application/vnd.github.v3+json"],
+        ["-H", "Accept: application/vnd.github.v3+json"],
         move |output| {
             let mut items: Vec<Release> = serde_json::from_slice(output)?;
             items.reverse();
@@ -229,7 +229,7 @@ impl ReleaseAsset {
             .kill_on_drop(true)
             .arg("-s")
             .arg("-L")
-            .args(&["-o", &dest.to_string_lossy()])
+            .args(["-o", &dest.to_string_lossy()])
             .arg(&self.download_url)
             .status()
             .map(|status| match status {
