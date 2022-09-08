@@ -1,9 +1,10 @@
-use helium_proto::services::router::PacketRouterPacketUpV1;
+use helium_proto::{services::router::PacketRouterPacketUpV1, DataRate};
 
 use crate::{CacheSettings, Keypair, MsgSign, Packet, Region, Result};
 use std::{
     collections::VecDeque,
     ops::Deref,
+    str::FromStr,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -40,7 +41,7 @@ impl QuePacket {
             timestamp: packet.timestamp,
             rssi: packet.signal_strength as u32,
             frequency_mhz: packet.frequency,
-            datarate: serde_json::from_str(&packet.datarate)?,
+            datarate: DataRate::from_str(&packet.datarate)? as i32,
             snr: packet.snr,
             region: region.into(),
             hold_time: self.hold_time().as_millis() as u64,
