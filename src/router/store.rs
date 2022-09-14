@@ -29,7 +29,7 @@ impl QuePacket {
         &self.packet
     }
 
-    pub async fn to_packet_up(
+    pub async fn to_uplink(
         &self,
         keypair: Arc<Keypair>,
         region: &Region,

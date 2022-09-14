@@ -166,7 +166,7 @@ impl RouterClient {
             "packet_hash" => packet.hash().to_b64());
 
         packet
-            .to_packet_up(self.keypair.clone(), &self.region)
+            .to_uplink(self.keypair.clone(), &self.region)
             .and_then(|up| self.router.route(up))
             .await
     }
