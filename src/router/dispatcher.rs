@@ -124,7 +124,6 @@ const GATEWAY_MAX_BLOCK_AGE: Duration = Duration::from_secs(1800); // 30 minutes
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone)]
 enum GatewayStream {
-    Routing,
     RegionParams,
 }
 
@@ -240,22 +239,18 @@ impl Dispatcher {
             return Ok(None);
         }
         let mut gateway = gateway.unwrap();
-        let mut routing_gateway = gateway.clone();
-        let routing = routing_gateway.routing(self.routing_height);
         let default_region_params = gateway
             .region_params_for(&self.region, self.keypair.clone())
             .await?;
         let region_params = gateway.region_params(self.keypair.clone());
-        match tokio::try_join!(routing, region_params) {
-            Ok((routing, region_params)) => {
-                let stream_map = StreamMap::from_iter([
-                    (GatewayStream::Routing, routing),
-                    (GatewayStream::RegionParams, region_params),
-                ]);
+        match region_params.await {
+            Ok(region_params) => {
+                let stream_map =
+                    StreamMap::from_iter([(GatewayStream::RegionParams, region_params)]);
                 Ok(Some((gateway, stream_map, default_region_params)))
             }
             Err(err) => {
-                warn!(logger, "gateway stream setup error: {err:?} "; 
+                warn!(logger, "gateway stream setup error: {err:?} ";
                     "pubkey" => gateway.uri.pubkey.to_string(),
                     "uri" => gateway.uri.uri.to_string());
                 Err(err)
@@ -284,12 +279,10 @@ impl Dispatcher {
                 },
                 gateway_message = streams.next() => match gateway_message {
                     Some((gateway_stream, Ok(gateway_message))) => match gateway_stream {
-                        GatewayStream::Routing => info!(logger, "ignoring routing update"),
                         GatewayStream::RegionParams => self.handle_region_params_update(&gateway_message, logger).await,
                     },
                     Some((gateway_stream, Err(err))) =>  {
                         match gateway_stream {
-                            GatewayStream::Routing =>  warn!(logger, "gateway routing stream error: {err:?}"),
                             GatewayStream::RegionParams =>  warn!(logger, "gateway region_params stream error: {err:?}"),
                         }
                         return Ok(())

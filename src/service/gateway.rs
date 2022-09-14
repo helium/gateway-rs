@@ -6,9 +6,9 @@ use helium_proto::{
     gateway_resp_v1,
     services::{self, Channel, Endpoint},
     BlockchainVarV1, GatewayConfigReqV1, GatewayConfigRespV1, GatewayRegionParamsReqV1,
-    GatewayRegionParamsUpdateReqV1, GatewayRespV1, GatewayRoutingReqV1, GatewayScIsActiveReqV1,
-    GatewayScIsActiveRespV1, GatewayValidatorsReqV1, GatewayValidatorsRespV1, GatewayVersionReqV1,
-    GatewayVersionRespV1, Routing,
+    GatewayRegionParamsUpdateReqV1, GatewayRespV1, GatewayScIsActiveReqV1, GatewayScIsActiveRespV1,
+    GatewayValidatorsReqV1, GatewayValidatorsRespV1, GatewayVersionReqV1, GatewayVersionRespV1,
+    Routing,
 };
 use rand::{rngs::OsRng, seq::SliceRandom};
 use std::{
@@ -118,14 +118,6 @@ impl GatewayService {
             },
             _ = cancel.clone() => Ok(None)
         }
-    }
-
-    pub async fn routing(&mut self, height: u64) -> Result<Streaming> {
-        let stream = self.client.routing(GatewayRoutingReqV1 { height }).await?;
-        Ok(Streaming {
-            streaming: stream.into_inner(),
-            verifier: self.uri.pubkey.clone(),
-        })
     }
 
     pub async fn region_params(&mut self, keypair: Arc<Keypair>) -> Result<Streaming> {
