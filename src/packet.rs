@@ -169,3 +169,43 @@ impl Packet {
         }
     }
 }
+
+/// A raw LoRa packet.
+#[derive(Debug, Clone)]
+pub struct RawPacket {
+    pub downlink: bool,
+    pub frequency: u64,
+    pub datarate: DataRate,
+    pub payload: Vec<u8>,
+    pub power_dbm: u32,
+}
+
+impl RawPacket {
+    /// Turn the packet into
+    pub fn into_pull_resp(self) -> pull_resp::TxPk {
+        let size = self.payload.len() as u64;
+        let ipol = self.downlink;
+        let datr = self.datarate;
+        let freq = self.frequency as f64 / 1e6;
+        let data = self.payload;
+        let powe = self.power_dbm as u64;
+
+        pull_resp::TxPk {
+            imme: true,
+            ipol,
+            modu: Modulation::LORA,
+            codr: CodingRate::_4_5,
+            datr,
+            freq,
+            data,
+            size,
+            powe,
+            rfch: 0,
+            tmst: None,
+            tmms: None,
+            fdev: None,
+            prea: None,
+            ncrc: None,
+        }
+    }
+}

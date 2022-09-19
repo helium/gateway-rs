@@ -1,10 +1,12 @@
-use crate::{router::dispatcher, Error, Packet, RegionParams, Result, Settings};
+use crate::{
+    beaconing, router::dispatcher, Error, Packet, RawPacket, RegionParams, Result, Settings,
+};
 use futures::TryFutureExt;
 use semtech_udp::{
     server_runtime::{Error as SemtechError, Event, UdpRuntime},
     tx_ack, MacAddress,
 };
-use slog::{debug, info, o, warn, Logger};
+use slog::{debug, error, info, o, warn, Logger};
 use std::{
     convert::TryFrom,
     time::{Duration, Instant},
@@ -17,6 +19,7 @@ pub const UPLINK_TIMEOUT_SECS: u64 = 6;
 #[derive(Debug)]
 pub enum Message {
     Downlink(Packet),
+    TransmitRaw(RawPacket),
     RegionParamsChanged(RegionParams),
 }
 
@@ -37,6 +40,21 @@ impl MessageSender {
             .await
     }
 
+    /// Send a non-inverted (`ipol = false`) packet that is receivable
+    /// by other gateways.
+    ///
+    /// Essentially, this packet looks like a regular uplink packet to
+    /// other gateways until further inspection.
+    ///
+    /// TODO: can we refactor downlink into a more generic `send` that
+    ///       handles packets with `IPOL == true|false`?
+    pub async fn transmit_raw(&self, packet: RawPacket) -> Result {
+        self.0
+            .send(Message::TransmitRaw(packet))
+            .map_err(|_| Error::channel())
+            .await
+    }
+
     pub async fn region_params_changed(&self, region_params: RegionParams) {
         let _ = self
             .0
@@ -48,6 +66,7 @@ impl MessageSender {
 pub struct Gateway {
     uplinks: dispatcher::MessageSender,
     messages: MessageReceiver,
+    beaconing_sender: beaconing::MessageSender,
     downlink_mac: MacAddress,
     udp_runtime: UdpRuntime,
     listen_address: String,
@@ -58,12 +77,14 @@ impl Gateway {
     pub async fn new(
         uplinks: dispatcher::MessageSender,
         messages: MessageReceiver,
+        beaconing_sender: beaconing::MessageSender,
         settings: &Settings,
     ) -> Result<Self> {
         let gateway = Gateway {
             uplinks,
             downlink_mac: Default::default(),
             messages,
+            beaconing_sender,
             listen_address: settings.listen.clone(),
             udp_runtime: UdpRuntime::new(&settings.listen).await?,
             region_params: None,
@@ -115,7 +136,17 @@ impl Gateway {
                 Ok(packet) if packet.is_longfi() => {
                     info!(logger, "ignoring longfi packet");
                 }
-                Ok(packet) => self.handle_uplink(logger, packet, Instant::now()).await,
+                Ok(packet) => {
+                    if self
+                        .beaconing_sender
+                        .send(beaconing::Message::RxPk(packet.clone()))
+                        .await
+                        .is_err()
+                    {
+                        error!(logger, "beaconer channel closed")
+                    };
+                    self.handle_uplink(logger, packet, Instant::now()).await;
+                }
                 Err(err) => {
                     warn!(logger, "ignoring push_data: {err:?}");
                 }
@@ -141,12 +172,55 @@ impl Gateway {
     async fn handle_message(&mut self, logger: &Logger, message: Message) {
         match message {
             Message::Downlink(packet) => self.handle_downlink(logger, packet).await,
+            Message::TransmitRaw(packet) => self.handle_raw_tx(logger, packet).await,
             Message::RegionParamsChanged(region_params) => {
+                if self
+                    .beaconing_sender
+                    .send(beaconing::Message::RegionParamsChanged(
+                        region_params.clone(),
+                    ))
+                    .await
+                    .is_err()
+                {
+                    error!(logger, "beaconer channel closed")
+                };
                 self.region_params = Some(region_params);
                 info!(logger, "updated region";
                     "region" => RegionParams::to_string(&self.region_params));
             }
         }
+    }
+
+    async fn handle_raw_tx(&mut self, logger: &Logger, mut packet: RawPacket) {
+        let region_params = if let Some(region_params) = &self.region_params {
+            region_params
+        } else {
+            warn!(logger, "ignoring transmit request, no region params");
+            return;
+        };
+
+        packet.power_dbm = if let Some(tx_power) = region_params.tx_power() {
+            tx_power
+        } else {
+            warn!(logger, "ignoring transmit request, no tx power");
+            return;
+        };
+
+        let txpk = packet.into_pull_resp();
+        let tx_dl = self
+            .udp_runtime
+            .prepare_downlink(txpk.clone(), self.downlink_mac);
+        let logger = logger.clone();
+
+        tokio::spawn(async move {
+            match tx_dl
+                .dispatch(Some(Duration::from_secs(DOWNLINK_TIMEOUT_SECS)))
+                .await
+            {
+                Ok(()) => info!(logger, "raw transmit packet {}", txpk),
+                Err(e) => warn!(logger, "raw transmit packet, error {}, {}", txpk, e),
+            };
+        });
     }
 
     async fn handle_downlink(&mut self, logger: &Logger, downlink: Packet) {
