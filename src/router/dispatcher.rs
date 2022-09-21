@@ -44,7 +44,7 @@ pub struct HeightResponse {
     pub gateway: KeyedUri,
     pub height: u64,
     pub block_age: u64,
-    pub gateway_version: Option<u64>,
+    pub gateway_version: u64,
 }
 
 pub type MessageSender = sync::MessageSender<Message>;
@@ -386,7 +386,7 @@ impl Dispatcher {
             }
             Message::Height { response } => {
                 let reply = if let Some(gateway) = gateway {
-                    let gateway_version = gateway.version().await.ok();
+                    let gateway_version = gateway.version().await.unwrap_or(0);
                     gateway
                         .height()
                         .await

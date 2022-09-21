@@ -10,7 +10,7 @@ use crate::{
     gateway, service::poc::PocLoraService, settings::Settings, Packet, RawPacket, RegionParams,
     Result,
 };
-use helium_proto::services::poc_lora;
+use helium_proto::{services::poc_lora, DataRate};
 use lorawan::{MType, PHYPayload, PHYPayloadFrame, MHDR};
 use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
 use slog::{self, debug, error, info, warn, Logger};
@@ -94,7 +94,7 @@ impl Beaconer {
             }
         };
 
-        let poc_service = PocLoraService::new(settings.poc.remote.clone());
+        let poc_service = PocLoraService::new(settings.poc.ingest_uri.clone());
 
         Self {
             txq: transmit_queue,
@@ -153,14 +153,13 @@ impl Beaconer {
         };
         let frequency = self.rand_freq();
         let beacon_report = poc_lora::LoraBeaconReportReqV1 {
-            beacon_id: vec![],
             pub_key: vec![],
             local_entropy: vec![],
             remote_entropy: vec![],
             data: lora_frame.clone(),
-            frequency: frequency as f32,
+            frequency: frequency as u32,
             channel: 0,
-            datarate: poc_lora::DataRate::Sf7bw125 as i32,
+            datarate: DataRate::Sf7bw125 as i32,
             tx_power: 27,
             timestamp: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
             signature: vec![],
@@ -206,26 +205,24 @@ impl Beaconer {
                 "received possible-PoC proprietary lorawan frame {:?}", packet
             );
             let dr = match packet.datarate.as_str() {
-                "SF7BW125" => poc_lora::DataRate::Sf7bw125,
-                "SF8BW125" => poc_lora::DataRate::Sf8bw125,
-                "SF9BW125" => poc_lora::DataRate::Sf9bw125,
-                "SF10BW125" => poc_lora::DataRate::Sf10bw125,
-                "SF12BW125" => poc_lora::DataRate::Sf12bw125,
+                "SF7BW125" => DataRate::Sf7bw125,
+                "SF8BW125" => DataRate::Sf8bw125,
+                "SF9BW125" => DataRate::Sf9bw125,
+                "SF10BW125" => DataRate::Sf10bw125,
+                "SF12BW125" => DataRate::Sf12bw125,
                 &_ => {
                     warn!(self.logger, "unknown datarate {}", packet.datarate);
                     return;
                 }
             };
             let witness_report = poc_lora::LoraWitnessReportReqV1 {
-                beacon_id: vec![],
                 pub_key: vec![],
-                packet: proprietary_payload,
+                data: proprietary_payload,
                 timestamp: packet.timestamp,
                 ts_res: 0,
                 signal: 0,
                 snr: packet.snr,
                 frequency: packet.frequency,
-                channel: 0,
                 datarate: dr as i32,
                 signature: vec![],
             };

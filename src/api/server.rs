@@ -136,7 +136,7 @@ impl Api for LocalServer {
             .ecdh(&public_key)
             .map_err(|_err| Status::internal("Failed ecdh"))?;
         let reply = EcdhRes {
-            secret: secret.as_bytes().to_vec(),
+            secret: secret.raw_secret_bytes().to_vec(),
         };
         Ok(Response::new(reply))
     }

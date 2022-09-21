@@ -179,7 +179,7 @@ impl InfoCache {
 
     async fn gateway_version(&mut self) -> Result<Option<GatewayVersion>> {
         let height = self._height().await?;
-        Ok(height.gateway_version.map(GatewayVersion::from))
+        Ok(Some(GatewayVersion::from(height.gateway_version)))
     }
 
     async fn region(&mut self) -> Result<Region> {

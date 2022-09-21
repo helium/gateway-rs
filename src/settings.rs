@@ -92,9 +92,12 @@ pub struct CacheSettings {
 /// Settings for proof-of-coverage (PoC).
 #[derive(Debug, Deserialize, Clone)]
 pub struct PocSettings {
+    /// Entropy URL.
+    #[serde(with = "http_serde::uri")]
+    pub entropy_uri: Uri,
     /// Remote ingestor URL.
     #[serde(with = "http_serde::uri")]
-    pub remote: Uri,
+    pub ingest_uri: Uri,
     /// Beacon interval in seconds.
     pub beacon_interval: Option<u64>,
 }
