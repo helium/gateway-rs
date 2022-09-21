@@ -12,7 +12,7 @@ path = "src/main.rs"
 doc = false
 
 [workspace]
-members = ["lorawan"]
+members = ["lorawan", "entropy"]
 
 
 [dependencies]
