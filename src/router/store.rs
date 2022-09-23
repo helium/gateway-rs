@@ -40,7 +40,7 @@ impl QuePacket {
             payload: packet.payload.clone(),
             timestamp: packet.timestamp,
             rssi: packet.signal_strength as u32,
-            frequency_mhz: packet.frequency,
+            frequency: (packet.frequency * 1_000_000.0) as u32,
             datarate: DataRate::from_str(&packet.datarate)? as i32,
             snr: packet.snr,
             region: region.into(),
