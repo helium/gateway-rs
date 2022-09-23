@@ -78,6 +78,7 @@ impl TryFrom<PacketRouterPacketDownV1> for Packet {
             Some(rx1) => rx1,
             None => return Err(Error::custom("no rx1")),
         };
+        let datarate = helium_proto::DataRate::from_i32(window.datarate).unwrap();
         let packet = helium_proto::Packet {
             oui: 0,
             r#type: PacketType::Lorawan.into(),
@@ -85,7 +86,7 @@ impl TryFrom<PacketRouterPacketDownV1> for Packet {
             timestamp: window.timestamp,
             signal_strength: 0.0,
             frequency: window.frequency,
-            datarate: window.datarate.to_string(),
+            datarate: datarate.to_string(),
             snr: 0.0,
             routing: None,
             rx2_window: pr_down.rx2.map(|window| helium_proto::Window {
