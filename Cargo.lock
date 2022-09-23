@@ -181,6 +181,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "904dfeac50f3cdaba28fc6f57fdcddb75f49ed61346676a78c4ffe55877802fd"
 
 [[package]]
+name = "beacon"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "helium-proto",
+ "rand",
+ "rand_chacha",
+ "serde",
+ "serde_json",
+ "sha2 0.9.9",
+]
+
+[[package]]
 name = "bindgen"
 version = "0.60.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -573,15 +586,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "entropy"
-version = "0.1.0"
-dependencies = [
- "base64",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "env_logger"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -747,6 +751,7 @@ dependencies = [
  "angry-purple-tiger",
  "async-trait",
  "base64",
+ "beacon",
  "bytes",
  "config",
  "daemonize",
@@ -765,7 +770,6 @@ dependencies = [
  "semtech-udp",
  "semver",
  "serde",
- "serde_derive",
  "serde_json",
  "serde_urlencoded",
  "sha2 0.10.6",
@@ -899,7 +903,7 @@ dependencies = [
 [[package]]
 name = "helium-proto"
 version = "0.1.0"
-source = "git+https://github.com/helium/proto?branch=master#f41042dce0778f1997ef781c760d0f8152f75ca0"
+source = "git+https://github.com/helium/proto?branch=master#72bb770c4808a78c17f6d31f96826bc9cc5470e9"
 dependencies = [
  "bytes",
  "prost",

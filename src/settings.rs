@@ -98,8 +98,11 @@ pub struct PocSettings {
     /// Remote ingestor URL.
     #[serde(with = "http_serde::uri")]
     pub ingest_uri: Uri,
-    /// Beacon interval in seconds.
-    pub beacon_interval: Option<u64>,
+    /// Beacon interval in seconds. Defaults to 3 times in 24 hours. Note that
+    /// the rate of beacons is verified by the oracle so increasing this number
+    /// will not increase rewards
+    #[serde(default = "default_beacon_interval")]
+    pub beacon_interval: u64,
 }
 
 impl Settings {
@@ -148,6 +151,11 @@ fn default_listen() -> String {
 
 fn default_api() -> u16 {
     4467
+}
+
+fn default_beacon_interval() -> u64 {
+    // 3x daily with a few seconds to spare.
+    8 * (3600 - 1)
 }
 
 #[derive(Debug)]

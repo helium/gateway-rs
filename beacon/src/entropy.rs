@@ -1,10 +1,43 @@
+use rand::{rngs::OsRng, RngCore};
 use serde::{Deserialize, Serialize};
+use sha2::Digest;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+pub const LOCAL_ENTROPY_SIZE: usize = 4;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Entropy {
+    #[serde(default = "default_version")]
+    pub version: u32,
     pub timestamp: i64,
     #[serde(with = "serde_base64")]
     pub data: Vec<u8>,
+}
+
+impl Entropy {
+    pub fn local() -> Self {
+        let mut local_entropy = [0u8; LOCAL_ENTROPY_SIZE];
+        OsRng.fill_bytes(&mut local_entropy);
+        let version = default_version();
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_else(|_| Duration::from_secs(0))
+            .as_secs() as i64;
+        Self {
+            version,
+            timestamp,
+            data: local_entropy.to_vec(),
+        }
+    }
+
+    pub(crate) fn digest<D: Digest>(&self, state: &mut D) {
+        state.update(&self.data);
+        state.update(self.timestamp.to_ne_bytes());
+    }
+}
+
+fn default_version() -> u32 {
+    0
 }
 
 mod serde_base64 {
@@ -53,13 +86,16 @@ mod test {
     fn test_serde() {
         const TIMESTAMP: u64 = 1663702455;
         const DATA: &str = "CE98+3O9JaKJYQqNO7vCF94iOVasA/TaWfdcpvLmcWs=";
+        const VERSION: u32 = 0;
         const JSON_STR: &str = r#"{
+            "version": 0,
             "timestamp": 1663702455,
             "data": "CE98+3O9JaKJYQqNO7vCF94iOVasA/TaWfdcpvLmcWs="
         }"#;
 
         let entropy: Entropy = serde_json::from_str(JSON_STR).expect("deserialized entropy");
         let ser_entropy = serde_json::to_value(&entropy).expect("serialized entropy");
+        assert_eq!(VERSION, *ser_entropy.get("version").unwrap());
         assert_eq!(TIMESTAMP, *ser_entropy.get("timestamp").unwrap());
         assert_eq!(DATA, *ser_entropy.get("data").unwrap());
         assert_eq!(DATA, entropy.to_string());

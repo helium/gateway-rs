@@ -74,11 +74,11 @@ impl MHDR {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct PHYPayload {
     pub mhdr: MHDR,
     pub payload: PHYPayloadFrame,
-    pub mic: [u8; 4],
+    pub mic: Option<[u8; 4]>,
 }
 
 const JOIN_REQUEST_LEN: usize = 23;
@@ -87,6 +87,18 @@ const JOIN_ACCEPT_WITH_CFLIST_LEN: usize = 33;
 const DATA_MIN_LEN: usize = 12;
 
 impl PHYPayload {
+    pub fn propietary(payload: &[u8]) -> Self {
+        PHYPayload {
+            mhdr: {
+                let mut mhdr = MHDR(0);
+                mhdr.set_mtype(MType::Proprietary);
+                mhdr
+            },
+            payload: PHYPayloadFrame::Proprietary(payload.into()),
+            mic: None,
+        }
+    }
+
     pub fn read(direction: Direction, reader: &mut dyn io::Read) -> Result<Self, LoraWanError> {
         let mhdr = MHDR::read(reader)?;
         let packet_type = mhdr.mtype();
@@ -113,14 +125,21 @@ impl PHYPayload {
         }
 
         // indexing with subtraction won't fail because of length checks above
-        let mic = data.split_off(data.len() - 4);
+        // Proprietary frames are assumed to take over the mic bytes
+        let mic = if packet_type != MType::Proprietary {
+            let mut mic_bytes = [0u8; 4];
+            mic_bytes.copy_from_slice(&data.split_off(data.len() - 4));
+            Some(mic_bytes)
+        } else {
+            None
+        };
+
         let mut payload = &data[..];
-        let mut res = Self {
+        let res = Self {
             mhdr,
             payload: PHYPayloadFrame::read(direction, packet_type, &mut payload)?,
-            mic: [0; 4],
+            mic,
         };
-        res.mic.copy_from_slice(&mic);
         Ok(res)
     }
 
@@ -128,7 +147,9 @@ impl PHYPayload {
         let mut written = 0_usize;
         written += self.mhdr.write(output)?;
         written += self.payload.write(output)?;
-        written += output.write(&self.mic)?;
+        if let Some(mic) = self.mic {
+            written += output.write(&mic)?;
+        }
         Ok(written)
     }
 
@@ -137,7 +158,16 @@ impl PHYPayload {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+impl TryFrom<PHYPayload> for Vec<u8> {
+    type Error = LoraWanError;
+    fn try_from(value: PHYPayload) -> Result<Self, Self::Error> {
+        let mut data = vec![];
+        value.write(&mut &mut data)?;
+        Ok(data)
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum PHYPayloadFrame {
     MACPayload(MACPayload),
     JoinRequest(JoinRequest),
@@ -181,7 +211,7 @@ impl PHYPayloadFrame {
     }
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone)]
 pub struct Fhdr {
     pub dev_addr: u32,
     pub fctrl: FCtrl,
@@ -273,7 +303,7 @@ impl FCtrlDownlink {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum FCtrl {
     Uplink(FCtrlUplink),
     Downlink(FCtrlDownlink),
@@ -303,7 +333,7 @@ impl FCtrl {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct MACPayload {
     pub fhdr: Fhdr,
     pub fport: Option<u8>,
@@ -359,7 +389,7 @@ impl MACPayload {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum FRMPayload {
     UnconfirmedUp(Payload),
     UnconfirmedDown(Payload),
@@ -390,7 +420,7 @@ impl FRMPayload {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Payload(Vec<u8>);
 
 impl Payload {
@@ -406,7 +436,7 @@ impl Payload {
     }
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone)]
 pub struct JoinRequest {
     pub app_eui: u64,
     pub dev_eui: u64,
@@ -445,7 +475,7 @@ impl JoinRequest {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct JoinAccept {
     pub app_nonce: [u8; 3],
     pub net_id: [u8; 3],
