@@ -112,9 +112,16 @@ category = "Package"
 condition = { env_set = ["PKG"]}
 env = { "PKG_NAME" = "helium-gateway-v${CARGO_MAKE_CRATE_VERSION}-${CARGO_MAKE_PROFILE}.${PKG}"}
 run_task = [
+	{ name = "info" },
 	{ name = "ipk", condition = { env = { "PKG" = "ipk" } } },
 	{ name = "deb", condition = { env = { "PKG" = "deb" } } }
 ]
+
+[tasks.info]
+description = "Checking static linking"
+dependencies = ["build"]
+command = "file"
+args = ["target/${CROSS_TARGET}/release/helium_gateway"]
 
 [tasks.ipk]
 description = "Builds an ipk for openwrt/opk based targets"
