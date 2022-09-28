@@ -39,7 +39,10 @@ impl Beacon {
         let datarate = DataRate::Sf7bw125;
 
         Self {
-            data: data[0..BEACON_PAYLOAD_SIZE].to_vec(),
+            data: {
+                data.truncate(BEACON_PAYLOAD_SIZE);
+                data
+            },
             frequency,
             datarate,
             local_entropy,
