@@ -109,24 +109,29 @@ args = [
 [tasks.pkg]
 description = "Builds a package for a given packaging profile"
 category = "Package"
+dependencies = ["build", "info_linking", "info_size"]
 condition = { env_set = ["PKG"]}
 env = { "PKG_NAME" = "helium-gateway-v${CARGO_MAKE_CRATE_VERSION}-${CARGO_MAKE_PROFILE}.${PKG}"}
 run_task = [
-	{ name = "info" },
 	{ name = "ipk", condition = { env = { "PKG" = "ipk" } } },
 	{ name = "deb", condition = { env = { "PKG" = "deb" } } }
 ]
 
-[tasks.info]
+[tasks.info_linking]
 description = "Checking static linking"
-dependencies = ["build"]
+category = "Info"
 command = "file"
 args = ["target/${CROSS_TARGET}/release/helium_gateway"]
+
+[tasks.info_size]
+description = "Checking size"
+category = "Info"
+command = "ls"
+args = ["-l", "target/${CROSS_TARGET}/release/helium_gateway"]
 
 [tasks.ipk]
 description = "Builds an ipk for openwrt/opk based targets"
 category = "Package"
-dependencies = ["build"]
 condition = { env_set = ["CROSS_TARGET", "TAR", "AR", "PKG_NAME", "IPK_USE_AR"] }
 env = { "PKG_BUILD_DIR" = "target/pkg/${CARGO_MAKE_PROFILE}", "PKG_SRC_DIR" = "package/${CARGO_MAKE_PROFILE}" }
 script = '''
@@ -176,7 +181,6 @@ script = '''
 [tasks.deb]
 description = "Builds a deb package for debian based targets"
 category = "Package"
-dependencies = ["build"]
 condition = { env_set = ["CROSS_TARGET", "PKG_NAME"] }
 script = '''
 	# make base folder
