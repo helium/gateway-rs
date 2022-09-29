@@ -25,7 +25,7 @@ impl Beacon {
         local_entropy: Entropy,
         region_params: &[BlockchainRegionParamV1],
     ) -> Self {
-        let data = {
+        let mut data = {
             let mut hasher = Sha256::new();
             remote_entropy.digest(&mut hasher);
             local_entropy.digest(&mut hasher);
@@ -59,11 +59,10 @@ fn rand_frequency<R>(region_params: &[BlockchainRegionParamV1], rng: &mut R) -> 
 where
     R: Rng + ?Sized,
 {
-    assert!(!region_params.is_empty());
     region_params
         .choose(rng)
         .map(|params| params.channel_frequency)
-        .unwrap()
+        .expect("empty regional parameters")
 }
 
 impl From<Beacon> for poc_lora::LoraBeaconReportReqV1 {
@@ -77,6 +76,8 @@ impl From<Beacon> for poc_lora::LoraBeaconReportReqV1 {
             channel: 0,
             datarate: v.datarate as i32,
             tx_power: 27,
+            // The timestamp of the beacon is the timestamp of creation of the
+            // report (in nanos)
             timestamp: SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap_or_else(|_| Duration::from_secs(0))

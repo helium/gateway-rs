@@ -3,7 +3,6 @@ use helium_proto::{
     BlockchainRegionParamV1, GatewayRegionParamsRespV1, GatewayRegionParamsStreamedRespV1,
     Region as ProtoRegion,
 };
-use rand::{rngs::OsRng, seq::SliceRandom};
 use rust_decimal::Decimal;
 use serde::{de, Deserialize, Deserializer};
 use std::{fmt, str::FromStr};
@@ -141,13 +140,6 @@ impl RegionParams {
         use rust_decimal::prelude::ToPrimitive;
         self.max_eirp()
             .and_then(|max_eirp| (max_eirp - self.gain).trunc().to_u32())
-    }
-
-    pub fn rand_frequency(&self) -> Option<u64> {
-        self.params
-            .as_slice()
-            .choose(&mut OsRng)
-            .map(|params| params.channel_frequency)
     }
 
     pub fn to_string(v: &Option<Self>) -> String {

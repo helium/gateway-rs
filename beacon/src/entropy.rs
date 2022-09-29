@@ -15,8 +15,11 @@ pub struct Entropy {
 }
 
 impl Entropy {
+    /// Construct entropy from a local system source. The timestamp for the
+    /// entropy is teh creation timestamp since a new one is created every time
+    /// this is called
     pub fn local() -> Self {
-        let mut local_entropy = [0u8; LOCAL_ENTROPY_SIZE];
+        let mut local_entropy = vec![0u8; LOCAL_ENTROPY_SIZE];
         OsRng.fill_bytes(&mut local_entropy);
         let version = default_version();
         let timestamp = SystemTime::now()
@@ -26,7 +29,7 @@ impl Entropy {
         Self {
             version,
             timestamp,
-            data: local_entropy.to_vec(),
+            data: local_entropy,
         }
     }
 
