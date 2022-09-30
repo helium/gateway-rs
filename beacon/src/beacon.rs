@@ -7,7 +7,8 @@ use rand::{seq::SliceRandom, Rng, SeedableRng};
 use sha2::{Digest, Sha256};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-pub const BEACON_PAYLOAD_SIZE: usize = 10;
+pub const MAX_BEACON_V0_PAYLOAD_SIZE: usize = 10;
+pub const MIN_BEACON_V0_PAYLOAD_SIZE: usize = 5;
 
 #[derive(Debug, Clone)]
 pub struct Beacon {
@@ -20,34 +21,49 @@ pub struct Beacon {
 }
 
 impl Beacon {
+    /// Construct a new beacon with a given remote and local entropy. The remote
+    /// and local entropy are checked for version equality.
+    ///
+    /// Version 0 beacons use a Sha256 of the remote and local entropy (data and
+    /// timestamp), which is then used as a 32 byte seed to a ChaCha12 rng. This
+    /// rng is used to choose a random frequency from the given region
+    /// parameters and a payload size between MIN_BEACON_V0_PAYLOAD_SIZE and
+    /// MAX_BEACON_V0_PAYLOAD_SIZE.
     pub fn new(
         remote_entropy: Entropy,
         local_entropy: Entropy,
         region_params: &[BlockchainRegionParamV1],
     ) -> Result<Self> {
-        let mut data = {
-            let mut hasher = Sha256::new();
-            remote_entropy.digest(&mut hasher);
-            local_entropy.digest(&mut hasher);
-            hasher.finalize().to_vec()
-        };
-        let mut seed = [0u8; 32];
-        seed.copy_from_slice(&data[0..32]);
-        let mut rng = rand_chacha::ChaCha12Rng::from_seed(seed);
+        match remote_entropy.version {
+            0 => {
+                let mut data = {
+                    let mut hasher = Sha256::new();
+                    remote_entropy.digest(&mut hasher);
+                    local_entropy.digest(&mut hasher);
+                    hasher.finalize().to_vec()
+                };
+                let mut seed = [0u8; 32];
+                seed.copy_from_slice(&data[0..32]);
+                let mut rng = rand_chacha::ChaCha12Rng::from_seed(seed);
 
-        let frequency = rand_frequency(region_params, &mut rng)?;
-        let datarate = DataRate::Sf7bw125;
+                let frequency = rand_frequency(region_params, &mut rng)?;
+                let payload_size =
+                    rng.gen_range(MIN_BEACON_V0_PAYLOAD_SIZE..=MAX_BEACON_V0_PAYLOAD_SIZE);
+                let datarate = DataRate::Sf7bw125;
 
-        Ok(Self {
-            data: {
-                data.truncate(BEACON_PAYLOAD_SIZE);
-                data
-            },
-            frequency,
-            datarate,
-            local_entropy,
-            remote_entropy,
-        })
+                Ok(Self {
+                    data: {
+                        data.truncate(payload_size);
+                        data
+                    },
+                    frequency,
+                    datarate,
+                    local_entropy,
+                    remote_entropy,
+                })
+            }
+            _ => Err(Error::invalid_version()),
+        }
     }
 
     pub fn beacon_id(&self) -> String {

@@ -285,7 +285,7 @@ pub fn beacon_to_pull_resp(beacon: &Beacon, tx_power: u64) -> Result<pull_resp::
     let datr = beacon.datarate.to_string().parse().unwrap();
     // convert hz to mhz
     let freq = beacon.frequency as f64 / 1e6;
-    let data = PHYPayload::propietary(beacon.data.as_slice()).try_into()?;
+    let data = PHYPayload::proprietary(beacon.data.as_slice()).try_into()?;
 
     Ok(pull_resp::TxPk {
         imme: true,

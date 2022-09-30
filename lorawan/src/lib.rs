@@ -87,7 +87,7 @@ const JOIN_ACCEPT_WITH_CFLIST_LEN: usize = 33;
 const DATA_MIN_LEN: usize = 12;
 
 impl PHYPayload {
-    pub fn propietary(payload: &[u8]) -> Self {
+    pub fn proprietary(payload: &[u8]) -> Self {
         PHYPayload {
             mhdr: {
                 let mut mhdr = MHDR(0);

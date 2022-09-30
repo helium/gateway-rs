@@ -91,9 +91,6 @@ impl Beaconer {
         let local_entropy = beacon::Entropy::local()?;
 
         let region_params = if let Some(region_params) = &self.region_params {
-            if region_params.as_ref().is_empty() {
-                return Err(Error::custom("no region parameters for region"));
-            }
             region_params
         } else {
             return Err(Error::custom("no region set"));

@@ -18,17 +18,19 @@ pub struct Entropy {
 impl Entropy {
     /// Construct entropy from a local system source. The timestamp for the
     /// entropy is teh creation timestamp since a new one is created every time
-    /// this is called
+    /// this is called.
+    ///
+    /// Version 0 entropy uses 4 bytes of entropy from the operating system as
+    /// local entropy
     pub fn local() -> Result<Self> {
         let mut local_entropy = vec![0u8; LOCAL_ENTROPY_SIZE];
         OsRng.fill_bytes(&mut local_entropy);
-        let version = default_version();
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(Error::from)?
             .as_secs() as i64;
         Ok(Self {
-            version,
+            version: 0,
             timestamp,
             data: local_entropy,
         })

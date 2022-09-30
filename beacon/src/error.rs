@@ -8,10 +8,16 @@ pub enum Error {
     SystemTime(#[from] std::time::SystemTimeError),
     #[error("no applicable region plan")]
     NoRegionParams,
+    #[error("invalid beacon version")]
+    InvalidVersion,
 }
 
 impl Error {
     pub fn no_region_params() -> Self {
         Self::NoRegionParams
+    }
+
+    pub fn invalid_version() -> Self {
+        Self::InvalidVersion
     }
 }
