@@ -44,6 +44,8 @@ pub struct Settings {
     pub gateways: Vec<KeyedUri>,
     /// Cache settings
     pub cache: CacheSettings,
+    /// Proof-of-coverage (PoC) settings.
+    pub poc: PocSettings,
 }
 
 /// Settings for log method and level to be used by the running service.
@@ -72,7 +74,7 @@ pub struct UpdateSettings {
     /// The platform identifier to use for released packages (default: klkgw)
     pub platform: String,
     /// The github release url to use (default
-    /// https://api.github.com/repos/helium/gateway-rs/releases)
+    /// <https://api.github.com/repos/helium/gateway-rs/releases>)
     #[serde(with = "http_serde::uri")]
     pub uri: Uri,
     /// The command to use to install an update. There will be just one
@@ -85,6 +87,22 @@ pub struct UpdateSettings {
 pub struct CacheSettings {
     // Maximum number of packets to queue up per router client
     pub max_packets: u16,
+}
+
+/// Settings for proof-of-coverage (PoC).
+#[derive(Debug, Deserialize, Clone)]
+pub struct PocSettings {
+    /// Entropy URL.
+    #[serde(with = "http_serde::uri")]
+    pub entropy_uri: Uri,
+    /// Remote ingestor URL.
+    #[serde(with = "http_serde::uri")]
+    pub ingest_uri: Uri,
+    /// Beacon interval in seconds. Defaults to 3 times in 24 hours. Note that
+    /// the rate of beacons is verified by the oracle so increasing this number
+    /// will not increase rewards
+    #[serde(default = "default_beacon_interval")]
+    pub beacon_interval: u64,
 }
 
 impl Settings {
@@ -135,6 +153,11 @@ fn default_api() -> u16 {
     4467
 }
 
+fn default_beacon_interval() -> u64 {
+    // 3x daily with a few seconds to spare.
+    8 * (3600 - 1)
+}
+
 #[derive(Debug)]
 #[repr(u8)]
 pub enum StakingMode {
@@ -180,7 +203,7 @@ impl FromStr for StakingMode {
             "light" => Ok(Self::Light),
             "full" => Ok(Self::Full),
             "dataonly" => Ok(Self::DataOnly),
-            _ => Err(Error::custom(format!("invalid staking mode {v}"))),
+            _ => Err(Error::custom(format!("invalid staking mode {}", v))),
         }
     }
 }
@@ -223,7 +246,7 @@ pub mod log_level {
                     value
                         .parse()
                         .map(Level)
-                        .map_err(|_| de::Error::custom(format!("invalid log level \"{value}\"")))
+                        .map_err(|_| de::Error::custom(format!("invalid log level \"{}\"", value)))
                 }
             }
 
@@ -275,7 +298,8 @@ pub mod log_method {
                         "syslog" => LogMethod::Syslog,
                         unsupported => {
                             return Err(de::Error::custom(format!(
-                                "unsupported log method: \"{unsupported}\""
+                                "unsupported log method: \"{}\"",
+                                unsupported
                             )))
                         }
                     };

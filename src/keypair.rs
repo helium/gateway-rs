@@ -178,14 +178,6 @@ impl<'de> de::Deserialize<'de> for Keypair {
     }
 }
 
-// pub fn deserialize<'de, D>(d: D) -> std::result::Result<Arc<Keypair>, D::Error>
-// where
-//     D: Deserializer<'de>,
-// {
-//     let s = String::deserialize(d)?;
-//     from_str(&s).map_err(|err| de::Error::custom(err.to_string()))
-// }
-
 #[cfg(test)]
 mod tests {
     use super::*;

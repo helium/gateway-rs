@@ -1,7 +1,7 @@
 [package]
 name = "lorawan"
 version = "0.1.0"
-authors = ["Marc Nijdam <marc_@helium.com>"]
+authors = ["Marc Nijdam <marc@nova-labs.com>"]
 edition = "2021"
 license = "Apache-2.0"
 

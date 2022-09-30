@@ -1,0 +1,18 @@
+[package]
+name = "beacon"
+version = "0.1.0"
+authors = ["Marc Nijdam <marc@nova-labs.com>"]
+edition = "2021"
+license = "Apache-2.0"
+
+[dependencies]
+rand_chacha = "0"
+helium-proto = {workspace = true}
+rand = {workspace = true}
+base64 = {workspace = true}
+serde = {workspace = true}
+sha2 = {workspace = true}
+thiserror = {workspace = true}
+
+[dev-dependencies]
+serde_json = "1"

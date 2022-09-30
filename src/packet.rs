@@ -1,9 +1,9 @@
 use crate::{error::DecodeError, Error, Result};
 use helium_proto::{
-    packet::PacketType, routing_information::Data as RoutingData, BlockchainStateChannelResponseV1,
-    Eui, RoutingInformation,
+    packet::PacketType, routing_information::Data as RoutingData, services::poc_lora,
+    BlockchainStateChannelResponseV1, DataRate as ProtoDataRate, Eui, RoutingInformation,
 };
-use lorawan::PHYPayloadFrame;
+use lorawan::{Direction, PHYPayloadFrame, MHDR};
 use semtech_udp::{
     pull_resp,
     push_data::{self, CRC},
@@ -78,11 +78,6 @@ impl Packet {
         &self.0.routing
     }
 
-    pub fn is_longfi(&self) -> bool {
-        let mut decoded = [0xFE, 65];
-        longfi::Datagram::decode(&self.0.payload, &mut decoded).is_ok()
-    }
-
     pub fn to_packet(self) -> helium_proto::Packet {
         self.0
     }
@@ -110,6 +105,17 @@ impl Packet {
         lorawan::PHYPayload::read(direction, &mut Cursor::new(payload))
             .map(|p| p.payload)
             .map_err(Error::from)
+    }
+
+    pub fn parse_header(payload: &[u8]) -> Result<MHDR> {
+        use std::io::Cursor;
+        lorawan::MHDR::read(&mut Cursor::new(payload)).map_err(Error::from)
+    }
+
+    pub fn is_potential_beacon(&self) -> bool {
+        Self::parse_header(self.payload())
+            .map(|header| header.mtype() == lorawan::MType::Proprietary)
+            .unwrap_or(false)
     }
 
     pub fn to_pull_resp(&self, use_rx2: bool, tx_power: u32) -> Result<Option<pull_resp::TxPk>> {
@@ -168,4 +174,47 @@ impl Packet {
             ((payload_size + DC_PAYLOAD_SIZE - 1) / DC_PAYLOAD_SIZE) as u64
         }
     }
+
+    pub fn to_witness_report(self) -> Result<poc_lora::LoraWitnessReportReqV1> {
+        let payload = match Self::parse_frame(Direction::Uplink, self.payload()) {
+            Ok(PHYPayloadFrame::Proprietary(payload)) => payload,
+            _ => return Err(Error::custom("not a beacon")),
+        };
+        let dr = match ProtoDataRate::from_str(&self.datarate) {
+            Ok(value)
+                if [
+                    ProtoDataRate::Sf7bw125,
+                    ProtoDataRate::Sf8bw125,
+                    ProtoDataRate::Sf9bw125,
+                    ProtoDataRate::Sf10bw125,
+                    ProtoDataRate::Sf12bw125,
+                ]
+                .contains(&value) =>
+            {
+                value
+            }
+            _ => {
+                return Err(Error::custom(format!(
+                    "invalid beacon witness datarate: {}",
+                    self.datarate
+                )));
+            }
+        };
+        let report = poc_lora::LoraWitnessReportReqV1 {
+            pub_key: vec![],
+            data: payload,
+            timestamp: self.timestamp,
+            ts_res: 0,
+            signal: 0,
+            snr: self.snr,
+            frequency: to_hz(self.frequency),
+            datarate: dr as i32,
+            signature: vec![],
+        };
+        Ok(report)
+    }
+}
+
+fn to_hz(mhz: f32) -> u64 {
+    (mhz * 1_000_000f32).trunc() as u64
 }

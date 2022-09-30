@@ -4,6 +4,7 @@ use tokio::sync::{mpsc, oneshot};
 
 #[derive(Debug)]
 pub struct MessageSender<T>(pub(crate) mpsc::Sender<T>);
+#[derive(Debug)]
 pub struct MessageReceiver<T>(mpsc::Receiver<T>);
 
 pub fn message_channel<T>(size: usize) -> (MessageSender<T>, MessageReceiver<T>) {

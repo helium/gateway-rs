@@ -4,7 +4,7 @@ use crate::{
     Error, Result, TxnEnvelope,
 };
 use helium_proto::{BlockchainTxnAddGatewayV1, BlockchainTxnStateChannelCloseV1, Message};
-use serde_derive::Deserialize;
+use serde::Deserialize;
 
 pub trait TxnFee {
     fn txn_fee(&self, config: &TxnFeeConfig) -> Result<u64>;

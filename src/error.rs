@@ -21,8 +21,8 @@ pub enum Error {
     Service(#[from] ServiceError),
     #[error("semtech udp error")]
     Semtech(#[from] semtech_udp::server_runtime::Error),
-    #[error("time error")]
-    Time(#[from] std::time::SystemTimeError),
+    #[error("beacon error")]
+    Beacon(#[from] beacon::Error),
     #[error("region error")]
     Region(#[from] RegionError),
 }

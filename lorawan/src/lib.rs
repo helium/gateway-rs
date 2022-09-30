@@ -1,18 +1,18 @@
 use bitfield::bitfield;
-use byteorder::{LittleEndian, ReadBytesExt};
-use std::{convert::From, fmt, io, result};
+use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use std::{convert::From, fmt, io, mem::size_of, result};
 
 pub mod error;
 pub use error::LoraWanError;
 pub mod subnet;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Direction {
     Uplink,
     Downlink,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MType {
     JoinRequest,
     JoinAccept,
@@ -20,6 +20,7 @@ pub enum MType {
     UnconfirmedDown,
     ConfirmedUp,
     ConfirmedDown,
+    Proprietary,
     Invalid(u8),
 }
 
@@ -32,15 +33,32 @@ impl From<u8> for MType {
             0b011 => MType::UnconfirmedDown,
             0b100 => MType::ConfirmedUp,
             0b101 => MType::ConfirmedDown,
+            0b111 => MType::Proprietary,
             _ => MType::Invalid(v),
         }
     }
 }
 
+impl From<MType> for u8 {
+    fn from(m: MType) -> Self {
+        match m {
+            MType::JoinRequest => 0b000,
+            MType::JoinAccept => 0b001,
+            MType::UnconfirmedUp => 0b010,
+            MType::UnconfirmedDown => 0b011,
+            MType::ConfirmedUp => 0b100,
+            MType::ConfirmedDown => 0b101,
+            MType::Proprietary => 0b111,
+            MType::Invalid(v) => v,
+        }
+    }
+}
+
 bitfield! {
+    #[derive(Clone, Copy, PartialEq, Eq)]
     pub struct MHDR(u8);
     impl Debug;
-    pub into MType, mtype, set_mtype: 7, 5;
+    pub from into MType, mtype, set_mtype: 7, 5;
     rfu, _: 4, 2;
     pub major, set_major: 1, 0;
 }
@@ -49,13 +67,18 @@ impl MHDR {
     pub fn read(reader: &mut dyn io::Read) -> Result<Self, LoraWanError> {
         Ok(Self(reader.read_u8()?))
     }
+
+    pub fn write(self, output: &mut dyn io::Write) -> Result<usize, LoraWanError> {
+        output.write_u8(self.0)?;
+        Ok(1)
+    }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct PHYPayload {
     pub mhdr: MHDR,
     pub payload: PHYPayloadFrame,
-    pub mic: [u8; 4],
+    pub mic: Option<[u8; 4]>,
 }
 
 const JOIN_REQUEST_LEN: usize = 23;
@@ -64,6 +87,18 @@ const JOIN_ACCEPT_WITH_CFLIST_LEN: usize = 33;
 const DATA_MIN_LEN: usize = 12;
 
 impl PHYPayload {
+    pub fn proprietary(payload: &[u8]) -> Self {
+        PHYPayload {
+            mhdr: {
+                let mut mhdr = MHDR(0);
+                mhdr.set_mtype(MType::Proprietary);
+                mhdr
+            },
+            payload: PHYPayloadFrame::Proprietary(payload.into()),
+            mic: None,
+        }
+    }
+
     pub fn read(direction: Direction, reader: &mut dyn io::Read) -> Result<Self, LoraWanError> {
         let mhdr = MHDR::read(reader)?;
         let packet_type = mhdr.mtype();
@@ -79,7 +114,8 @@ impl PHYPayload {
             MType::UnconfirmedUp
             | MType::UnconfirmedDown
             | MType::ConfirmedUp
-            | MType::ConfirmedDown => phy_len < DATA_MIN_LEN,
+            | MType::ConfirmedDown
+            | MType::Proprietary => phy_len < DATA_MIN_LEN,
             MType::Invalid(_) => false,
         };
         if invalid {
@@ -89,15 +125,32 @@ impl PHYPayload {
         }
 
         // indexing with subtraction won't fail because of length checks above
-        let mic = data.split_off(data.len() - 4);
+        // Proprietary frames are assumed to take over the mic bytes
+        let mic = if packet_type != MType::Proprietary {
+            let mut mic_bytes = [0u8; 4];
+            mic_bytes.copy_from_slice(&data.split_off(data.len() - 4));
+            Some(mic_bytes)
+        } else {
+            None
+        };
+
         let mut payload = &data[..];
-        let mut res = Self {
+        let res = Self {
             mhdr,
             payload: PHYPayloadFrame::read(direction, packet_type, &mut payload)?,
-            mic: [0; 4],
+            mic,
         };
-        res.mic.copy_from_slice(&mic);
         Ok(res)
+    }
+
+    pub fn write(&self, output: &mut dyn io::Write) -> Result<usize, LoraWanError> {
+        let mut written = 0_usize;
+        written += self.mhdr.write(output)?;
+        written += self.payload.write(output)?;
+        if let Some(mic) = self.mic {
+            written += output.write(&mic)?;
+        }
+        Ok(written)
     }
 
     pub fn mtype(&self) -> MType {
@@ -105,11 +158,21 @@ impl PHYPayload {
     }
 }
 
-#[derive(Debug)]
+impl TryFrom<PHYPayload> for Vec<u8> {
+    type Error = LoraWanError;
+    fn try_from(value: PHYPayload) -> Result<Self, Self::Error> {
+        let mut data = vec![];
+        value.write(&mut &mut data)?;
+        Ok(data)
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum PHYPayloadFrame {
     MACPayload(MACPayload),
     JoinRequest(JoinRequest),
     JoinAccept(JoinAccept),
+    Proprietary(Vec<u8>),
 }
 
 impl PHYPayloadFrame {
@@ -121,9 +184,23 @@ impl PHYPayloadFrame {
         let res = match packet_type {
             MType::JoinRequest => Self::JoinRequest(JoinRequest::read(reader)?),
             MType::JoinAccept => Self::JoinAccept(JoinAccept::read(reader)?),
+            MType::Proprietary => {
+                let mut proprietary_payload = vec![];
+                reader.read_to_end(&mut proprietary_payload)?;
+                Self::Proprietary(proprietary_payload)
+            }
             _ => Self::MACPayload(MACPayload::read(packet_type, direction, reader)?),
         };
         Ok(res)
+    }
+
+    pub fn write(&self, output: &mut dyn io::Write) -> Result<usize, LoraWanError> {
+        match self {
+            Self::MACPayload(mp) => mp.write(output),
+            Self::JoinRequest(jr) => jr.write(output),
+            Self::JoinAccept(ja) => ja.write(output),
+            Self::Proprietary(v) => Ok(output.write(v)?),
+        }
     }
 
     pub fn fcnt(&self) -> Option<u16> {
@@ -134,6 +211,7 @@ impl PHYPayloadFrame {
     }
 }
 
+#[derive(PartialEq, Eq, Clone)]
 pub struct Fhdr {
     pub dev_addr: u32,
     pub fctrl: FCtrl,
@@ -167,9 +245,22 @@ impl Fhdr {
         };
         Ok(res)
     }
+
+    pub fn write(&self, output: &mut dyn io::Write) -> Result<usize, LoraWanError> {
+        let mut written = 0;
+        output.write_u32::<LittleEndian>(self.dev_addr)?;
+        written += size_of::<u32>();
+        output.write_u32::<LittleEndian>(self.dev_addr)?;
+        written += self.fctrl.write(output)?;
+        output.write_u16::<LittleEndian>(self.fcnt)?;
+        written += size_of::<u16>();
+        written += output.write(&self.fopts)?;
+        Ok(written)
+    }
 }
 
 bitfield! {
+    #[derive(Clone, Copy, PartialEq, Eq)]
     pub struct FCtrlUplink(u8);
     impl Debug;
     pub adr, set_adr: 7;
@@ -183,9 +274,15 @@ impl FCtrlUplink {
     pub fn read(reader: &mut dyn io::Read) -> Result<Self, LoraWanError> {
         Ok(Self(reader.read_u8()?))
     }
+
+    pub fn write(&self, output: &mut dyn io::Write) -> Result<usize, LoraWanError> {
+        output.write_u8(self.0)?;
+        Ok(size_of::<Self>())
+    }
 }
 
 bitfield! {
+    #[derive(Clone, Copy, PartialEq, Eq)]
     pub struct FCtrlDownlink(u8);
     impl Debug;
     pub adr, set_adr: 7;
@@ -199,9 +296,14 @@ impl FCtrlDownlink {
     pub fn read(reader: &mut dyn io::Read) -> Result<Self, LoraWanError> {
         Ok(Self(reader.read_u8()?))
     }
+
+    pub fn write(&self, output: &mut dyn io::Write) -> Result<usize, LoraWanError> {
+        output.write_u8(self.0)?;
+        Ok(size_of::<Self>())
+    }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum FCtrl {
     Uplink(FCtrlUplink),
     Downlink(FCtrlDownlink),
@@ -222,9 +324,16 @@ impl FCtrl {
         };
         Ok(res)
     }
+
+    pub fn write(&self, output: &mut dyn io::Write) -> Result<usize, LoraWanError> {
+        match self {
+            Self::Uplink(ul) => ul.write(output),
+            Self::Downlink(dl) => dl.write(output),
+        }
+    }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct MACPayload {
     pub fhdr: Fhdr,
     pub fport: Option<u8>,
@@ -258,12 +367,29 @@ impl MACPayload {
         Ok(res)
     }
 
+    pub fn write(&self, output: &mut dyn io::Write) -> Result<usize, LoraWanError> {
+        let mut written = 0;
+        written += self.fhdr.write(output)?;
+        written += match self.fport {
+            Some(fp) => {
+                output.write_u8(fp)?;
+                size_of::<u8>()
+            }
+            None => 0,
+        };
+        written += match &self.payload {
+            Some(p) => p.write(output)?,
+            None => 0,
+        };
+        Ok(written)
+    }
+
     pub fn dev_addr(&self) -> u32 {
         self.fhdr.dev_addr
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum FRMPayload {
     UnconfirmedUp(Payload),
     UnconfirmedDown(Payload),
@@ -283,9 +409,18 @@ impl FRMPayload {
         };
         Ok(res)
     }
+
+    pub fn write(&self, output: &mut dyn io::Write) -> Result<usize, LoraWanError> {
+        match self {
+            Self::UnconfirmedUp(p) => p.write(output),
+            Self::UnconfirmedDown(p) => p.write(output),
+            Self::ConfirmedUp(p) => p.write(output),
+            Self::ConfirmedDown(p) => p.write(output),
+        }
+    }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Payload(Vec<u8>);
 
 impl Payload {
@@ -295,8 +430,13 @@ impl Payload {
         let res = Self(data);
         Ok(res)
     }
+
+    pub fn write(&self, output: &mut dyn io::Write) -> Result<usize, LoraWanError> {
+        Ok(output.write(&self.0)?)
+    }
 }
 
+#[derive(PartialEq, Eq, Clone)]
 pub struct JoinRequest {
     pub app_eui: u64,
     pub dev_eui: u64,
@@ -323,9 +463,19 @@ impl JoinRequest {
         reader.read_exact(&mut res.dev_nonce)?;
         Ok(res)
     }
+
+    pub fn write(&self, output: &mut dyn io::Write) -> Result<usize, LoraWanError> {
+        let mut written = 0;
+        output.write_u64::<LittleEndian>(self.app_eui)?;
+        written += size_of::<u64>();
+        output.write_u64::<LittleEndian>(self.dev_eui)?;
+        written += size_of::<u64>();
+        written += output.write(&self.dev_nonce)?;
+        Ok(written)
+    }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct JoinAccept {
     pub app_nonce: [u8; 3],
     pub net_id: [u8; 3],
@@ -350,6 +500,19 @@ impl JoinAccept {
         };
         Ok(res)
     }
+
+    pub fn write(&self, output: &mut dyn io::Write) -> Result<usize, LoraWanError> {
+        let mut written = 0;
+        written += output.write(&self.app_nonce)?;
+        written += output.write(&self.net_id)?;
+        output.write_u32::<LittleEndian>(self.dev_addr)?;
+        written += size_of::<u32>();
+        output.write_u8(self.dl_settings)?;
+        written += size_of::<u8>();
+        output.write_u8(self.rx_delay)?;
+        written += size_of::<u8>();
+        Ok(written)
+    }
 }
 
 #[cfg(test)]
@@ -358,9 +521,11 @@ mod test {
     use base64;
 
     #[test]
-    fn test_read() {
-        let mut data = &base64::decode("IL1ciMu7b3ZOP5Q1cBA7isI=").unwrap()[..];
-        let payload = PHYPayload::read(Direction::Uplink, &mut data).unwrap();
-        eprintln!("PAYLOAD {:?}", payload);
+    fn test_read_write_roundtrip() {
+        let data_a = base64::decode("IL1ciMu7b3ZOP5Q1cBA7isI=").unwrap();
+        let payload_a = PHYPayload::read(Direction::Uplink, &mut &data_a[..]).unwrap();
+        let mut data_b = Vec::with_capacity(data_a.len());
+        payload_a.write(&mut data_b).unwrap();
+        assert_eq!(data_a, data_b);
     }
 }

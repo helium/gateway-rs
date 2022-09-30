@@ -1,3 +1,4 @@
+pub mod beaconer;
 pub mod cmd;
 pub mod curl;
 pub mod error;
