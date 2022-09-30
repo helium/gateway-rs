@@ -1,11 +1,11 @@
-use crate::Entropy;
+use crate::{Entropy, Error, Result};
 use helium_proto::{
     services::poc_lora,
     {BlockchainRegionParamV1, DataRate},
 };
 use rand::{seq::SliceRandom, Rng, SeedableRng};
 use sha2::{Digest, Sha256};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 pub const BEACON_PAYLOAD_SIZE: usize = 10;
 
@@ -24,7 +24,7 @@ impl Beacon {
         remote_entropy: Entropy,
         local_entropy: Entropy,
         region_params: &[BlockchainRegionParamV1],
-    ) -> Self {
+    ) -> Result<Self> {
         let mut data = {
             let mut hasher = Sha256::new();
             remote_entropy.digest(&mut hasher);
@@ -35,10 +35,10 @@ impl Beacon {
         seed.copy_from_slice(&data[0..32]);
         let mut rng = rand_chacha::ChaCha12Rng::from_seed(seed);
 
-        let frequency = rand_frequency(region_params, &mut rng);
+        let frequency = rand_frequency(region_params, &mut rng)?;
         let datarate = DataRate::Sf7bw125;
 
-        Self {
+        Ok(Self {
             data: {
                 data.truncate(BEACON_PAYLOAD_SIZE);
                 data
@@ -47,7 +47,7 @@ impl Beacon {
             datarate,
             local_entropy,
             remote_entropy,
-        }
+        })
     }
 
     pub fn beacon_id(&self) -> String {
@@ -55,19 +55,20 @@ impl Beacon {
     }
 }
 
-fn rand_frequency<R>(region_params: &[BlockchainRegionParamV1], rng: &mut R) -> u64
+fn rand_frequency<R>(region_params: &[BlockchainRegionParamV1], rng: &mut R) -> Result<u64>
 where
     R: Rng + ?Sized,
 {
     region_params
         .choose(rng)
         .map(|params| params.channel_frequency)
-        .expect("empty regional parameters")
+        .ok_or_else(Error::no_region_params)
 }
 
-impl From<Beacon> for poc_lora::LoraBeaconReportReqV1 {
-    fn from(v: Beacon) -> Self {
-        Self {
+impl TryFrom<Beacon> for poc_lora::LoraBeaconReportReqV1 {
+    type Error = Error;
+    fn try_from(v: Beacon) -> Result<Self> {
+        Ok(Self {
             pub_key: vec![],
             local_entropy: v.local_entropy.data,
             remote_entropy: v.remote_entropy.data,
@@ -80,9 +81,9 @@ impl From<Beacon> for poc_lora::LoraBeaconReportReqV1 {
             // report (in nanos)
             timestamp: SystemTime::now()
                 .duration_since(UNIX_EPOCH)
-                .unwrap_or_else(|_| Duration::from_secs(0))
+                .map_err(Error::from)?
                 .as_nanos() as u64,
             signature: vec![],
-        }
+        })
     }
 }

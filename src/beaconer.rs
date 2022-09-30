@@ -88,7 +88,7 @@ impl Beaconer {
 
     pub async fn mk_beacon(&mut self) -> Result<beacon::Beacon> {
         let remote_entropy = self.entropy_service.get_entropy().await?;
-        let local_entropy = beacon::Entropy::local();
+        let local_entropy = beacon::Entropy::local()?;
 
         let region_params = if let Some(region_params) = &self.region_params {
             if region_params.as_ref().is_empty() {
@@ -98,7 +98,7 @@ impl Beaconer {
         } else {
             return Err(Error::custom("no region set"));
         };
-        let beacon = beacon::Beacon::new(remote_entropy, local_entropy, region_params.as_ref());
+        let beacon = beacon::Beacon::new(remote_entropy, local_entropy, region_params.as_ref())?;
         Ok(beacon)
     }
 
@@ -115,7 +115,13 @@ impl Beaconer {
         };
         let beacon_id = beacon.beacon_id();
         info!(logger, "transmitting beacon"; "beacon" => &beacon_id);
-        let report = poc_lora::LoraBeaconReportReqV1::from(beacon.clone());
+        let report = match poc_lora::LoraBeaconReportReqV1::try_from(beacon.clone()) {
+            Ok(report) => report,
+            Err(err) => {
+                warn!(logger, "failed to construct beack report {err:?}");
+                return;
+            }
+        };
         self.transmit.transmit_beacon(beacon).await;
 
         let _ =  self

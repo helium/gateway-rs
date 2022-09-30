@@ -20,6 +20,8 @@ helium-proto = { git = "https://github.com/helium/proto", branch="master", featu
 rand = "0.8"
 base64 = "0"
 sha2 = "0"
+thiserror = "1.0"
+
 
 [dependencies]
 structopt = "0"
@@ -39,7 +41,7 @@ slog-term = "2"
 slog-syslog = "0"
 slog-scope = "4"
 slog-stdlog = "4"
-thiserror = "1.0"
+thiserror = {workspace = true}
 rand = {workspace = true}
 prost = "0"
 daemonize = "0.4"

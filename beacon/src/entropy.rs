@@ -1,7 +1,8 @@
+use crate::{Error, Result};
 use rand::{rngs::OsRng, RngCore};
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 pub const LOCAL_ENTROPY_SIZE: usize = 4;
 
@@ -18,19 +19,19 @@ impl Entropy {
     /// Construct entropy from a local system source. The timestamp for the
     /// entropy is teh creation timestamp since a new one is created every time
     /// this is called
-    pub fn local() -> Self {
+    pub fn local() -> Result<Self> {
         let mut local_entropy = vec![0u8; LOCAL_ENTROPY_SIZE];
         OsRng.fill_bytes(&mut local_entropy);
         let version = default_version();
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap_or_else(|_| Duration::from_secs(0))
+            .map_err(Error::from)?
             .as_secs() as i64;
-        Self {
+        Ok(Self {
             version,
             timestamp,
             data: local_entropy,
-        }
+        })
     }
 
     pub(crate) fn digest<D: Digest>(&self, state: &mut D) {
