@@ -36,9 +36,9 @@ pub struct Settings {
     pub log: LogSettings,
     /// Update settings
     pub update: UpdateSettings,
-    /// The routers to deliver packets to when no routers are found while
-    /// processing a packet.
-    pub routers: Option<Vec<KeyedUri>>,
+    /// The packet router to deliver all packets.
+    #[serde(with = "http_serde::uri")]
+    pub packet_router: Uri,
     /// The validator(s) to query for chain related state. Defaults to a Helium
     /// validator.
     pub gateways: Vec<KeyedUri>,

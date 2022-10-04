@@ -3,10 +3,11 @@ use crate::{
     gateway,
     router::{QuePacket, RouterStore},
     service::router::RouterService,
-    Base64, CacheSettings, KeyedUri, Keypair, Packet, Region, Result,
+    Base64, CacheSettings, Keypair, Packet, Region, Result,
 };
 use futures::TryFutureExt;
 
+use http::Uri;
 use slog::{debug, info, o, warn, Logger};
 use std::{sync::Arc, time::Instant};
 use tokio::{
@@ -61,7 +62,7 @@ pub struct RouterClient {
 impl RouterClient {
     pub async fn new(
         region: Region,
-        uri: KeyedUri,
+        uri: Uri,
         downlinks: gateway::MessageSender,
         keypair: Arc<Keypair>,
         settings: CacheSettings,
@@ -85,8 +86,7 @@ impl RouterClient {
     ) -> Result {
         let logger = logger.new(o!(
             "module" => "router",
-            "pubkey" => self.router.uri.pubkey.to_string(),
-            "uri" => self.router.uri.uri.to_string(),
+            "uri" => self.router.uri.to_string(),
         ));
         info!(logger, "starting");
 

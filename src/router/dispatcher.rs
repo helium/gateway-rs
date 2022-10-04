@@ -10,6 +10,7 @@ use futures::{
     TryFutureExt,
 };
 use helium_proto::BlockchainVarV1;
+use http::Uri;
 use slog::{info, o, warn, Logger};
 use slog_scope;
 use std::{
@@ -100,7 +101,7 @@ pub struct Dispatcher {
     cache_settings: CacheSettings,
     gateway_retry: u32,
     routers: Vec<RouterEntry>,
-    default_routers: Option<Vec<KeyedUri>>,
+    packet_router: Uri,
 }
 
 #[derive(PartialEq, Eq, Hash)]
@@ -138,7 +139,7 @@ impl Dispatcher {
         settings: &Settings,
     ) -> Result<Self> {
         let seed_gateways = settings.gateways.clone();
-        let default_routers = settings.routers.clone();
+        let packet_router = settings.packet_router.clone();
         let cache_settings = settings.cache.clone();
         Ok(Self {
             keypair: settings.keypair.clone(),
@@ -149,7 +150,7 @@ impl Dispatcher {
             routers: vec![],
             routing_height: 0,
             region_height: 0,
-            default_routers,
+            packet_router,
             cache_settings,
             gateway_retry: 0,
         })
@@ -160,18 +161,11 @@ impl Dispatcher {
         info!(logger, "starting"; 
             "region" => self.region);
 
-        if let Some(default_routers) = &self.default_routers {
-            for default_router in default_routers {
-                let router_entry = self
-                    .start_router(shutdown.clone(), default_router.clone())
-                    .await?;
-
-                self.routers.push(router_entry);
-                info!(logger, "default router";
-                    "pubkey" => default_router.pubkey.to_string(),
-                    "uri" => default_router.uri.to_string());
-            }
-        }
+        let router_entry = self
+            .start_router(shutdown.clone(), self.packet_router.clone())
+            .await?;
+        self.routers.push(router_entry);
+        info!(logger, "packet router"; "uri" => self.packet_router.to_string());
 
         let gateway_backoff = Backoff::new(
             GATEWAY_BACKOFF_RETRIES,
@@ -448,12 +442,7 @@ impl Dispatcher {
         }
     }
 
-    async fn start_router(
-        &self,
-        shutdown: triggered::Listener,
-
-        uri: KeyedUri,
-    ) -> Result<RouterEntry> {
+    async fn start_router(&self, shutdown: triggered::Listener, uri: Uri) -> Result<RouterEntry> {
         // We start the router scope at the root logger to avoid picking up the
         // previously set KV pairs (which causes dupes)
         let logger = slog_scope::logger();

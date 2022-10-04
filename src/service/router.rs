@@ -1,6 +1,6 @@
 use crate::{
     service::{CONNECT_TIMEOUT, RPC_TIMEOUT},
-    KeyedUri, Result,
+    Result,
 };
 
 use helium_proto::services::{
@@ -8,6 +8,7 @@ use helium_proto::services::{
     Channel, Endpoint,
 };
 
+use http::Uri;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -18,7 +19,7 @@ type PacketReceiver = tonic::Streaming<PacketRouterPacketDownV1>;
 
 #[derive(Debug)]
 pub struct RouterService {
-    pub uri: KeyedUri,
+    pub uri: Uri,
     packet_router_client: PacketClient,
     conduit: Option<(PacketSender, PacketReceiver)>,
 }
@@ -26,13 +27,13 @@ pub struct RouterService {
 pub const CONDUIT_CAPACITY: usize = 50;
 
 impl RouterService {
-    pub fn new(keyed_uri: KeyedUri) -> Result<Self> {
-        let packet_channel = Endpoint::from(keyed_uri.uri.clone())
+    pub fn new(uri: Uri) -> Result<Self> {
+        let packet_channel = Endpoint::from(uri.clone())
             .timeout(RPC_TIMEOUT)
             .connect_timeout(CONNECT_TIMEOUT)
             .connect_lazy();
         Ok(Self {
-            uri: keyed_uri,
+            uri,
             packet_router_client: PacketClient::new(packet_channel),
             conduit: None,
         })
@@ -56,7 +57,7 @@ impl RouterService {
         let (tx, client_rx) = mpsc::channel(CONDUIT_CAPACITY);
         let rx = self
             .packet_router_client
-            .send_packet(ReceiverStream::new(client_rx))
+            .route(ReceiverStream::new(client_rx))
             .await?
             .into_inner();
         Ok((tx, rx))

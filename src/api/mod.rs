@@ -11,8 +11,6 @@ pub use helium_proto::{
     },
     GatewayStakingMode,
 };
-// REVIEW: Would not build with this being exposed from services::local
-pub use helium_proto::GatewayStakingMode;
 pub use server::LocalServer;
 
 pub fn listen_addr(port: u16) -> String {
