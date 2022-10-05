@@ -905,7 +905,7 @@ dependencies = [
 [[package]]
 name = "helium-proto"
 version = "0.1.0"
-source = "git+https://github.com/helium/proto?branch=dpezely/packet_router#f6398a7c533dcc423d3f2a87d07bda0663333c77"
+source = "git+https://github.com/helium/proto?branch=master#1a1a4ae82a898620d96cb486ed76d3857d3ed8f2"
 dependencies = [
  "bytes",
  "prost",

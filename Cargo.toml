@@ -16,7 +16,7 @@ members = ["lorawan", "beacon"]
 
 [workspace.dependencies]
 serde = {version = "1", features = ["rc", "derive"]}
-helium-proto = { git = "https://github.com/helium/proto", branch="dpezely/packet_router", features=["services"]}
+helium-proto = { git = "https://github.com/helium/proto", branch="master", features=["services"]}
 rand = "0.8"
 base64 = "0"
 sha2 = "0"
