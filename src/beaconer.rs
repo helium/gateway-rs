@@ -115,7 +115,7 @@ impl Beaconer {
         let report = match poc_lora::LoraBeaconReportReqV1::try_from(beacon.clone()) {
             Ok(report) => report,
             Err(err) => {
-                warn!(logger, "failed to construct beack report {err:?}");
+                warn!(logger, "failed to construct beacon report {err:?}");
                 return;
             }
         };

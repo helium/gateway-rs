@@ -46,8 +46,8 @@ command = "/etc/helium_gateway/install_update"
 max_packets = 20
 
 [poc]
-entropy_uri = "https://entropy.helium.io:8080"
-ingest_uri = "http://mainnet-pociot.helium.io:9980"
+entropy_uri = "https://entropy.helium.io/entropy"
+ingest_uri = "http://mainnet-pociot.helium.io:9080"
 
 # Default target routers for data packets that are not known to helium packet
 # routers. 
