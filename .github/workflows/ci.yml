@@ -29,6 +29,9 @@ jobs:
         with:
           access_token: ${{ github.token }}
 
+      - name: Run tests
+        run: cargo test
+
       - name: Check formatting
         run: cargo fmt  -- --check
 
