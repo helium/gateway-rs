@@ -17,8 +17,18 @@ where
         .arg(&url)
         .output()
         .map(move |result| match result {
-            Ok(output) => f(&output.stdout),
-            Err(err) => Err(Error::from(err)),
+            Ok(output) => match output.status.code() {
+                Some(0) => f(&output.stdout),
+                Some(n) => Err(Error::Custom(format!(
+                    "curl exited with non-0 status: {}. stderr: {:?}",
+                    n, output.stderr
+                ))),
+                None => Err(Error::Custom(format!(
+                    "curl terminated by signal. stderr: {:?}",
+                    output.stderr
+                ))),
+            },
+            Err(err) => Err(Error::Custom(format!("curl failed to execute: {:?}", err))),
         })
         .boxed()
 }
