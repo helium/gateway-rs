@@ -199,7 +199,7 @@ impl Beaconer {
 fn test_beacon_roundtrip() {
     use lorawan::PHYPayload;
 
-    let phy_payload_a = PHYPayload::propietary(b"poc_beacon_data");
+    let phy_payload_a = PHYPayload::proprietary(b"poc_beacon_data");
     let payload: Vec<u8> = phy_payload_a.clone().try_into().expect("beacon packet");
     let phy_payload_b = PHYPayload::read(lorawan::Direction::Uplink, &mut &payload[..]).unwrap();
     assert_eq!(phy_payload_a, phy_payload_b);
