@@ -51,7 +51,7 @@ log = "0"
 bytes = "*"
 xxhash-rust = { version = "0.8", features = ["xxh64"]}
 xorf = "0.7"
-sha2 = {workspace = true }
+sha2 = {workspace = true}
 base64 = {workspace = true}
 signature = "*"
 async-trait = "0"
