@@ -279,13 +279,13 @@ impl Gateway {
 }
 
 pub fn beacon_to_pull_resp(beacon: &Beacon, tx_power: u64) -> Result<pull_resp::TxPk> {
-    let size = beacon.data.len() as u64;
     // TODO: safe assumption to assume these will always match the used
     // subset?
     let datr = beacon.datarate.to_string().parse().unwrap();
     // convert hz to mhz
     let freq = beacon.frequency as f64 / 1e6;
-    let data = PHYPayload::proprietary(beacon.data.as_slice()).try_into()?;
+    let data: Vec<u8> = PHYPayload::proprietary(beacon.data.as_slice()).try_into()?;
+    let size = data.len() as u64;
 
     Ok(pull_resp::TxPk {
         imme: true,
