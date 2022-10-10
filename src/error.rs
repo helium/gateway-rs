@@ -25,6 +25,8 @@ pub enum Error {
     Beacon(#[from] beacon::Error),
     #[error("region error")]
     Region(#[from] RegionError),
+    #[error("curl error")]
+    Curl(#[from] crate::curl::Error),
 }
 
 #[derive(Error, Debug)]

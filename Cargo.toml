@@ -25,6 +25,7 @@ thiserror = "1.0"
 
 [dependencies]
 structopt = "0"
+cfg-if = "1"
 semver = "0"
 config = {version="0", default-features=false, features=["toml"]}
 serde = {workspace = true}

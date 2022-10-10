@@ -754,6 +754,7 @@ dependencies = [
  "base64",
  "beacon",
  "bytes",
+ "cfg-if",
  "config",
  "daemonize",
  "exponential-backoff",
