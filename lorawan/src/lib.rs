@@ -114,9 +114,11 @@ impl PHYPayload {
             MType::UnconfirmedUp
             | MType::UnconfirmedDown
             | MType::ConfirmedUp
-            | MType::ConfirmedDown
-            | MType::Proprietary => phy_len < DATA_MIN_LEN,
-            MType::Invalid(_) => false,
+            | MType::ConfirmedDown => phy_len < DATA_MIN_LEN,
+            // proprietary frames have unknown minimum length
+            MType::Proprietary => false,
+            // all invalid MType are invalid
+            MType::Invalid(_) => true,
         };
         if invalid {
             return Err(LoraWanError::InvalidPacketSize(packet_type, phy_len));
@@ -162,7 +164,7 @@ impl TryFrom<PHYPayload> for Vec<u8> {
     type Error = LoraWanError;
     fn try_from(value: PHYPayload) -> Result<Self, Self::Error> {
         let mut data = vec![];
-        value.write(&mut &mut data)?;
+        value.write(&mut data)?;
         Ok(data)
     }
 }
