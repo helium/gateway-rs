@@ -149,7 +149,7 @@ impl KeypairArgs {
         self.0
             .get(name)
             .map(|s| s.parse::<T>())
-            .unwrap_or(Ok(default))
+            .unwrap_or_else(|| Ok(default))
             .map_err(|err| uri_error!("invalid uri argument for {name}: {err:?}"))
     }
 }
