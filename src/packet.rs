@@ -187,6 +187,7 @@ impl Packet {
                     ProtoDataRate::Sf8bw125,
                     ProtoDataRate::Sf9bw125,
                     ProtoDataRate::Sf10bw125,
+                    ProtoDataRate::Sf11bw125,
                     ProtoDataRate::Sf12bw125,
                 ]
                 .contains(&value) =>
