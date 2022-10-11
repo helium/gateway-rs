@@ -173,18 +173,26 @@ impl Gateway {
         }
     }
 
-    async fn handle_transmit_beacon(&mut self, logger: &Logger, beacon: Beacon) {
+    fn tx_power(&mut self, logger: &Logger) -> Option<u32> {
         let region_params = if let Some(region_params) = &self.region_params {
             region_params
         } else {
             warn!(logger, "ignoring transmit request, no region params");
-            return;
+            return None;
         };
 
-        let tx_power = if let Some(tx_power) = region_params.tx_power() {
-            tx_power
+        if let Some(tx_power) = region_params.tx_power() {
+            Some(tx_power)
         } else {
             warn!(logger, "ignoring beacon transmit, no tx power");
+            None
+        }
+    }
+
+    async fn handle_transmit_beacon(&mut self, logger: &Logger, beacon: Beacon) {
+        let tx_power = if let Some(tx_power) = self.tx_power(logger) {
+            tx_power
+        } else {
             return;
         };
 
@@ -214,18 +222,12 @@ impl Gateway {
     }
 
     async fn handle_downlink(&mut self, logger: &Logger, downlink: Packet) {
-        let region_params = if let Some(region_params) = &self.region_params {
-            region_params
-        } else {
-            warn!(logger, "ignoring downlink, no region params");
-            return;
-        };
-        let tx_power = if let Some(tx_power) = region_params.tx_power() {
+        let tx_power = if let Some(tx_power) = self.tx_power(logger) {
             tx_power
         } else {
-            warn!(logger, "ignoring downlink, no tx power");
             return;
         };
+
         let (mut downlink_rx1, mut downlink_rx2) = (
             // first downlink
             self.udp_runtime.prepare_empty_downlink(self.downlink_mac),
