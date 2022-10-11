@@ -190,7 +190,7 @@ dependencies = [
  "rand_chacha",
  "serde",
  "serde_json",
- "sha2 0.9.9",
+ "sha2 0.10.6",
  "thiserror",
 ]
 
@@ -1706,9 +1706,8 @@ dependencies = [
 
 [[package]]
 name = "semtech-udp"
-version = "0.9.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d0e4c7939cef1688cddc610f88bb3251dcb451b99515e3e11f4ce36a8f63d842"
+version = "0.9.8-alpha.0"
+source = "git+https://github.com/helium/semtech-udp?branch=lthiery/finish-tmst-feature#aa6290e515c60cd7b6ba38179b8ebf687cc2e6f7"
 dependencies = [
  "arrayref",
  "base64",
