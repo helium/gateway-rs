@@ -186,7 +186,7 @@ impl Gateway {
         let region_params = if let Some(region_params) = &self.region_params {
             region_params
         } else {
-            warn!(logger, "ignoring transmit request, no region params");
+            warn!(logger, "ignoring transmit: no region params");
             return None;
         };
 
@@ -197,7 +197,7 @@ impl Gateway {
                 tx_power
             })
         } else {
-            warn!(logger, "ignoring beacon transmit, no tx power");
+            warn!(logger, "ignoring transmit: region params has no tx power");
             None
         }
     }
