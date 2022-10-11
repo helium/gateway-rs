@@ -73,7 +73,7 @@ pub struct Gateway {
     listen_address: String,
     region_params: Option<RegionParams>,
     /// If packet forwarder returns InvalidTxPower, it provides the max allowable tx value
-    /// which we can save and apply it as a maximum to outgoing packets
+    /// which we can save and apply as a maximum to future outgoing packets
     max_power: Option<u32>,
 }
 
