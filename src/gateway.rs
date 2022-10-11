@@ -190,12 +190,10 @@ impl Gateway {
             return None;
         };
 
-        if let Some(tx_power) = region_params.tx_power() {
-            Some(if let Some(max_power) = self.max_power {
-                std::cmp::min(max_power, tx_power)
-            } else {
-                tx_power
-            })
+        if let (Some(tx_power), Some(max_power)) = (region_params.tx_power(), self.max_power) {
+            Some(std::cmp::min(max_power, tx_power))
+        } else if let Some(tx_power) = region_params.tx_power() {
+            Some(tx_power)
         } else {
             warn!(logger, "ignoring transmit: region params has no tx power");
             None
