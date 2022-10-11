@@ -22,6 +22,7 @@ pub enum Message {
     Downlink(Packet),
     TransmitBeacon(Beacon),
     RegionParamsChanged(RegionParams),
+    MaxPower(u32),
 }
 
 #[derive(Clone, Debug)]
@@ -64,17 +65,22 @@ impl MessageSender {
 
 pub struct Gateway {
     uplinks: dispatcher::MessageSender,
+    self_sender: MessageSender,
     messages: MessageReceiver,
     beacon_handler: beaconer::MessageSender,
     downlink_mac: MacAddress,
     udp_runtime: UdpRuntime,
     listen_address: String,
     region_params: Option<RegionParams>,
+    /// If packet forwarder returns InvalidTxPower, it provides the max allowable tx value
+    /// which we can save and apply it as a maximum to outgoing packets
+    max_power: Option<u32>,
 }
 
 impl Gateway {
     pub async fn new(
         uplinks: dispatcher::MessageSender,
+        self_sender: MessageSender,
         messages: MessageReceiver,
         beacon_handler: beaconer::MessageSender,
         settings: &Settings,
@@ -82,11 +88,13 @@ impl Gateway {
         let gateway = Gateway {
             uplinks,
             downlink_mac: Default::default(),
+            self_sender,
             messages,
             beacon_handler,
             listen_address: settings.listen.clone(),
             udp_runtime: UdpRuntime::new(&settings.listen).await?,
             region_params: None,
+            max_power: None,
         };
         Ok(gateway)
     }
@@ -160,6 +168,7 @@ impl Gateway {
 
     async fn handle_message(&mut self, logger: &Logger, message: Message) {
         match message {
+            Message::MaxPower(max_power) => self.max_power = Some(max_power),
             Message::Downlink(packet) => self.handle_downlink(logger, packet).await,
             Message::TransmitBeacon(beacon) => self.handle_transmit_beacon(logger, beacon).await,
             Message::RegionParamsChanged(region_params) => {
@@ -182,7 +191,11 @@ impl Gateway {
         };
 
         if let Some(tx_power) = region_params.tx_power() {
-            Some(tx_power)
+            Some(if let Some(max_power) = self.max_power {
+                std::cmp::min(max_power, tx_power)
+            } else {
+                tx_power
+            })
         } else {
             warn!(logger, "ignoring beacon transmit, no tx power");
             None
@@ -207,6 +220,7 @@ impl Gateway {
         let beacon_tx = self.udp_runtime.prepare_downlink(packet, self.downlink_mac);
 
         let logger = logger.clone();
+        let self_sender = self.self_sender.0.clone();
         tokio::spawn(async move {
             let beacon_id = beacon.beacon_id();
             match beacon_tx
@@ -215,6 +229,14 @@ impl Gateway {
             {
                 Ok(()) => info!(logger, "beacon transmitted"; "beacon" => &beacon_id),
                 Err(err) => {
+                    if let semtech_udp::server_runtime::Error::Ack(
+                        tx_ack::Error::InvalidTransmitPower(Some(value)),
+                    ) = err
+                    {
+                        if let Err(e) = self_sender.send(Message::MaxPower(value as u32)).await {
+                            warn!(logger, "failed to sending message to self: {e}")
+                        }
+                    }
                     warn!(logger, "failed to transmit beacon:  {err:?}"; "beacon" => &beacon_id)
                 }
             };
@@ -235,6 +257,7 @@ impl Gateway {
             self.udp_runtime.prepare_empty_downlink(self.downlink_mac),
         );
         let logger = logger.clone();
+        let self_sender = self.self_sender.0.clone();
         tokio::spawn(async move {
             match downlink.to_pull_resp(false, tx_power).unwrap() {
                 None => (),
@@ -267,6 +290,14 @@ impl Gateway {
                                 {
                                     warn!(logger, "ignoring rx2 downlink error: {:?}", err);
                                 }
+                            }
+                        }
+                        Err(SemtechError::Ack(tx_ack::Error::InvalidTransmitPower(Some(
+                            value,
+                        )))) => {
+                            if let Err(e) = self_sender.send(Message::MaxPower(value as u32)).await
+                            {
+                                warn!(logger, "failed to sending message to self: {e}")
                             }
                         }
                         Err(err) => {
