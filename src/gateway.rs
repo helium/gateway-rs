@@ -22,7 +22,6 @@ pub enum Message {
     Downlink(Packet),
     TransmitBeacon(Beacon),
     RegionParamsChanged(RegionParams),
-    MaxPower(u32),
 }
 
 #[derive(Clone, Debug)]
@@ -71,9 +70,6 @@ pub struct Gateway {
     udp_runtime: UdpRuntime,
     listen_address: String,
     region_params: Option<RegionParams>,
-    /// If packet forwarder returns InvalidTxPower, it provides the max allowable tx value
-    /// which we can save and apply as a maximum to future outgoing packets
-    max_power: Option<u32>,
 }
 
 impl Gateway {
@@ -91,7 +87,6 @@ impl Gateway {
             listen_address: settings.listen.clone(),
             udp_runtime: UdpRuntime::new(&settings.listen).await?,
             region_params: None,
-            max_power: None,
         };
         Ok(gateway)
     }
@@ -165,7 +160,6 @@ impl Gateway {
 
     async fn handle_message(&mut self, logger: &Logger, message: Message) {
         match message {
-            Message::MaxPower(max_power) => self.max_power = Some(max_power),
             Message::Downlink(packet) => self.handle_downlink(logger, packet).await,
             Message::TransmitBeacon(beacon) => self.handle_transmit_beacon(logger, beacon).await,
             Message::RegionParamsChanged(region_params) => {
@@ -187,9 +181,7 @@ impl Gateway {
             return None;
         };
 
-        if let (Some(tx_power), Some(max_power)) = (region_params.tx_power(), self.max_power) {
-            Some(std::cmp::min(max_power, tx_power))
-        } else if let Some(tx_power) = region_params.tx_power() {
+        if let Some(tx_power) = region_params.tx_power() {
             Some(tx_power)
         } else {
             warn!(logger, "ignoring transmit: region params has no tx power");
