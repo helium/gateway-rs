@@ -12,6 +12,7 @@ use crate::{
 };
 use futures::TryFutureExt;
 use helium_proto::services::poc_lora;
+use http::Uri;
 use slog::{self, info, warn, Logger};
 use std::{sync::Arc, time::Duration};
 use tokio::time;
@@ -60,7 +61,7 @@ pub struct Beaconer {
     interval: Duration,
     /// Use for channel plan and FR parameters
     region_params: Option<RegionParams>,
-    poc_service: PocLoraService,
+    poc_ingest_uri: Uri,
     entropy_service: EntropyService,
 }
 
@@ -71,7 +72,7 @@ impl Beaconer {
         messages: MessageReceiver,
     ) -> Self {
         let interval = Duration::from_secs(settings.poc.beacon_interval);
-        let poc_service = PocLoraService::new(settings.poc.ingest_uri.clone());
+        let poc_ingest_uri = settings.poc.ingest_uri.clone();
         let entropy_service = EntropyService::new(settings.poc.entropy_uri.clone());
         let keypair = settings.keypair.clone();
 
@@ -81,7 +82,7 @@ impl Beaconer {
             messages,
             interval,
             region_params: None,
-            poc_service,
+            poc_ingest_uri,
             entropy_service,
         }
     }
@@ -121,8 +122,7 @@ impl Beaconer {
         };
         self.transmit.transmit_beacon(beacon).await;
 
-        let _ =  self
-            .poc_service
+        let _ = PocLoraService::new(self.poc_ingest_uri.clone())
             .submit_beacon(report, self.keypair.clone())
             .inspect_err(|err| info!(logger, "failed to submit poc beacon report: {err:?}"; "beacon" => &beacon_id))
             .inspect_ok(|_| info!(logger, "poc beacon report submitted"; "beacon" => &beacon_id))
@@ -147,8 +147,8 @@ impl Beaconer {
                 return;
             }
         };
-        let _ = self
-            .poc_service
+
+        let _ = PocLoraService::new(self.poc_ingest_uri.clone())
             .submit_witness(report.clone(), self.keypair.clone())
             .inspect_err(|err| info!(logger, "failed to submit poc witness report: {err:?}"; "beacon" => report.data.to_b64()))
             .inspect_ok(|_| info!(logger, "poc witness report submitted"; "beacon" => report.data.to_b64()))
