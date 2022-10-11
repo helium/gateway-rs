@@ -1706,8 +1706,9 @@ dependencies = [
 
 [[package]]
 name = "semtech-udp"
-version = "0.9.8-alpha.0"
-source = "git+https://github.com/helium/semtech-udp?branch=lthiery/finish-tmst-feature#aa6290e515c60cd7b6ba38179b8ebf687cc2e6f7"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "56f4f26ecbf4edc8f315bbbca73e71db00503506d8a753671742fd81cbd0f1a1"
 dependencies = [
  "arrayref",
  "base64",
