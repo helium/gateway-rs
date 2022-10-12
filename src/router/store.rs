@@ -39,7 +39,7 @@ impl QuePacket {
         let mut up = PacketRouterPacketUpV1 {
             payload: packet.payload.clone(),
             timestamp: packet.timestamp,
-            rssi: packet.signal_strength as u32,
+            rssi: packet.signal_strength as i32,
             frequency: (packet.frequency * 1_000_000.0) as u32,
             datarate: DataRate::from_str(&packet.datarate)? as i32,
             snr: packet.snr,
