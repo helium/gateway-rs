@@ -13,7 +13,7 @@ pub async fn run(shutdown: &triggered::Listener, settings: &Settings, logger: &L
     let (dispatcher_tx, dispatcher_rx) = dispatcher::message_channel(20);
     let (beaconing_tx, beaconing_rx) = beaconer::message_channel(10);
     let mut beaconer = beaconer::Beaconer::new(settings, gateway_tx.clone(), beaconing_rx);
-    let mut dispatcher = Dispatcher::new(dispatcher_rx, gateway_tx.clone(), settings)?;
+    let mut dispatcher = Dispatcher::new(dispatcher_rx, gateway_tx, settings)?;
     let mut gateway =
         gateway::Gateway::new(dispatcher_tx.clone(), gateway_rx, beaconing_tx, settings).await?;
     let updater = Updater::new(settings)?;
