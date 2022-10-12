@@ -226,7 +226,7 @@ impl Gateway {
                             None => warn!(logger, "packet transmitted with adjusted power, but packet forwarder does not indicate power used."),
                             Some(actual_power) => {
                                 info!(logger, "beacon transmitted"; "beacon" => &beacon_id, "power" => actual_power, "tmst" => tmst);
-                                warn!(logger, "packet transmitted with adjusted power.");
+                                debug!(logger, "packet transmitted with adjusted power.");
                             }
                         }
                         tmst
