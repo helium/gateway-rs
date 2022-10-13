@@ -173,18 +173,26 @@ impl Gateway {
         }
     }
 
-    async fn handle_transmit_beacon(&mut self, logger: &Logger, beacon: Beacon) {
+    fn tx_power(&mut self, logger: &Logger) -> Option<u32> {
         let region_params = if let Some(region_params) = &self.region_params {
             region_params
         } else {
-            warn!(logger, "ignoring transmit request, no region params");
-            return;
+            warn!(logger, "ignoring transmit: no region params");
+            return None;
         };
 
-        let tx_power = if let Some(tx_power) = region_params.tx_power() {
+        if let Some(tx_power) = region_params.tx_power() {
+            Some(tx_power)
+        } else {
+            warn!(logger, "ignoring transmit: region params has no tx power");
+            None
+        }
+    }
+
+    async fn handle_transmit_beacon(&mut self, logger: &Logger, beacon: Beacon) {
+        let tx_power = if let Some(tx_power) = self.tx_power(logger) {
             tx_power
         } else {
-            warn!(logger, "ignoring beacon transmit, no tx power");
             return;
         };
 
@@ -205,27 +213,38 @@ impl Gateway {
                 .dispatch(Some(Duration::from_secs(DOWNLINK_TIMEOUT_SECS)))
                 .await
             {
-                Ok(()) => info!(logger, "beacon transmitted"; "beacon" => &beacon_id),
-                Err(err) => {
-                    warn!(logger, "failed to transmit beacon:  {err:?}"; "beacon" => &beacon_id)
+                Ok(tmst) => {
+                    info!(logger, "beacon transmitted"; "beacon" => &beacon_id, "power" => tx_power, "tmst" => tmst);
+                    tmst
                 }
-            };
+                Err(err) => {
+                    if let semtech_udp::server_runtime::Error::Ack(
+                        tx_ack::Error::AdjustedTransmitPower(power_used, tmst),
+                    ) = err
+                    {
+                        match power_used {
+                            None => warn!(logger, "packet transmitted with adjusted power, but packet forwarder does not indicate power used."),
+                            Some(actual_power) => {
+                                info!(logger, "beacon transmitted with adjusted power output"; "beacon" => &beacon_id, "power" => actual_power, "tmst" => tmst);
+                            }
+                        }
+                        tmst
+                    } else {
+                        warn!(logger, "failed to transmit beacon:  {err:?}"; "beacon" => &beacon_id);
+                        None
+                    }
+                }
+            }
         });
     }
 
     async fn handle_downlink(&mut self, logger: &Logger, downlink: Packet) {
-        let region_params = if let Some(region_params) = &self.region_params {
-            region_params
-        } else {
-            warn!(logger, "ignoring downlink, no region params");
-            return;
-        };
-        let tx_power = if let Some(tx_power) = region_params.tx_power() {
+        let tx_power = if let Some(tx_power) = self.tx_power(logger) {
             tx_power
         } else {
-            warn!(logger, "ignoring downlink, no tx power");
             return;
         };
+
         let (mut downlink_rx1, mut downlink_rx2) = (
             // first downlink
             self.udp_runtime.prepare_empty_downlink(self.downlink_mac),
@@ -263,14 +282,27 @@ impl Gateway {
                                     .dispatch(Some(Duration::from_secs(DOWNLINK_TIMEOUT_SECS)))
                                     .await
                                 {
-                                    warn!(logger, "ignoring rx2 downlink error: {:?}", err);
+                                    if let SemtechError::Ack(
+                                        tx_ack::Error::AdjustedTransmitPower(_, _),
+                                    ) = err
+                                    {
+                                        warn!(
+                                            logger,
+                                            "rx2 downlink sent with adjusted transmit power"
+                                        );
+                                    } else {
+                                        warn!(logger, "ignoring rx2 downlink error: {:?}", err);
+                                    }
                                 }
                             }
+                        }
+                        Err(SemtechError::Ack(tx_ack::Error::AdjustedTransmitPower(_, _))) => {
+                            warn!(logger, "rx1 downlink sent with adjusted transmit power");
                         }
                         Err(err) => {
                             warn!(logger, "ignoring rx1 downlink error: {:?}", err);
                         }
-                        Ok(()) => (),
+                        Ok(_) => (),
                     }
                 }
             }
@@ -285,7 +317,6 @@ pub fn beacon_to_pull_resp(beacon: &Beacon, tx_power: u64) -> Result<pull_resp::
     // convert hz to mhz
     let freq = beacon.frequency as f64 / 1e6;
     let data: Vec<u8> = PHYPayload::proprietary(beacon.data.as_slice()).try_into()?;
-    let size = data.len() as u64;
 
     Ok(pull_resp::TxPk {
         imme: true,
@@ -294,8 +325,7 @@ pub fn beacon_to_pull_resp(beacon: &Beacon, tx_power: u64) -> Result<pull_resp::
         codr: CodingRate::_4_5,
         datr,
         freq,
-        data,
-        size,
+        data: pull_resp::PhyData::new(data),
         powe: tx_power,
         rfch: 0,
         tmst: None,

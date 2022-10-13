@@ -5,7 +5,7 @@ use helium_proto::{
 };
 use lorawan::{Direction, PHYPayloadFrame, MHDR};
 use semtech_udp::{
-    pull_resp,
+    pull_resp::{self, PhyData},
     push_data::{self, CRC},
     CodingRate, DataRate, Modulation, StringOrNum,
 };
@@ -141,8 +141,7 @@ impl Packet {
             // for normal lorawan packets we're not selecting different frequencies
             // like we are for PoC
             freq: frequency as f64,
-            data: self.0.payload.clone(),
-            size: self.0.payload.len() as u64,
+            data: PhyData::new(self.0.payload.clone()),
             powe: tx_power as u64,
             rfch: 0,
             tmst: match timestamp {
