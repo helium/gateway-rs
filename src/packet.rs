@@ -204,7 +204,7 @@ impl Packet {
             data: payload,
             timestamp: self.timestamp,
             ts_res: 0,
-            signal: (self.signal_strength * 10.0) as u32,
+            signal: (self.signal_strength * 10.0) as i32,
             snr: (self.snr * 10.0) as i32,
             frequency: to_hz(self.frequency),
             datarate: dr as i32,
