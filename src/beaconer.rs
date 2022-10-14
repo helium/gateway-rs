@@ -150,11 +150,11 @@ impl Beaconer {
 
         report.pub_key = self.keypair.public_key().to_vec();
         match report.sign(self.keypair.clone()).await {
-                Ok(signature) => report.signature = signature,
-                Err(err) => {
-                    info!(logger, "failed to sign poc witness report {err:?}");
-                    return;
-                }
+            Ok(signature) => report.signature = signature,
+            Err(err) => {
+                info!(logger, "failed to sign poc witness report {err:?}");
+                return;
+            }
         };
 
         let _ = PocLoraService::new(self.poc_ingest_uri.clone())
