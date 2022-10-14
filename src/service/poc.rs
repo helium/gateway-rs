@@ -36,13 +36,7 @@ impl PocLoraService {
         Ok(())
     }
 
-    pub async fn submit_witness(
-        &mut self,
-        mut req: LoraWitnessReportReqV1,
-        keypair: Arc<Keypair>,
-    ) -> Result {
-        req.pub_key = keypair.public_key().to_vec();
-        req.signature = req.sign(keypair).await?;
+    pub async fn submit_witness(&mut self, req: LoraWitnessReportReqV1) -> Result {
         let _ = self.0.submit_lora_witness(req).await?;
         Ok(())
     }
