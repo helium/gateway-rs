@@ -8,7 +8,7 @@ use crate::{
     gateway,
     service::{entropy::EntropyService, poc::PocLoraService},
     settings::Settings,
-    sync, Base64, Error, Keypair, Packet, RegionParams, Result,
+    sync, Base64, Error, Keypair, MsgSign, Packet, RegionParams, Result,
 };
 use futures::TryFutureExt;
 use helium_proto::services::poc_lora;
@@ -140,7 +140,7 @@ impl Beaconer {
 
     async fn handle_received_beacon(&mut self, packet: Packet, logger: &Logger) {
         info!(logger, "received possible PoC payload: {packet:?}");
-        let report = match packet.to_witness_report() {
+        let mut report = match packet.to_witness_report() {
             Ok(report) => report,
             Err(err) => {
                 warn!(logger, "ignoring invalid witness report: {err:?}");
@@ -148,8 +148,11 @@ impl Beaconer {
             }
         };
 
+        report.pub_key = self.keypair.public_key().to_vec();
+        report.signature = report.sign(self.keypair.clone()).await.unwrap();
+
         let _ = PocLoraService::new(self.poc_ingest_uri.clone())
-            .submit_witness(report.clone(), self.keypair.clone())
+            .submit_witness(report.clone())
             .inspect_err(|err| info!(logger, "failed to submit poc witness report: {err:?}"; "beacon" => report.data.to_b64()))
             .inspect_ok(|_| info!(logger, "poc witness report submitted"; "beacon" => report.data.to_b64()))
             .await;
