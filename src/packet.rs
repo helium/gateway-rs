@@ -73,7 +73,6 @@ impl TryFrom<PacketRouterPacketDownV1> for Packet {
     type Error = Error;
 
     fn try_from(pr_down: PacketRouterPacketDownV1) -> Result<Self> {
-        // FIXME: this doesn't seem correct
         let window = match pr_down.rx1 {
             Some(rx1) => rx1,
             None => return Err(Error::custom("no rx1")),
@@ -150,21 +149,42 @@ impl Packet {
             .unwrap_or(false)
     }
 
-    pub fn to_pull_resp(&self, use_rx2: bool, tx_power: u32) -> Result<Option<pull_resp::TxPk>> {
-        let (timestamp, frequency, datarate) = if use_rx2 {
-            if let Some(rx2) = &self.0.rx2_window {
-                (Some(rx2.timestamp), rx2.frequency, rx2.datarate.parse()?)
-            } else {
-                return Ok(None);
-            }
-        } else {
-            (
-                Some(self.0.timestamp),
-                self.0.frequency,
-                self.0.datarate.parse()?,
-            )
+    pub fn to_rx1_pull_resp(&self, tx_power: u32) -> Result<pull_resp::TxPk> {
+        let (timestamp, frequency, datarate) = (
+            match self.0.timestamp {
+                0 => None,
+                non_zero => Some(non_zero),
+            },
+            self.0.frequency,
+            self.0.datarate.parse()?,
+        );
+        self.inner_to_pull_resp(timestamp, frequency, datarate, tx_power)
+    }
+
+    pub fn to_rx2_pull_resp(&self, tx_power: u32) -> Result<Option<pull_resp::TxPk>> {
+        let rx2 = match &self.0.rx2_window {
+            Some(window) => window,
+            None => return Ok(None),
         };
-        Ok(Some(pull_resp::TxPk {
+
+        let timestamp = match rx2.timestamp {
+            0 => None,
+            non_zero => Some(non_zero),
+        };
+        let datarate = rx2.datarate.parse()?;
+
+        self.inner_to_pull_resp(timestamp, rx2.frequency, datarate, tx_power)
+            .map(Some)
+    }
+
+    fn inner_to_pull_resp(
+        &self,
+        timestamp: Option<u64>,
+        frequency: f32,
+        datarate: DataRate,
+        tx_power: u32,
+    ) -> Result<pull_resp::TxPk> {
+        Ok(pull_resp::TxPk {
             imme: timestamp.is_none(),
             ipol: true,
             modu: Modulation::LORA,
@@ -184,7 +204,7 @@ impl Packet {
             fdev: None,
             prea: None,
             ncrc: None,
-        }))
+        })
     }
 
     pub fn from_state_channel_response(response: BlockchainStateChannelResponseV1) -> Option<Self> {

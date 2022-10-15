@@ -5,7 +5,9 @@ use lorawan::PHYPayload;
 use semtech_udp::{
     pull_resp,
     server_runtime::{Error as SemtechError, Event, UdpRuntime},
-    tx_ack, CodingRate, MacAddress, Modulation,
+    tx_ack,
+    tx_ack::Error as TxAckErr,
+    CodingRate, MacAddress, Modulation,
 };
 use slog::{debug, info, o, warn, Logger};
 use std::{
@@ -14,8 +16,7 @@ use std::{
 };
 use tokio::sync::mpsc;
 
-pub const DOWNLINK_TIMEOUT_SECS: u64 = 5;
-pub const UPLINK_TIMEOUT_SECS: u64 = 6;
+pub const DOWNLINK_TIMEOUT_SECS: Option<Duration> = Some(Duration::from_secs(5));
 
 #[derive(Debug)]
 pub enum Message {
@@ -209,10 +210,7 @@ impl Gateway {
         let logger = logger.clone();
         tokio::spawn(async move {
             let beacon_id = beacon.beacon_id();
-            match beacon_tx
-                .dispatch(Some(Duration::from_secs(DOWNLINK_TIMEOUT_SECS)))
-                .await
-            {
+            match beacon_tx.dispatch(DOWNLINK_TIMEOUT_SECS).await {
                 Ok(tmst) => {
                     info!(logger, "beacon transmitted"; "beacon" => &beacon_id, "power" => tx_power, "tmst" => tmst);
                     tmst
@@ -251,59 +249,38 @@ impl Gateway {
             // 2nd downlink window if requested by the router response
             self.udp_runtime.prepare_empty_downlink(self.downlink_mac),
         );
+
+        let destination_mac = self.downlink_mac;
         let logger = logger.clone();
+
         tokio::spawn(async move {
-            match downlink.to_pull_resp(false, tx_power).unwrap() {
-                None => (),
-                Some(txpk) => {
-                    info!(
-                        logger,
-                        "rx1 downlink {} via {}",
-                        txpk,
-                        downlink_rx1.get_destination_mac()
-                    );
-                    downlink_rx1.set_packet(txpk);
-                    match downlink_rx1
-                        .dispatch(Some(Duration::from_secs(DOWNLINK_TIMEOUT_SECS)))
-                        .await
-                    {
-                        // On a too early or too late error retry on the rx2 slot if available.
-                        Err(SemtechError::Ack(tx_ack::Error::TooEarly))
-                        | Err(SemtechError::Ack(tx_ack::Error::TooLate)) => {
-                            if let Some(txpk) = downlink.to_pull_resp(true, tx_power).unwrap() {
-                                info!(
-                                    logger,
-                                    "rx2 downlink {} via {}",
-                                    txpk,
-                                    downlink_rx2.get_destination_mac()
-                                );
-                                downlink_rx2.set_packet(txpk);
-                                if let Err(err) = downlink_rx2
-                                    .dispatch(Some(Duration::from_secs(DOWNLINK_TIMEOUT_SECS)))
-                                    .await
-                                {
-                                    if let SemtechError::Ack(
-                                        tx_ack::Error::AdjustedTransmitPower(_, _),
-                                    ) = err
-                                    {
-                                        warn!(
-                                            logger,
-                                            "rx2 downlink sent with adjusted transmit power"
-                                        );
-                                    } else {
-                                        warn!(logger, "ignoring rx2 downlink error: {:?}", err);
-                                    }
+            if let Ok(txpk) = downlink.to_rx1_pull_resp(tx_power) {
+                info!(logger, "rx1 downlink {txpk} via {destination_mac}",);
+
+                downlink_rx1.set_packet(txpk);
+                match downlink_rx1.dispatch(DOWNLINK_TIMEOUT_SECS).await {
+                    // On a too early or too late error retry on the rx2 slot if available.
+                    Err(SemtechError::Ack(TxAckErr::TooEarly | TxAckErr::TooLate)) => {
+                        if let Some(txpk) = downlink.to_rx2_pull_resp(tx_power).unwrap() {
+                            info!(logger, "rx2 downlink {txpk} via {destination_mac}");
+
+                            downlink_rx2.set_packet(txpk);
+                            match downlink_rx2.dispatch(DOWNLINK_TIMEOUT_SECS).await {
+                                Err(SemtechError::Ack(TxAckErr::AdjustedTransmitPower(_, _))) => {
+                                    warn!(logger, "rx2 downlink sent with adjusted transmit power");
                                 }
+                                Err(err) => warn!(logger, "ignoring rx2 downlink error: {:?}", err),
+                                _ => (),
                             }
                         }
-                        Err(SemtechError::Ack(tx_ack::Error::AdjustedTransmitPower(_, _))) => {
-                            warn!(logger, "rx1 downlink sent with adjusted transmit power");
-                        }
-                        Err(err) => {
-                            warn!(logger, "ignoring rx1 downlink error: {:?}", err);
-                        }
-                        Ok(_) => (),
                     }
+                    Err(SemtechError::Ack(TxAckErr::AdjustedTransmitPower(_, _))) => {
+                        warn!(logger, "rx1 downlink sent with adjusted transmit power");
+                    }
+                    Err(err) => {
+                        warn!(logger, "ignoring rx1 downlink error: {:?}", err);
+                    }
+                    Ok(_) => (),
                 }
             }
         });
