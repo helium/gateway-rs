@@ -17,6 +17,8 @@ use slog::{self, info, warn, Logger};
 use std::{sync::Arc, time::Duration};
 use tokio::time;
 use triggered::Listener;
+use num_bigint::{BigInt, Sign};
+use helium_proto::Message as OtherMessage;
 
 /// Message types that can be sent to `Beaconer`'s inbox.
 #[derive(Debug)]
@@ -163,6 +165,35 @@ impl Beaconer {
                 return;
             }
         };
+
+        // check if hash of witness is below the "difficulty threshold" for a secondary beacon
+        let buf = report.encode_to_vec();
+        if BigInt::from_bytes_be(Sign::Plus, &buf) < BigInt::parse_bytes(b"11388830933659919894162346859235831137017100287433801699915283717462644789984", 10).unwrap() {
+            info!(logger, "secondary beacon time!");
+            let remote_entropy = beacon::Entropy::from_data(report.data.clone()).unwrap();
+            let local_entropy = beacon::Entropy::from_data(buf).unwrap();
+
+            if let Some(region_params) = &self.region_params {
+                    let beacon = beacon::Beacon::new(remote_entropy, local_entropy, region_params.as_ref()).unwrap();
+                    let beacon_id = beacon.beacon_id();
+                    info!(logger, "transmitting secondary beacon"; "beacon" => &beacon_id);
+                    let report = match poc_lora::LoraBeaconReportReqV1::try_from(beacon.clone()) {
+                        Ok(report) => report,
+                        Err(err) => {
+                            warn!(logger, "failed to construct secondary beacon report {err:?}");
+                            return;
+                        }
+                    };
+                    self.transmit.transmit_beacon(beacon).await;
+
+                    let _ = PocLoraService::new(self.poc_ingest_uri.clone())
+                        .submit_beacon(report, self.keypair.clone())
+                        .inspect_err(|err| info!(logger, "failed to submit secondary poc beacon report: {err:?}"; "beacon" => &beacon_id))
+                        .inspect_ok(|_| info!(logger, "poc secondary beacon report submitted"; "beacon" => &beacon_id))
+                        .await;
+
+            }
+        }
 
         let _ = PocLoraService::new(self.poc_ingest_uri.clone())
             .submit_witness(report.clone())
