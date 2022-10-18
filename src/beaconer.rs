@@ -168,7 +168,9 @@ impl Beaconer {
 
         // check if hash of witness is below the "difficulty threshold" for a secondary beacon
         let buf = report.encode_to_vec();
-        if BigInt::from_bytes_be(Sign::Plus, &buf) < BigInt::parse_bytes(b"11388830933659919894162346859235831137017100287433801699915283717462644789984", 10).unwrap() {
+        let threshold = BigInt::parse_bytes(b"11388830933659919894162346859235831137017100287433801699915283717462644789984", 10).unwrap();
+        let factor = BigInt::from_bytes_be(Sign::Plus, &buf);
+        if factor < threshold {
             info!(logger, "secondary beacon time!");
             let remote_entropy = beacon::Entropy::from_data(report.data.clone()).unwrap();
             let local_entropy = beacon::Entropy::from_data(buf).unwrap();
@@ -193,6 +195,8 @@ impl Beaconer {
                         .await;
 
             }
+        } else {
+            info!(logger, "no secondary beacon, threshold {threshold:?}, factor {factor:?}");
         }
 
         let _ = PocLoraService::new(self.poc_ingest_uri.clone())
