@@ -12,15 +12,15 @@ use crate::{
 };
 use futures::TryFutureExt;
 use helium_proto::services::poc_lora;
+use helium_proto::Message as OtherMessage;
 use http::Uri;
+use num_bigint::{BigInt, Sign};
+use sha2::Digest;
+use sha2::Sha256;
 use slog::{self, info, warn, Logger};
 use std::{sync::Arc, time::Duration};
 use tokio::time;
 use triggered::Listener;
-use num_bigint::{BigInt, Sign};
-use helium_proto::Message as OtherMessage;
-use sha2::Sha256;
-use sha2::Digest;
 
 /// Message types that can be sent to `Beaconer`'s inbox.
 #[derive(Debug)]
@@ -170,7 +170,11 @@ impl Beaconer {
 
         // check if hash of witness is below the "difficulty threshold" for a secondary beacon
         let buf = Sha256::digest(report.encode_to_vec()).to_vec();
-        let threshold = BigInt::parse_bytes(b"11388830933659919894162346859235831137017100287433801699915283717462644789984", 10).unwrap();
+        let threshold = BigInt::parse_bytes(
+            b"11388830933659919894162346859235831137017100287433801699915283717462644789984",
+            10,
+        )
+        .unwrap();
         let factor = BigInt::from_bytes_be(Sign::Plus, &buf);
         if factor < threshold {
             info!(logger, "secondary beacon time!");
@@ -178,27 +182,34 @@ impl Beaconer {
             let local_entropy = beacon::Entropy::from_data(buf).unwrap();
 
             if let Some(region_params) = &self.region_params {
-                    let beacon = beacon::Beacon::new(remote_entropy, local_entropy, region_params.as_ref()).unwrap();
-                    let beacon_id = beacon.beacon_id();
-                    info!(logger, "transmitting secondary beacon"; "beacon" => &beacon_id);
-                    let report = match poc_lora::LoraBeaconReportReqV1::try_from(beacon.clone()) {
-                        Ok(report) => report,
-                        Err(err) => {
-                            warn!(logger, "failed to construct secondary beacon report {err:?}");
-                            return;
-                        }
-                    };
-                    self.transmit.transmit_beacon(beacon).await;
+                let beacon =
+                    beacon::Beacon::new(remote_entropy, local_entropy, region_params.as_ref())
+                        .unwrap();
+                let beacon_id = beacon.beacon_id();
+                info!(logger, "transmitting secondary beacon"; "beacon" => &beacon_id);
+                let report = match poc_lora::LoraBeaconReportReqV1::try_from(beacon.clone()) {
+                    Ok(report) => report,
+                    Err(err) => {
+                        warn!(
+                            logger,
+                            "failed to construct secondary beacon report {err:?}"
+                        );
+                        return;
+                    }
+                };
+                self.transmit.transmit_beacon(beacon).await;
 
-                    let _ = PocLoraService::new(self.poc_ingest_uri.clone())
+                let _ = PocLoraService::new(self.poc_ingest_uri.clone())
                         .submit_beacon(report, self.keypair.clone())
                         .inspect_err(|err| info!(logger, "failed to submit secondary poc beacon report: {err:?}"; "beacon" => &beacon_id))
                         .inspect_ok(|_| info!(logger, "poc secondary beacon report submitted"; "beacon" => &beacon_id))
                         .await;
-
             }
         } else {
-            info!(logger, "no secondary beacon, threshold {threshold:?}, factor {factor:?}");
+            info!(
+                logger,
+                "no secondary beacon, threshold {threshold:?}, factor {factor:?}"
+            );
         }
 
         let _ = PocLoraService::new(self.poc_ingest_uri.clone())

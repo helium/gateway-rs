@@ -42,7 +42,7 @@ impl Entropy {
             .map_err(Error::from)?
             .as_secs() as i64;
         Ok(Self {
-            version: 0,
+            version: 1, // marked as local
             timestamp,
             data: data,
         })
