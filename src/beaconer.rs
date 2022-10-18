@@ -19,6 +19,8 @@ use tokio::time;
 use triggered::Listener;
 use num_bigint::{BigInt, Sign};
 use helium_proto::Message as OtherMessage;
+use sha2::Sha256;
+use sha2::Digest;
 
 /// Message types that can be sent to `Beaconer`'s inbox.
 #[derive(Debug)]
@@ -167,7 +169,7 @@ impl Beaconer {
         };
 
         // check if hash of witness is below the "difficulty threshold" for a secondary beacon
-        let buf = report.encode_to_vec();
+        let buf = Sha256::digest(report.encode_to_vec()).to_vec();
         let threshold = BigInt::parse_bytes(b"11388830933659919894162346859235831137017100287433801699915283717462644789984", 10).unwrap();
         let factor = BigInt::from_bytes_be(Sign::Plus, &buf);
         if factor < threshold {
