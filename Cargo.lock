@@ -905,7 +905,7 @@ dependencies = [
 [[package]]
 name = "helium-proto"
 version = "0.1.0"
-source = "git+https://github.com/helium/proto?branch=master#3c06cc7729a0b9db5d3a63e057ec3b5da9f0bf19"
+source = "git+https://github.com/helium/proto?branch=master#eb8d4c7805b57e59d1dfb019e582fb1234765f1c"
 dependencies = [
  "bytes",
  "prost",

@@ -202,8 +202,8 @@ impl Packet {
         let report = poc_lora::LoraWitnessReportReqV1 {
             pub_key: vec![],
             data: payload,
+            tmst: self.timestamp as u32,
             timestamp: self.timestamp,
-            ts_res: 0,
             signal: (self.signal_strength * 10.0) as i32,
             snr: (self.snr * 10.0) as i32,
             frequency: to_hz(self.frequency),

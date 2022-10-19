@@ -1,4 +1,7 @@
-use crate::{beaconer, router::dispatcher, Error, Packet, RegionParams, Result, Settings};
+use crate::{
+    beaconer, error::RegionError, router::dispatcher, sync, Error, Packet, RegionParams, Result,
+    Settings,
+};
 use beacon::Beacon;
 use futures::TryFutureExt;
 use lorawan::PHYPayload;
@@ -18,10 +21,24 @@ pub const DOWNLINK_TIMEOUT_SECS: u64 = 5;
 pub const UPLINK_TIMEOUT_SECS: u64 = 6;
 
 #[derive(Debug)]
+pub struct BeaconResp {
+    pub powe: i32,
+    pub tmst: u32,
+}
+
+#[derive(Debug)]
 pub enum Message {
     Downlink(Packet),
-    TransmitBeacon(Beacon),
+    TransmitBeacon(Beacon, sync::ResponseSender<Result<BeaconResp>>),
     RegionParamsChanged(RegionParams),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum GatewayError {
+    #[error("unknown beacon tx power")]
+    NoBeaconTxPower,
+    #[error("beacon transmit failed")]
+    BeaconTxFailure,
 }
 
 #[derive(Clone, Debug)]
@@ -46,12 +63,16 @@ impl MessageSender {
     ///
     /// Essentially, this packet looks like a regular uplink packet to other
     /// gateways until further inspection.
-    pub async fn transmit_beacon(&self, beacon: Beacon) {
+    pub async fn transmit_beacon(&self, beacon: Beacon) -> Result<BeaconResp> {
+        let (tx, rx) = sync::response_channel();
+
         let _ = self
             .0
-            .send(Message::TransmitBeacon(beacon))
+            .send(Message::TransmitBeacon(beacon, tx))
             .map_err(|_| Error::channel())
             .await;
+
+        rx.recv().await?
     }
 
     pub async fn region_params_changed(&self, region_params: RegionParams) {
@@ -161,7 +182,9 @@ impl Gateway {
     async fn handle_message(&mut self, logger: &Logger, message: Message) {
         match message {
             Message::Downlink(packet) => self.handle_downlink(logger, packet).await,
-            Message::TransmitBeacon(beacon) => self.handle_transmit_beacon(logger, beacon).await,
+            Message::TransmitBeacon(beacon, tx_resp) => {
+                self.handle_transmit_beacon(logger, beacon, tx_resp).await
+            }
             Message::RegionParamsChanged(region_params) => {
                 self.beacon_handler
                     .region_params_changed(region_params.clone())
@@ -173,33 +196,40 @@ impl Gateway {
         }
     }
 
-    fn tx_power(&mut self, logger: &Logger) -> Option<u32> {
+    fn tx_power(&mut self) -> Result<u32> {
         let region_params = if let Some(region_params) = &self.region_params {
             region_params
         } else {
-            warn!(logger, "ignoring transmit: no region params");
-            return None;
+            return Err(RegionError::no_region_params());
         };
 
         if let Some(tx_power) = region_params.tx_power() {
-            Some(tx_power)
+            Ok(tx_power)
         } else {
-            warn!(logger, "ignoring transmit: region params has no tx power");
-            None
+            Err(RegionError::no_region_tx_power())
         }
     }
 
-    async fn handle_transmit_beacon(&mut self, logger: &Logger, beacon: Beacon) {
-        let tx_power = if let Some(tx_power) = self.tx_power(logger) {
-            tx_power
-        } else {
-            return;
+    async fn handle_transmit_beacon(
+        &mut self,
+        logger: &Logger,
+        beacon: Beacon,
+        responder: sync::ResponseSender<Result<BeaconResp>>,
+    ) {
+        let tx_power = match self.tx_power() {
+            Ok(tx_power) => tx_power,
+            Err(err) => {
+                warn!(logger, "ignoring transmit: {err}");
+                responder.send(Err(err), logger);
+                return;
+            }
         };
 
         let packet = match beacon_to_pull_resp(&beacon, tx_power as u64) {
             Ok(packet) => packet,
             Err(err) => {
                 warn!(logger, "failed to construct beacon pull resp: {err:?}");
+                responder.send(Err(err), logger);
                 return;
             }
         };
@@ -215,6 +245,13 @@ impl Gateway {
             {
                 Ok(tmst) => {
                     info!(logger, "beacon transmitted"; "beacon" => &beacon_id, "power" => tx_power, "tmst" => tmst);
+                    responder.send(
+                        Ok(BeaconResp {
+                            powe: tx_power as i32,
+                            tmst: tmst.unwrap_or(0),
+                        }),
+                        &logger,
+                    );
                     tmst
                 }
                 Err(err) => {
@@ -223,14 +260,25 @@ impl Gateway {
                     ) = err
                     {
                         match power_used {
-                            None => warn!(logger, "packet transmitted with adjusted power, but packet forwarder does not indicate power used."),
+                            None => {
+                                warn!(logger, "packet transmitted with adjusted power, but packet forwarder does not indicate power used.");
+                                responder.send(Err(GatewayError::NoBeaconTxPower.into()), &logger);
+                            }
                             Some(actual_power) => {
                                 info!(logger, "beacon transmitted with adjusted power output"; "beacon" => &beacon_id, "power" => actual_power, "tmst" => tmst);
+                                responder.send(
+                                    Ok(BeaconResp {
+                                        powe: actual_power,
+                                        tmst: tmst.unwrap_or(0),
+                                    }),
+                                    &logger,
+                                );
                             }
                         }
                         tmst
                     } else {
                         warn!(logger, "failed to transmit beacon:  {err:?}"; "beacon" => &beacon_id);
+                        responder.send(Err(GatewayError::BeaconTxFailure.into()), &logger);
                         None
                     }
                 }
@@ -239,10 +287,12 @@ impl Gateway {
     }
 
     async fn handle_downlink(&mut self, logger: &Logger, downlink: Packet) {
-        let tx_power = if let Some(tx_power) = self.tx_power(logger) {
-            tx_power
-        } else {
-            return;
+        let tx_power = match self.tx_power() {
+            Ok(tx_power) => tx_power,
+            Err(err) => {
+                warn!(logger, "ignoring transmit: {err}");
+                return;
+            }
         };
 
         let (mut downlink_rx1, mut downlink_rx2) = (

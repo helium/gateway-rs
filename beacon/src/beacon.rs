@@ -92,6 +92,7 @@ impl TryFrom<Beacon> for poc_lora::LoraBeaconReportReqV1 {
             frequency: v.frequency,
             channel: 0,
             datarate: v.datarate as i32,
+            tmst: 0,
             tx_power: 27,
             // The timestamp of the beacon is the timestamp of creation of the
             // report (in nanos)
