@@ -187,7 +187,7 @@ impl Beaconer {
                         .unwrap();
                 let beacon_id = beacon.beacon_id();
                 info!(logger, "transmitting secondary beacon"; "beacon" => &beacon_id);
-                let report = match poc_lora::LoraBeaconReportReqV1::try_from(beacon.clone()) {
+                let mut report = match poc_lora::LoraBeaconReportReqV1::try_from(beacon.clone()) {
                     Ok(report) => report,
                     Err(err) => {
                         warn!(
@@ -197,7 +197,15 @@ impl Beaconer {
                         return;
                     }
                 };
-                self.transmit.transmit_beacon(beacon).await;
+                let (powe, tmst) = match self.transmit.transmit_beacon(beacon).await {
+                    Ok(BeaconResp { powe, tmst }) => (powe, tmst),
+                    Err(err) => {
+                        warn!(logger, "failed to transmit beacon {err:?}");
+                        return;
+                    }
+                };
+                report.tx_power = powe;
+                report.tmst = tmst;
 
                 let _ = PocLoraService::new(self.poc_ingest_uri.clone())
                         .submit_beacon(report, self.keypair.clone())
