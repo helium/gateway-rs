@@ -10,7 +10,13 @@ use semtech_udp::{
     CodingRate, DataRate, Modulation, StringOrNum,
 };
 use sha2::{Digest, Sha256};
-use std::{convert::TryFrom, fmt, ops::Deref, str::FromStr};
+use std::{
+    convert::TryFrom,
+    fmt,
+    ops::Deref,
+    str::FromStr,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 #[derive(Debug, Clone)]
 pub struct Packet(helium_proto::Packet);
@@ -50,6 +56,8 @@ impl TryFrom<push_data::RxPk> for Packet {
                 signal_strength: rssi as f32,
                 snr: rxpk.get_snr(),
                 frequency: *rxpk.get_frequency() as f32,
+                // TODO: add `datetime` field here in the helium_proto::Packet definition
+                // and set the value to *rxpk.get_time(), converted from Option<String> to u64
                 timestamp: *rxpk.get_timestamp() as u64,
                 datarate: rxpk.get_datarate().to_string(),
                 routing: Self::routing_information(&Self::parse_frame(
@@ -203,7 +211,10 @@ impl Packet {
             pub_key: vec![],
             data: payload,
             tmst: self.timestamp as u32,
-            timestamp: self.timestamp,
+            timestamp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map_err(Error::from)?
+                .as_nanos() as u64,
             signal: (self.signal_strength * 10.0) as i32,
             snr: (self.snr * 10.0) as i32,
             frequency: to_hz(self.frequency),

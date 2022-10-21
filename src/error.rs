@@ -29,6 +29,8 @@ pub enum Error {
     Region(#[from] RegionError),
     #[error("curl error")]
     Curl(#[from] crate::curl::Error),
+    #[error("system time")]
+    SystemTime(#[from] std::time::SystemTimeError),
 }
 
 #[derive(Error, Debug)]
