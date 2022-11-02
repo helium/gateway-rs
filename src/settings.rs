@@ -101,8 +101,8 @@ pub struct PocSettings {
     /// Beacon interval in seconds. Defaults to 3 times in 24 hours. Note that
     /// the rate of beacons is verified by the oracle so increasing this number
     /// will not increase rewards
-    #[serde(default = "default_beacon_interval")]
-    pub beacon_interval: u64,
+    #[serde(default = "default_poc_interval")]
+    pub interval: u64,
 }
 
 impl Settings {
@@ -153,7 +153,7 @@ fn default_api() -> u16 {
     4467
 }
 
-fn default_beacon_interval() -> u64 {
+fn default_poc_interval() -> u64 {
     // 3x daily with a few seconds to spare.
     8 * (3600 - 1)
 }

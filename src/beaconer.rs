@@ -71,7 +71,7 @@ impl Beaconer {
         transmit: gateway::MessageSender,
         messages: MessageReceiver,
     ) -> Self {
-        let interval = Duration::from_secs(settings.poc.beacon_interval);
+        let interval = Duration::from_secs(settings.poc.interval);
         let poc_ingest_uri = settings.poc.ingest_uri.clone();
         let entropy_service = EntropyService::new(settings.poc.entropy_uri.clone());
         let keypair = settings.keypair.clone();
