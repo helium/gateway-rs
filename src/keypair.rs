@@ -24,7 +24,7 @@ pub fn save_to_file(keypair: &Keypair, path: &str) -> io::Result<()> {
     if let Some(parent) = path::PathBuf::from(path).parent() {
         fs::create_dir_all(parent)?;
     };
-    fs::write(path, &keypair.0.to_vec())?;
+    fs::write(path, keypair.0.to_vec())?;
     Ok(())
 }
 
