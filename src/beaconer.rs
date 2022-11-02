@@ -169,50 +169,75 @@ impl Beaconer {
         };
 
         // check if hash of witness is below the "difficulty threshold" for a secondary beacon
+        // TODO provide a way to get this difficulty threshold from eg. the entropy server
         let buf = Sha256::digest(report.encode_to_vec()).to_vec();
         let threshold = BigInt::parse_bytes(
             b"11388830933659919894162346859235831137017100287433801699915283717462644789984",
             10,
         )
         .unwrap();
+        // compare the hash of the witness report as a bigint to the difficulty threshold
+        // this is sort of a bitcoin-esque proof of work check insofar as as we're looking
+        // for hashes under a certain value. Because of the time constraints involved this
+        // should not be a 'mineable' check, but it provides a useful probabalistic way to
+        // allow for verifiable secondary beacons without any coordination.
         let factor = BigInt::from_bytes_be(Sign::Plus, &buf);
-        if factor < threshold {
-            info!(logger, "secondary beacon time!");
-            let remote_entropy = beacon::Entropy::from_data(report.data.clone()).unwrap();
-            let local_entropy = beacon::Entropy::from_data(buf).unwrap();
-
-            if let Some(region_params) = &self.region_params {
-                let beacon =
-                    beacon::Beacon::new(remote_entropy, local_entropy, region_params.as_ref())
-                        .unwrap();
-                let beacon_id = beacon.beacon_id();
-                info!(logger, "transmitting secondary beacon"; "beacon" => &beacon_id);
-                let mut report = match poc_lora::LoraBeaconReportReqV1::try_from(beacon.clone()) {
-                    Ok(report) => report,
+        if let (Some(region_params), true) = (&self.region_params, factor < threshold) {
+            let remote_entropy = match beacon::Entropy::from_data(report.data.clone()) {
+                Ok(remote_entropy) => remote_entropy,
+                Err(err) => {
+                    warn!(
+                        logger,
+                        "failed to construct secondary beacon remote entropy: {err:?}"
+                    );
+                    return;
+                }
+            };
+            let local_entropy = match beacon::Entropy::from_data(buf) {
+                Ok(local_entropy) => local_entropy,
+                Err(err) => {
+                    warn!(
+                        logger,
+                        "failed to construct secondary beacon local entropy: {err:?}"
+                    );
+                    return;
+                }
+            };
+            let beacon =
+                match beacon::Beacon::new(remote_entropy, local_entropy, region_params.as_ref()) {
+                    Ok(beacon) => beacon,
                     Err(err) => {
-                        warn!(
-                            logger,
-                            "failed to construct secondary beacon report {err:?}"
-                        );
+                        warn!(logger, "failed to construct secondary beacon: {err:?}");
                         return;
                     }
                 };
-                let (powe, tmst) = match self.transmit.transmit_beacon(beacon).await {
-                    Ok(BeaconResp { powe, tmst }) => (powe, tmst),
-                    Err(err) => {
-                        warn!(logger, "failed to transmit beacon {err:?}");
-                        return;
-                    }
-                };
-                report.tx_power = powe;
-                report.tmst = tmst;
+            let beacon_id = beacon.beacon_id();
+            info!(logger, "transmitting secondary beacon"; "beacon" => &beacon_id);
+            let mut report = match poc_lora::LoraBeaconReportReqV1::try_from(beacon.clone()) {
+                Ok(report) => report,
+                Err(err) => {
+                    warn!(
+                        logger,
+                        "failed to construct secondary beacon report {err:?}"
+                    );
+                    return;
+                }
+            };
+            let (powe, tmst) = match self.transmit.transmit_beacon(beacon).await {
+                Ok(BeaconResp { powe, tmst }) => (powe, tmst),
+                Err(err) => {
+                    warn!(logger, "failed to transmit beacon {err:?}");
+                    return;
+                }
+            };
+            report.tx_power = powe;
+            report.tmst = tmst;
 
-                let _ = PocLoraService::new(self.poc_ingest_uri.clone())
-                        .submit_beacon(report, self.keypair.clone())
-                        .inspect_err(|err| info!(logger, "failed to submit secondary poc beacon report: {err:?}"; "beacon" => &beacon_id))
-                        .inspect_ok(|_| info!(logger, "poc secondary beacon report submitted"; "beacon" => &beacon_id))
-                        .await;
-            }
+            let _ = PocLoraService::new(self.poc_ingest_uri.clone())
+                .submit_beacon(report, self.keypair.clone())
+                .inspect_err(|err| info!(logger, "failed to submit secondary poc beacon report: {err:?}"; "beacon" => &beacon_id))
+                .inspect_ok(|_| info!(logger, "poc secondary beacon report submitted"; "beacon" => &beacon_id))
+                .await;
         } else {
             info!(
                 logger,
