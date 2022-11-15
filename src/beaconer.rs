@@ -11,14 +11,13 @@ use crate::{
     sync, Base64, Error, Keypair, MsgSign, Packet, RegionParams, Result,
 };
 use futures::TryFutureExt;
-use helium_proto::services::poc_lora;
-use helium_proto::Message as OtherMessage;
+use helium_proto::{services::poc_lora, Message as ProtoMessage};
 use http::Uri;
 use slog::{self, info, warn, Logger};
 use std::{sync::Arc, time::Duration};
 use tokio::time;
 use triggered::Listener;
-use xxhash_rust::xxh64::Xxh64;
+use xxhash_rust::xxh64::xxh64;
 
 /// Message types that can be sent to `Beaconer`'s inbox.
 #[derive(Debug)]
@@ -105,14 +104,7 @@ impl Beaconer {
     /// Sends a gateway-to-gateway packet.
     ///
     /// See [`gateway::MessageSender::transmit_beacon`]
-    pub async fn send_beacon(&mut self, logger: &Logger) {
-        let beacon = match self.mk_beacon().await {
-            Ok(beacon) => beacon,
-            Err(err) => {
-                warn!(logger, "failed to construct beacon: {err:?}");
-                return;
-            }
-        };
+    pub async fn send_beacon(&mut self, beacon: beacon::Beacon, logger: &Logger) {
         let beacon_id = beacon.beacon_id();
         info!(logger, "transmitting beacon"; "beacon" => &beacon_id);
         let mut report = match poc_lora::LoraBeaconReportReqV1::try_from(beacon.clone()) {
@@ -147,9 +139,28 @@ impl Beaconer {
         }
     }
 
+    async fn mk_witness_report(&self, packet: Packet) -> Result<poc_lora::LoraWitnessReportReqV1> {
+        let mut report = packet.to_witness_report()?;
+        report.pub_key = self.keypair.public_key().to_vec();
+        report.signature = report.sign(self.keypair.clone()).await?;
+        Ok(report)
+    }
+
+    async fn handle_beacon_tick(&mut self, logger: &Logger) {
+        let beacon = match self.mk_beacon().await {
+            Ok(beacon) => beacon,
+            Err(err) => {
+                warn!(logger, "failed to construct beacon: {err:?}");
+                return;
+            }
+        };
+        self.send_beacon(beacon, logger).await
+    }
+
     async fn handle_received_beacon(&mut self, packet: Packet, logger: &Logger) {
         info!(logger, "received possible PoC payload: {packet:?}");
-        let mut report = match packet.to_witness_report() {
+
+        let report = match self.mk_witness_report(packet).await {
             Ok(report) => report,
             Err(err) => {
                 warn!(logger, "ignoring invalid witness report: {err:?}");
@@ -157,11 +168,24 @@ impl Beaconer {
             }
         };
 
-        report.pub_key = self.keypair.public_key().to_vec();
-        match report.sign(self.keypair.clone()).await {
-            Ok(signature) => report.signature = signature,
-            Err(err) => {
-                info!(logger, "failed to sign poc witness report {err:?}");
+        let _ = PocLoraService::new(self.poc_ingest_uri.clone())
+            .submit_witness(report.clone())
+            .inspect_err(|err| info!(logger, "failed to submit poc witness report: {err:?}"; "beacon" => report.data.to_b64()))
+            .inspect_ok(|_| info!(logger, "poc witness report submitted"; "beacon" => report.data.to_b64()))
+            .await;
+
+        self.handle_secondary_beacon(report, logger).await
+    }
+
+    async fn handle_secondary_beacon(
+        &mut self,
+        report: poc_lora::LoraWitnessReportReqV1,
+        logger: &Logger,
+    ) {
+        let region_params = match &self.region_params {
+            Some(region_params) => region_params,
+            None => {
+                warn!(logger, "no region params for secondary beacon");
                 return;
             }
         };
@@ -175,72 +199,25 @@ impl Beaconer {
         // for hashes under a certain value. Because of the time constraints involved this
         // should not be a 'mineable' check, but it provides a useful probabalistic way to
         // allow for verifiable secondary beacons without any coordination.
-        let mut hasher = Xxh64::new(0);
-        hasher.update(&buf);
-        let factor = hasher.digest();
-        if let (Some(region_params), true) = (&self.region_params, factor < threshold) {
-            let remote_entropy = match beacon::Entropy::from_data(report.data.clone()) {
-                Ok(remote_entropy) => remote_entropy,
+        let factor = xxh64(&buf, 0);
+        if factor < threshold {
+            let beacon = match beacon::Entropy::from_data(report.data.clone())
+                .and_then(|remote_entropy| {
+                    beacon::Entropy::from_data(buf)
+                        .map(|local_entropy| (remote_entropy, local_entropy))
+                })
+                .and_then(|(remote_entropy, local_entropy)| {
+                    beacon::Beacon::new(remote_entropy, local_entropy, region_params.as_ref())
+                }) {
+                Ok(beacon) => beacon,
                 Err(err) => {
-                    warn!(
-                        logger,
-                        "failed to construct secondary beacon remote entropy: {err:?}"
-                    );
+                    warn!(logger, "secondary beacon construction error: {err:?}");
                     return;
                 }
             };
-            let local_entropy = match beacon::Entropy::from_data(buf) {
-                Ok(local_entropy) => local_entropy,
-                Err(err) => {
-                    warn!(
-                        logger,
-                        "failed to construct secondary beacon local entropy: {err:?}"
-                    );
-                    return;
-                }
-            };
-            let beacon =
-                match beacon::Beacon::new(remote_entropy, local_entropy, region_params.as_ref()) {
-                    Ok(beacon) => beacon,
-                    Err(err) => {
-                        warn!(logger, "failed to construct secondary beacon: {err:?}");
-                        return;
-                    }
-                };
-            let beacon_id = beacon.beacon_id();
-            info!(logger, "transmitting secondary beacon"; "beacon" => &beacon_id);
-            let mut report = match poc_lora::LoraBeaconReportReqV1::try_from(beacon.clone()) {
-                Ok(report) => report,
-                Err(err) => {
-                    warn!(
-                        logger,
-                        "failed to construct secondary beacon report {err:?}"
-                    );
-                    return;
-                }
-            };
-            let (powe, tmst) = match self.transmit.transmit_beacon(beacon).await {
-                Ok(BeaconResp { powe, tmst }) => (powe, tmst),
-                Err(err) => {
-                    warn!(logger, "failed to transmit beacon {err:?}");
-                    return;
-                }
-            };
-            report.tx_power = powe;
-            report.tmst = tmst;
 
-            let _ = PocLoraService::new(self.poc_ingest_uri.clone())
-                .submit_beacon(report, self.keypair.clone())
-                .inspect_err(|err| info!(logger, "failed to submit secondary poc beacon report: {err:?}"; "beacon" => &beacon_id))
-                .inspect_ok(|_| info!(logger, "poc secondary beacon report submitted"; "beacon" => &beacon_id))
-                .await;
+            self.send_beacon(beacon, logger).await
         }
-
-        let _ = PocLoraService::new(self.poc_ingest_uri.clone())
-            .submit_witness(report.clone())
-            .inspect_err(|err| info!(logger, "failed to submit poc witness report: {err:?}"; "beacon" => report.data.to_b64()))
-            .inspect_ok(|_| info!(logger, "poc witness report submitted"; "beacon" => report.data.to_b64()))
-            .await;
     }
 
     fn handle_region_params(&mut self, params: RegionParams, logger: &Logger) {
@@ -269,7 +246,9 @@ impl Beaconer {
                     info!(logger, "shutting down");
                     return Ok(())
                 },
-                _ = beacon_timer.tick() => self.send_beacon(&logger).await,
+                _ = beacon_timer.tick() => {
+                    self.handle_beacon_tick(&logger).await
+                },
                 message = self.messages.recv() => match message {
                     Some(message) => self.handle_message(message, &logger).await,
                     None => {
