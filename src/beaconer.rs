@@ -14,13 +14,11 @@ use futures::TryFutureExt;
 use helium_proto::services::poc_lora;
 use helium_proto::Message as OtherMessage;
 use http::Uri;
-use num_bigint::{BigInt, Sign};
-use sha2::Digest;
-use sha2::Sha256;
 use slog::{self, info, warn, Logger};
 use std::{sync::Arc, time::Duration};
 use tokio::time;
 use triggered::Listener;
+use xxhash_rust::xxh64::Xxh64;
 
 /// Message types that can be sent to `Beaconer`'s inbox.
 #[derive(Debug)]
@@ -170,18 +168,16 @@ impl Beaconer {
 
         // check if hash of witness is below the "difficulty threshold" for a secondary beacon
         // TODO provide a way to get this difficulty threshold from eg. the entropy server
-        let buf = Sha256::digest(report.encode_to_vec()).to_vec();
-        let threshold = BigInt::parse_bytes(
-            b"11388830933659919894162346859235831137017100287433801699915283717462644789984",
-            10,
-        )
-        .unwrap();
-        // compare the hash of the witness report as a bigint to the difficulty threshold
+        let buf = report.encode_to_vec();
+        let threshold = 1855177858159416090;
+        // compare the hash of the witness report as a u64 to the difficulty threshold
         // this is sort of a bitcoin-esque proof of work check insofar as as we're looking
         // for hashes under a certain value. Because of the time constraints involved this
         // should not be a 'mineable' check, but it provides a useful probabalistic way to
         // allow for verifiable secondary beacons without any coordination.
-        let factor = BigInt::from_bytes_be(Sign::Plus, &buf);
+        let mut hasher = Xxh64::new(0);
+        hasher.update(&buf);
+        let factor = hasher.digest();
         if let (Some(region_params), true) = (&self.region_params, factor < threshold) {
             let remote_entropy = match beacon::Entropy::from_data(report.data.clone()) {
                 Ok(remote_entropy) => remote_entropy,
@@ -238,11 +234,6 @@ impl Beaconer {
                 .inspect_err(|err| info!(logger, "failed to submit secondary poc beacon report: {err:?}"; "beacon" => &beacon_id))
                 .inspect_ok(|_| info!(logger, "poc secondary beacon report submitted"; "beacon" => &beacon_id))
                 .await;
-        } else {
-            info!(
-                logger,
-                "no secondary beacon, threshold {threshold:?}, factor {factor:?}"
-            );
         }
 
         let _ = PocLoraService::new(self.poc_ingest_uri.clone())

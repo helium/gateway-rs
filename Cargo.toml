@@ -65,7 +65,6 @@ semtech-udp = { version = ">=0.10.1,<1", default-features=false, features=["serv
 helium-proto = {workspace = true}
 helium-crypto = { git = "https://github.com/helium/helium-crypto-rs", tag = "v0.4.4" }
 longfi = { git = "https://github.com/helium/longfi-rs", branch = "main" }
-num-bigint = "0.4"
 
 [features]
 default = [ "ecc608" ]
