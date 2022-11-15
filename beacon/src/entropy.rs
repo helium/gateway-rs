@@ -44,7 +44,7 @@ impl Entropy {
         Ok(Self {
             version: 1, // marked as local
             timestamp,
-            data: data,
+            data,
         })
     }
 
