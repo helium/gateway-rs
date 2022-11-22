@@ -35,7 +35,7 @@ impl Beacon {
         region_params: &[BlockchainRegionParamV1],
     ) -> Result<Self> {
         match remote_entropy.version {
-            0 => {
+            0 | 1 => {
                 let mut data = {
                     let mut hasher = Sha256::new();
                     remote_entropy.digest(&mut hasher);
