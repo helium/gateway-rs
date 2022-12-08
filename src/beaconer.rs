@@ -1,8 +1,4 @@
 //! This module provides proof-of-coverage (PoC) beaconing support.
-//!
-//! TODO: where to get beacon interval from?
-//!
-//! TODO: fuzz beacon interval to prevent thundering herd.
 
 use crate::{
     gateway::{self, BeaconResp},
@@ -13,10 +9,13 @@ use crate::{
 use futures::TryFutureExt;
 use helium_proto::services::poc_lora;
 use http::Uri;
+use rand::{rngs::OsRng, Rng};
 use slog::{self, info, warn, Logger};
-use std::{sync::Arc, time::Duration};
+use std::{ops::RangeInclusive, sync::Arc, time::Duration};
 use tokio::time;
 use triggered::Listener;
+
+const BEACON_INTERVAL_JITTER_PERCENTAGE: u64 = 10;
 
 /// Message types that can be sent to `Beaconer`'s inbox.
 #[derive(Debug)]
@@ -184,8 +183,7 @@ impl Beaconer {
     pub async fn run(&mut self, shutdown: Listener, logger: &Logger) -> Result {
         let logger = logger.new(slog::o!("module" => "beacon"));
         info!(logger, "starting");
-
-        let mut beacon_timer = time::interval(self.interval);
+        let jitterval = Jitterval::new(self.interval, logger.clone());
 
         loop {
             if shutdown.is_triggered() {
@@ -197,7 +195,7 @@ impl Beaconer {
                     info!(logger, "shutting down");
                     return Ok(())
                 },
-                _ = beacon_timer.tick() => self.send_beacon(&logger).await,
+                _ = jitterval.tick() => self.send_beacon(&logger).await,
                 message = self.messages.recv() => match message {
                     Some(message) => self.handle_message(message, &logger).await,
                     None => {
@@ -208,6 +206,38 @@ impl Beaconer {
 
             }
         }
+    }
+}
+
+// A jittery interval
+struct Jitterval {
+    // Jittered interval in [base interval, base interval + additional jitter]
+    jitter_range: RangeInclusive<Duration>,
+    logger: Logger,
+}
+
+impl Jitterval {
+    fn new(base_interval: Duration, logger: Logger) -> Self {
+        let jitter = Duration::from_secs(
+            (base_interval.as_secs() * BEACON_INTERVAL_JITTER_PERCENTAGE) / 100,
+        );
+        let upper_range = base_interval + jitter;
+        let jitter_range = base_interval..=upper_range;
+        Self {
+            jitter_range,
+            logger,
+        }
+    }
+
+    async fn tick(&self) {
+        let total = OsRng.gen_range(self.jitter_range.clone());
+        info!(
+            self.logger,
+            "sleeping with a jittered base/total of {}s/{}s",
+            self.jitter_range.start().as_secs(),
+            total.as_secs()
+        );
+        time::sleep(total).await
     }
 }
 
