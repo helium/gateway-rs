@@ -88,11 +88,11 @@ impl Download {
                     .join(&asset.name);
                 match asset.download(&download_path).await {
                     Ok(()) => println!("Downloaded to: {}", download_path.to_string_lossy()),
-                    Err(err) => eprintln!("Failed to download update: {:?}", err),
+                    Err(err) => eprintln!("Failed to download update: {err:?}"),
                 }
             }
             Ok(None) => eprintln!("No release found"),
-            Err(err) => eprintln!("Error finding release: {:?}", err),
+            Err(err) => eprintln!("Error finding release: {err:?}"),
         }
         Ok(())
     }

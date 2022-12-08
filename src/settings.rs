@@ -203,7 +203,7 @@ impl FromStr for StakingMode {
             "light" => Ok(Self::Light),
             "full" => Ok(Self::Full),
             "dataonly" => Ok(Self::DataOnly),
-            _ => Err(Error::custom(format!("invalid staking mode {}", v))),
+            _ => Err(Error::custom(format!("invalid staking mode {v}"))),
         }
     }
 }
@@ -246,7 +246,7 @@ pub mod log_level {
                     value
                         .parse()
                         .map(Level)
-                        .map_err(|_| de::Error::custom(format!("invalid log level \"{}\"", value)))
+                        .map_err(|_| de::Error::custom(format!("invalid log level \"{value}\"")))
                 }
             }
 
@@ -298,8 +298,7 @@ pub mod log_method {
                         "syslog" => LogMethod::Syslog,
                         unsupported => {
                             return Err(de::Error::custom(format!(
-                                "unsupported log method: \"{}\"",
-                                unsupported
+                                "unsupported log method: \"{unsupported}\""
                             )))
                         }
                     };

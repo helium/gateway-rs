@@ -11,10 +11,10 @@ pub enum LoraWanError {
 impl fmt::Display for LoraWanError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            LoraWanError::InvalidPacketType(v) => write!(f, "Invalid packet type: {:#02x}", v),
+            LoraWanError::InvalidPacketType(v) => write!(f, "Invalid packet type: {v:#02x}"),
             LoraWanError::InvalidFPortForFopts => write!(f, "Invalid: fport 0 with fopts"),
             LoraWanError::InvalidPacketSize(mtype, s) => {
-                write!(f, "Invalid packet size {} for type {:?}", s, mtype)
+                write!(f, "Invalid packet size {s} for type {mtype:?}")
             }
             LoraWanError::Io(err) => err.fmt(f),
         }

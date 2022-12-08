@@ -80,7 +80,7 @@ mod tests {
         #[test]
         fn from_bin_1() {
             static MASK: [u8; 6] = [0, 2, 0, 127, 255, 0];
-            let filter = DevAddrFilter::from_bin(&MASK);
+            let filter = DevAddrFilter::from_bin(MASK);
             assert_eq!(1024, filter.base);
             assert_eq!(1024, filter.size);
             assert!(filter.contains(&1024));
@@ -89,7 +89,7 @@ mod tests {
         #[test]
         fn from_bin_2() {
             static MASK: [u8; 6] = [0, 4, 4, 127, 255, 254];
-            let filter = DevAddrFilter::from_bin(&MASK);
+            let filter = DevAddrFilter::from_bin(MASK);
             assert_eq!(2056, filter.base);
             assert_eq!(8, filter.size);
             assert!(filter.contains(&2063));
@@ -107,7 +107,7 @@ mod tests {
                 0, 1, 0, 0, 0, 168, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 24, 236, 22, 0, 0, 0, 0, 1,
                 104, 2, 0,
             ];
-            let filter = EuiFilter::from_bin(&EMPTY_BIN);
+            let filter = EuiFilter::from_bin(EMPTY_BIN);
             assert!(!filter.contains(&Eui {
                 deveui: 0,
                 appeui: 0,
@@ -136,7 +136,7 @@ mod tests {
                 0, 0, 0, 223, 21, 0, 0, 198, 225, 145, 206, 0, 0, 99, 63, 0, 0, 217, 218, 224, 20,
                 0, 0, 0, 0, 0, 0, 0, 0,
             ];
-            let filter = EuiFilter::from_bin(&SOME_FILTER_BIN);
+            let filter = EuiFilter::from_bin(SOME_FILTER_BIN);
             assert!(!filter.contains(&Eui {
                 appeui: 0,
                 deveui: 0,

@@ -106,7 +106,7 @@ impl Gateway {
             messages,
             beacon_handler,
             listen_address: settings.listen.clone(),
-            udp_runtime: UdpRuntime::new(&settings.listen).await?,
+            udp_runtime: UdpRuntime::new(&settings.listen).await.map_err(Box::new)?,
             region_params: None,
         };
         Ok(gateway)
