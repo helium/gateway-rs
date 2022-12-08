@@ -11,10 +11,15 @@ use helium_proto::services::poc_lora;
 use http::Uri;
 use rand::{rngs::OsRng, Rng};
 use slog::{self, info, warn, Logger};
-use std::{ops::RangeInclusive, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 use tokio::time;
 use triggered::Listener;
 
+/// To prevent a thundering herd of hotspots all beaconing at the same
+/// time, we add a randomized jitter value of up to
+/// `BEACON_INTERVAL_JITTER_PERCENTAGE` to the configured beacon
+/// interval. This jitter factor is one time only, and will only
+/// change when this process or task restarts.
 const BEACON_INTERVAL_JITTER_PERCENTAGE: u64 = 10;
 
 /// Message types that can be sent to `Beaconer`'s inbox.
@@ -70,7 +75,12 @@ impl Beaconer {
         transmit: gateway::MessageSender,
         messages: MessageReceiver,
     ) -> Self {
-        let interval = Duration::from_secs(settings.poc.interval);
+        let interval = {
+            let base_interval = settings.poc.interval;
+            let max_jitter = (base_interval * BEACON_INTERVAL_JITTER_PERCENTAGE) / 100;
+            let jitter = OsRng.gen_range(0..=max_jitter);
+            Duration::from_secs(base_interval + jitter)
+        };
         let poc_ingest_uri = settings.poc.ingest_uri.clone();
         let entropy_service = EntropyService::new(settings.poc.entropy_uri.clone());
         let keypair = settings.keypair.clone();
@@ -183,7 +193,8 @@ impl Beaconer {
     pub async fn run(&mut self, shutdown: Listener, logger: &Logger) -> Result {
         let logger = logger.new(slog::o!("module" => "beacon"));
         info!(logger, "starting");
-        let jitterval = Jitterval::new(self.interval, logger.clone());
+
+        let mut beacon_timer = time::interval(self.interval);
 
         loop {
             if shutdown.is_triggered() {
@@ -195,7 +206,7 @@ impl Beaconer {
                     info!(logger, "shutting down");
                     return Ok(())
                 },
-                _ = jitterval.tick() => self.send_beacon(&logger).await,
+                _ = beacon_timer.tick() => self.send_beacon(&logger).await,
                 message = self.messages.recv() => match message {
                     Some(message) => self.handle_message(message, &logger).await,
                     None => {
@@ -206,38 +217,6 @@ impl Beaconer {
 
             }
         }
-    }
-}
-
-// A jittery interval
-struct Jitterval {
-    // Jittered interval in [base interval, base interval + additional jitter]
-    jitter_range: RangeInclusive<Duration>,
-    logger: Logger,
-}
-
-impl Jitterval {
-    fn new(base_interval: Duration, logger: Logger) -> Self {
-        let jitter = Duration::from_secs(
-            (base_interval.as_secs() * BEACON_INTERVAL_JITTER_PERCENTAGE) / 100,
-        );
-        let upper_range = base_interval + jitter;
-        let jitter_range = base_interval..=upper_range;
-        Self {
-            jitter_range,
-            logger,
-        }
-    }
-
-    async fn tick(&self) {
-        let total = OsRng.gen_range(self.jitter_range.clone());
-        info!(
-            self.logger,
-            "sleeping with a jittered base/total of {}s/{}s",
-            self.jitter_range.start().as_secs(),
-            total.as_secs()
-        );
-        time::sleep(total).await
     }
 }
 
