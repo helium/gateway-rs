@@ -36,6 +36,18 @@ impl Entropy {
         })
     }
 
+    pub fn from_data(data: Vec<u8>) -> Result<Self> {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(Error::from)?
+            .as_secs() as i64;
+        Ok(Self {
+            version: 1, // marked as local
+            timestamp,
+            data,
+        })
+    }
+
     pub(crate) fn digest<D: Digest>(&self, state: &mut D) {
         state.update(&self.data);
         state.update(self.timestamp.to_ne_bytes());
