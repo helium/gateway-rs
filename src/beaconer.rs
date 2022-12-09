@@ -1,8 +1,4 @@
 //! This module provides proof-of-coverage (PoC) beaconing support.
-//!
-//! TODO: where to get beacon interval from?
-//!
-//! TODO: fuzz beacon interval to prevent thundering herd.
 
 use crate::{
     gateway::{self, BeaconResp},
@@ -13,10 +9,18 @@ use crate::{
 use futures::TryFutureExt;
 use helium_proto::services::poc_lora;
 use http::Uri;
+use rand::{rngs::OsRng, Rng};
 use slog::{self, info, warn, Logger};
 use std::{sync::Arc, time::Duration};
 use tokio::time;
 use triggered::Listener;
+
+/// To prevent a thundering herd of hotspots all beaconing at the same
+/// time, we add a randomized jitter value of up to
+/// `BEACON_INTERVAL_JITTER_PERCENTAGE` to the configured beacon
+/// interval. This jitter factor is one time only, and will only
+/// change when this process or task restarts.
+const BEACON_INTERVAL_JITTER_PERCENTAGE: u64 = 10;
 
 /// Message types that can be sent to `Beaconer`'s inbox.
 #[derive(Debug)]
@@ -71,7 +75,12 @@ impl Beaconer {
         transmit: gateway::MessageSender,
         messages: MessageReceiver,
     ) -> Self {
-        let interval = Duration::from_secs(settings.poc.interval);
+        let interval = {
+            let base_interval = settings.poc.interval;
+            let max_jitter = (base_interval * BEACON_INTERVAL_JITTER_PERCENTAGE) / 100;
+            let jitter = OsRng.gen_range(0..=max_jitter);
+            Duration::from_secs(base_interval + jitter)
+        };
         let poc_ingest_uri = settings.poc.ingest_uri.clone();
         let entropy_service = EntropyService::new(settings.poc.entropy_uri.clone());
         let keypair = settings.keypair.clone();

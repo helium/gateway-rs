@@ -185,7 +185,7 @@ mod tests {
     #[test]
     fn keypair_args() {
         let uri = &Uri::from_static("ecc://i2c-1:196?slot=22&network=testnet");
-        let args = KeypairArgs::from_uri(&uri).expect("keypair args");
+        let args = KeypairArgs::from_uri(uri).expect("keypair args");
         assert_eq!(22, args.get::<u8>("slot", 22).expect("slot"));
         assert_eq!(196, uri.port_u16().expect("uri port"));
         assert_eq!(
