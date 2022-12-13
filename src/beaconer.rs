@@ -183,7 +183,10 @@ impl Beaconer {
             .inspect_ok(|_| info!(logger, "poc witness report submitted"; "beacon" => report.data.to_b64()))
             .await;
 
-        self.handle_secondary_beacon(report, logger).await
+        // Disable secondary beacons until TTL is implemented
+        if false {
+            self.handle_secondary_beacon(report, logger).await
+        }
     }
 
     async fn handle_secondary_beacon(
