@@ -255,7 +255,7 @@ impl Beaconer {
     /// shut-down event (.e.g. Control-C, signal).
     pub async fn run(&mut self, shutdown: Listener, logger: &Logger) -> Result {
         let logger = logger.new(slog::o!("module" => "beacon"));
-        info!(logger, "starting");
+        info!(logger, "starting";  "beacon_interval" => self.interval.as_secs());
 
         let mut beacon_timer = time::interval(self.interval);
 
