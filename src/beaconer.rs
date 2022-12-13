@@ -64,6 +64,8 @@ pub struct Beaconer {
     messages: MessageReceiver,
     /// Beacon interval
     interval: Duration,
+    /// The last beacon that was transitted
+    last_beacon: Option<beacon::Beacon>,
     /// Use for channel plan and FR parameters
     region_params: Option<RegionParams>,
     poc_ingest_uri: Uri,
@@ -91,6 +93,7 @@ impl Beaconer {
             transmit,
             messages,
             interval,
+            last_beacon: None,
             region_params: None,
             poc_ingest_uri,
             entropy_service,
@@ -123,13 +126,14 @@ impl Beaconer {
                 return;
             }
         };
-        let (powe, tmst) = match self.transmit.transmit_beacon(beacon).await {
+        let (powe, tmst) = match self.transmit.transmit_beacon(beacon.clone()).await {
             Ok(BeaconResp { powe, tmst }) => (powe, tmst),
             Err(err) => {
                 warn!(logger, "failed to transmit beacon {err:?}");
                 return;
             }
         };
+        self.last_beacon = Some(beacon);
         report.tx_power = powe;
         report.tmst = tmst;
         let _ = PocLoraService::new(self.poc_ingest_uri.clone())
@@ -168,6 +172,13 @@ impl Beaconer {
 
     async fn handle_received_beacon(&mut self, packet: Packet, logger: &Logger) {
         info!(logger, "received possible PoC payload: {packet:?}");
+
+        if let Some(last_beacon) = &self.last_beacon {
+            if packet.payload == last_beacon.data {
+                info!(logger, "ignoring last self beacon witness");
+                return;
+            }
+        }
 
         let report = match self.mk_witness_report(packet).await {
             Ok(report) => report,
