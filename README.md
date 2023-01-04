@@ -428,7 +428,7 @@ However as discussed above you can also pass the `-c` option to tell the service
 ### Gateway update
 
 As recommended, most manufacturers have chosen to use their own update service to update the gateway-rs software instead of the alpha channel self-update feature in gateway-rs. 
-Therefore, we will be removing the self-update feature from the gateway-rs as immediately. 
+Therefore, we will be removing the self-update feature from the gateway-rs immediately (Jan 4, 2023). 
 
 ```
 NOTE: although we have left the commands here, this feature has been removed.
