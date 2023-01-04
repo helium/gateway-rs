@@ -427,9 +427,12 @@ However as discussed above you can also pass the `-c` option to tell the service
 
 ### Gateway update
 
-The gateway update subcommand pretty much does what it says on the tin - it is used to update the software version of the gateway. You can see the help output for this command shown below.
+As recommended, most manufacturers have chosen to use their own update service to update the gateway-rs software instead of the alpha channel self-update feature in gateway-rs. 
+Therefore, we will be removing the self-update feature from the gateway-rs as immediately. 
 
 ```
+NOTE: although we have left the commands here, this feature has been removed.
+
 Commands for gateway updates
 
 USAGE:
