@@ -26,22 +26,6 @@ method = "stdio"
 level = "info"
 timestamp = false
 
-[update]
-# Enable update checking
-enabled = true
-# OVERRIDE: Platform to use as part of update check. This MUST be overriden by a
-# local settings file
-platform = "unknown"
-# Channel to use, alpha, beta, release, or semver which pulls it from the
-# running program
-channel = "semver"
-# Interval in minutes between update checks
-interval = 10
-# The github release stream to check for updates
-uri = "https://api.github.com/repos/helium/gateway-rs/releases"
-# The command to run to install the update.
-command = "/etc/helium_gateway/install_update"
-
 [cache]
 max_packets = 20
 

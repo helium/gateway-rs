@@ -2,7 +2,6 @@ pub mod add;
 pub mod info;
 pub mod key;
 pub mod server;
-pub mod update;
 
 use crate::Result;
 

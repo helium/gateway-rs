@@ -1,6 +1,4 @@
-use crate::{
-    api::GatewayStakingMode, releases, Error, KeyedUri, Keypair, PublicKey, Region, Result,
-};
+use crate::{api::GatewayStakingMode, Error, KeyedUri, Keypair, PublicKey, Region, Result};
 use config::{Config, Environment, File};
 use http::uri::Uri;
 pub use log_method::LogMethod;
@@ -34,8 +32,6 @@ pub struct Settings {
     pub region: Region,
     /// Log settings
     pub log: LogSettings,
-    /// Update settings
-    pub update: UpdateSettings,
     /// The routers to deliver packets to when no routers are found while
     /// processing a packet.
     pub routers: Option<Vec<KeyedUri>>,
@@ -59,27 +55,6 @@ pub struct LogSettings {
 
     /// Whehter to show timestamps in the stdio output stream (default false)
     pub timestamp: bool,
-}
-
-/// Settings for log method and level to be used by the running service.
-#[derive(Debug, Deserialize)]
-pub struct UpdateSettings {
-    /// Whether the auto-update system is enabled (default: true)
-    pub enabled: bool,
-    /// How often to check for updates (in minutes, default: 10)
-    pub interval: u32,
-    /// Which udpate channel to use (alpha, beta, release, semver).
-    /// Defaults to semver which is the channel specified in the running app.
-    pub channel: releases::Channel,
-    /// The platform identifier to use for released packages (default: klkgw)
-    pub platform: String,
-    /// The github release url to use (default
-    /// <https://api.github.com/repos/helium/gateway-rs/releases>)
-    #[serde(with = "http_serde::uri")]
-    pub uri: Uri,
-    /// The command to use to install an update. There will be just one
-    /// parameter which is the path to the new package to install.
-    pub command: String,
 }
 
 /// Settings for cache storage
