@@ -1,8 +1,0 @@
-#!/bin/sh
-
-old_settings_file="/etc/helium_gateway/settings.toml"
-settings_file_to_update="/tmp/settings.toml.to-update"
-if [ "$1" = "upgrade" ] && [ "$2" = "1.0.0-alpha.15" ] && [ -e "${old_settings_file}" ]; then
-    echo "Copying ${old_settings_file} to ${settings_file_to_update}"
-    cp "${old_settings_file}" "${settings_file_to_update}"
-fi

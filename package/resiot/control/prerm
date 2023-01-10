@@ -1,4 +1,0 @@
-#!/bin/sh
-
-#/etc/init.d/helium_gateway stop
-/usr/sbin/update-rc.d -f helium_gateway remove

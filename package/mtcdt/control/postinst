@@ -1,6 +1,0 @@
-#!/bin/sh
-
-chmod +x /etc/helium_gateway/install_update
-
-/usr/sbin/update-rc.d helium_gateway defaults
-/etc/init.d/helium_gateway restart

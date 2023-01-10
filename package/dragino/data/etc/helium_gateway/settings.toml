@@ -1,7 +1,0 @@
-[log]
-method = "stdio"
-level = "info"
-timestamp = false
-
-[update]
-platform = "dragino"

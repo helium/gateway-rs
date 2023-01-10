@@ -1,5 +1,0 @@
-#!/bin/sh
-
-chmod +x /etc/helium_gateway/install_update
-
-#DEBHELPER#

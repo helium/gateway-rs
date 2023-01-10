@@ -1,5 +1,0 @@
-#!/bin/sh
-
-/usr/sbin/update-rc.d -f helium_gateway remove
-
-
