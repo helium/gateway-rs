@@ -178,37 +178,9 @@ The Helium Gateway application can be configured to suit your hardware/software 
 
 The Helium Gateway application is configured using TOML files for your settings. The defaults can be found in the [default.toml](https://github.com/helium/gateway-rs/blob/main/config/default.toml) file in this repo. You should not edit this file directly, rather you should create a `settings.toml` file and store it either at the default expected locaton `/etc/helium_gateway/settings.toml` or at a custom location of your choosing by passing the `-c` flag to the `helium_gateway` application as shown below in the [general usage section](#general-usage-info).
 
-You can customize any of the fields shown in the [default.toml](https://github.com/helium/gateway-rs/blob/main/config/default.toml) file, however it is important to make sure that when editing you maintain the same ordering as shown in the default file. You do not need to include all fields in the `settings.toml` file - only the ones you want to change from default values - however maintaining the correct sections is highly recommended to avoid any unexpected behaviour.
-
-For example, this config **will not work correctly** as it all ends up in the `update` section:
-
-```
-[update]
-platform = "ramips_24kec"
-
-[log]
-method = "stdio"
+You can customize any of the fields shown in the [default.toml](https://github.com/helium/gateway-rs/blob/main/config/default.toml) file.
 level = "info"
 timestamp = false
-
-region = "EU868"
-```
-
-Whereas this one will:
-
-```
-region = "EU868"
-
-[log]
-method = "stdio"
-level = "info"
-timestamp = false
-
-[update]
-platform = "ramips_24kec"
-```
-
-By maintaining the same layout as the `default.toml` file you can avoid any unexpected errors.
 
 The following are the settings that can be changed and their default and optional values:
 
@@ -227,20 +199,6 @@ method = "stdio"
 level = "info"
 # either true or false
 timestamp = false
-
-[update]
-# either true or false
-enabled = true
-# this setting must be overriden to get updates. choose from the supported platforms listed here https://github.com/helium/gateway-rs#supported-platforms
-platform = "unknown"
-# update channel to use: alpha | beta | release | semver - more details can be found at https://github.com/helium/gateway-rs#releases
-channel = "semver"
-# Interval in minutes between update checks
-interval = 10
-# The github release stream to check for updates
-uri = "https://api.github.com/repos/helium/gateway-rs/releases"
-# The command to run to install the update.
-command = "/etc/helium_gateway/install_update"
 
 [cache]
 # The location of the cache store for the great gateway service
@@ -267,7 +225,16 @@ See the [gateway-mfr-rs repo](https://github.com/helium/gateway-mfr-rs) for inst
 
 ### Envrionment variables
 
-Instead of overriding paramaters in the [default.toml](https://github.com/helium/gateway-rs/blob/main/config/default.toml) file using a `settings.toml` file as described above, you can instead use environment variables. The environment variable name will be the same name as the entries in the settings file in uppercase and prefixed with "GW\_". For example, following on from the above example where we change the region using `region = "EU868"` in the settings file, setting an environment variable of `GW_REGION="EU868"` will override the region setting. If the settings are in one of the lower sections such as the `[update]` or `[log]` sections then you need to also include that in the environment variable name such as `GW_LOG_LEVEL` or `GW_UPDATE_PLATFORM`.
+Instead of overriding paramaters in the
+[default.toml](https://github.com/helium/gateway-rs/blob/main/config/default.toml)
+file using a `settings.toml` file as described above, you can instead use
+environment variables. The environment variable name will be the same name as
+the entries in the settings file in uppercase and prefixed with "GW\_". For
+example, following on from the above example where we change the region using
+`region = "EU868"` in the settings file, setting an environment variable of
+`GW_REGION="EU868"` will override the region setting. If the settings are in one
+of the lower sections such as the `[log]` sections then you need to also include
+that in the environment variable name such as `GW_LOG_LEVEL`.
 
 The settings are loaded first from `default.toml`, then from a `settings.toml` file, and then from environment variables and any duplicates are overriden in the order. Therefore, please note that if you have a setting in all three locations, the environment variable will override the settings in the other two locations.
 
@@ -295,10 +262,12 @@ SUBCOMMANDS:
     help      Prints this message or the help of the given subcommand(s)
     key       Commands on gateway keys
     server    Run the gateway service
-    update    Commands for gateway updates
 ```
 
-As you can see, apart from the `help` command, there are four core subcommands that you can pass: `add`, `key`, `server` and `update`. The descriptions of what these subcommands do is shown in brief in the above help output, and are explained in more detail in the sections below.
+As you can see, apart from the `help` command, there are four core subcommands
+that you can pass: `add`, `key`, and `server`. The descriptions of what these
+subcommands do is shown in brief in the above help output, and are explained in
+more detail in the sections below.
 
 The only option available is the `config` option using the `-c` flag. This tells the application where your configuration file is located and can be used as follows whilst passing any of the other commands such as `server` or `add` (default is `/etc/helium_gateway`):
 
@@ -424,65 +393,3 @@ However as discussed above you can also pass the `-c` option to tell the service
 ```
 ./helium_gateway -c /location/of/config/folder server
 ```
-
-### Gateway update
-
-The gateway update subcommand pretty much does what it says on the tin - it is used to update the software version of the gateway. You can see the help output for this command shown below.
-
-```
-Commands for gateway updates
-
-USAGE:
-    helium_gateway update <SUBCOMMAND>
-
-FLAGS:
-    -h, --help       Prints help information
-    -V, --version    Prints version information
-
-SUBCOMMANDS:
-    download    Download an updates. This does not install the update
-    help        Prints this message or the help of the given subcommand(s)
-    list        List available updates
-```
-
-As you can see from the help output, there are essentially two functions of the `update` command - to list available updates and to download an update.
-
-For basic usage of the `list` function you can simply use:
-
-```
-./helium_gateway update list
-```
-
-And this will give you an output similar to the following:
-
-```
-1.0.0-alpha.10
-1.0.0-alpha.13 (*)
-1.0.0-alpha.12
-1.0.0-alpha.11
-1.0.0-alpha.9
-1.0.0-alpha.8
-```
-
-This takes the default update channel and platform from your environment variables, `settings.toml` or `default.toml` depending on whether you have set any overrides or not. The list will default to a total of 10 update versions, unless you pass a flag to tell it to output a different amount. However, if you want to be more specific you can use something like the following:
-
-```
-./helium_gateway update list --channel <channel> --platform <platform> -n <count>
-```
-
-Where:
-
-- `<channel>` is the channel to list updates for (alpha | beta | release | semver - more details can be found [here](https://github.com/helium/gateway-rs#releases) - defaults to 'update.channel' setting)
-- `<count>` is the number of update entries to list (defaults to 10)
-- `<platform>` is the platform to list entries for (choose from the supported platforms listed [here](https://github.com/helium/gateway-rs#supported-platforms) - defaults to 'update.platform' setting)
-
-Lastly, we have the `download` function which can be used as follows:
-
-```
-./helium_gateway update download --path <path> <version>
-```
-
-Where:
-
-- `<path>` is the directory path to download the update to (defaults to your current directory)
-- `<version>` is the version you want to update to (which can be found from the list command described above - there is no default, so the version must be passed or this command will fail)

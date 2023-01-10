@@ -13,7 +13,6 @@ pub mod service;
 pub mod settings;
 pub mod state_channel;
 pub mod sync;
-pub mod updater;
 
 mod api;
 mod traits;
@@ -25,7 +24,6 @@ pub use packet::Packet;
 pub use region::{Region, RegionParams};
 pub use settings::{CacheSettings, Settings};
 pub use traits::*;
-pub use updater::{releases, Updater};
 
 use futures::{Future as StdFuture, Stream as StdStream};
 use std::pin::Pin;

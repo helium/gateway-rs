@@ -43,7 +43,7 @@ pub struct Cmd {
 
 impl Cmd {
     pub async fn run(&self, settings: Settings) -> Result {
-        let mut info_cache = InfoCache::new(settings.update.platform.clone(), settings.api);
+        let mut info_cache = InfoCache::new(settings.api);
         let mut info: HashMap<String, serde_json::Value> = HashMap::new();
         for key in &self.keys.0 {
             info.insert(key.to_string(), key.to_status(&mut info_cache).await?);
@@ -111,7 +111,6 @@ impl std::str::FromStr for InfoKeys {
 }
 
 struct InfoCache {
-    platform: String,
     port: u16,
     public_keys: Option<(PublicKey, PublicKey)>,
     height: Option<HeightRes>,
@@ -119,9 +118,8 @@ struct InfoCache {
 }
 
 impl InfoCache {
-    fn new(platform: String, port: u16) -> Self {
+    fn new(port: u16) -> Self {
         Self {
-            platform,
             port,
             public_keys: None,
             height: None,
@@ -197,9 +195,8 @@ impl InfoKey {
     async fn to_status(&self, cache: &mut InfoCache) -> Result<serde_json::Value> {
         let v = match self {
             Self::Fw => {
-                let platform = &cache.platform;
                 let version = settings::version();
-                json!(format!("{platform}-{version}"))
+                json!(format!("{version}"))
             }
             Self::Key => {
                 json!(cache.public_key().await?.to_string())
