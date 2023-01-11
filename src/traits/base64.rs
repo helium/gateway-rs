@@ -1,21 +1,21 @@
-const URL_SAFE_ENGINE: base64::engine::fast_portable::FastPortable =
-    base64::engine::fast_portable::FastPortable::from(
-        &base64::alphabet::URL_SAFE,
-        base64::engine::fast_portable::NO_PAD,
-    );
+use base64::{
+    engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD},
+    Engine,
+};
+
 pub trait Base64 {
     fn to_b64url(&self) -> String
     where
         Self: AsRef<[u8]>,
     {
-        base64::encode_engine(self.as_ref(), &URL_SAFE_ENGINE)
+        URL_SAFE_NO_PAD.encode(self.as_ref())
     }
 
     fn to_b64(&self) -> String
     where
         Self: AsRef<[u8]>,
     {
-        base64::encode(self.as_ref())
+        STANDARD.encode(self.as_ref())
     }
 }
 

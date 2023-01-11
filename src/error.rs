@@ -55,8 +55,6 @@ pub enum DecodeError {
     Prost(#[from] prost::DecodeError),
     #[error("lorawan decode")]
     LoraWan(#[from] lorawan::LoraWanError),
-    #[error("longfi error")]
-    LfcError(#[from] longfi::LfcError),
     #[error("semtech decode")]
     Semtech(#[from] semtech_udp::data_rate::ParseError),
     #[error("packet crc")]
@@ -121,7 +119,6 @@ from_err!(DecodeError, serde_json::Error);
 from_err!(DecodeError, net::AddrParseError);
 from_err!(DecodeError, prost::DecodeError);
 from_err!(DecodeError, lorawan::LoraWanError);
-from_err!(DecodeError, longfi::LfcError);
 from_err!(DecodeError, semtech_udp::data_rate::ParseError);
 
 impl DecodeError {

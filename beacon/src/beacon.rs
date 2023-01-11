@@ -67,7 +67,8 @@ impl Beacon {
     }
 
     pub fn beacon_id(&self) -> String {
-        base64::encode(&self.data)
+        use base64::Engine;
+        base64::engine::general_purpose::STANDARD.encode(&self.data)
     }
 }
 
