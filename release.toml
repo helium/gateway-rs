@@ -1,4 +1,3 @@
 sign-commit = true
-dev-version-ext = "dev.0"
-dev-version = true
+sign-tag = true
 publish = false
