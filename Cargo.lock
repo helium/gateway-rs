@@ -775,7 +775,7 @@ dependencies = [
 
 [[package]]
 name = "gateway-rs"
-version = "1.0.0-alpha.32"
+version = "1.0.0-alpha.33"
 dependencies = [
  "angry-purple-tiger",
  "async-trait",
@@ -801,7 +801,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_urlencoded",
- "sha2 0.10.6",
+ "sha2 0.9.9",
  "signature",
  "slog",
  "slog-async",
