@@ -1,6 +1,6 @@
 use crate::{Entropy, Error, Result};
 use helium_proto::{
-    services::poc_lora,
+    services::poc_iot,
     {BlockchainRegionParamV1, DataRate},
 };
 use rand::{seq::SliceRandom, Rng, SeedableRng};
@@ -82,7 +82,7 @@ where
         .ok_or_else(Error::no_region_params)
 }
 
-impl TryFrom<Beacon> for poc_lora::LoraBeaconReportReqV1 {
+impl TryFrom<Beacon> for poc_iot::IotBeaconReportReqV1 {
     type Error = Error;
     fn try_from(v: Beacon) -> Result<Self> {
         Ok(Self {

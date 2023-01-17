@@ -1,5 +1,6 @@
 use crate::{
-    beaconer, error::RegionError, router::dispatcher, sync, Packet, RegionParams, Result, Settings,
+    beaconer, error::RegionError, region_watcher, router, sync, Packet, RegionParams, Result,
+    Settings,
 };
 use beacon::Beacon;
 use lorawan::PHYPayload;
@@ -28,7 +29,6 @@ pub struct BeaconResp {
 pub enum Message {
     Downlink(Packet),
     TransmitBeacon(Beacon, sync::ResponseSender<Result<BeaconResp>>),
-    RegionParamsChanged(RegionParams),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -40,10 +40,10 @@ pub enum GatewayError {
 }
 
 pub type MessageSender = sync::MessageSender<Message>;
-pub type MessageChannel = sync::MessageChannel<Message>;
+pub type MessageReceiver = sync::MessageReceiver<Message>;
 
-pub fn message_channel() -> MessageChannel {
-    MessageChannel::new(10)
+pub fn message_channel() -> (MessageSender, MessageReceiver) {
+    sync::message_channel(10)
 }
 
 impl MessageSender {
@@ -60,36 +60,35 @@ impl MessageSender {
         self.request(move |tx| Message::TransmitBeacon(beacon, tx))
             .await?
     }
-
-    pub async fn region_params_changed(&self, region_params: RegionParams) {
-        self.send(Message::RegionParamsChanged(region_params)).await
-    }
 }
 
 pub struct Gateway {
-    uplinks: dispatcher::MessageSender,
-    messages: MessageChannel,
-    beacon_handler: beaconer::MessageSender,
+    messages: MessageReceiver,
+    uplinks: router::MessageSender,
+    beacons: beaconer::MessageSender,
     downlink_mac: MacAddress,
     udp_runtime: UdpRuntime,
     listen_address: String,
+    region_watch: region_watcher::MessageReceiver,
     region_params: Option<RegionParams>,
 }
 
 impl Gateway {
     pub async fn new(
-        uplinks: dispatcher::MessageSender,
-        messages: MessageChannel,
-        beacon_handler: beaconer::MessageSender,
         settings: &Settings,
+        messages: MessageReceiver,
+        region_watch: region_watcher::MessageReceiver,
+        uplinks: router::MessageSender,
+        beacons: beaconer::MessageSender,
     ) -> Result<Self> {
         let gateway = Gateway {
-            uplinks,
-            downlink_mac: Default::default(),
             messages,
-            beacon_handler,
+            uplinks,
+            beacons,
+            downlink_mac: Default::default(),
             listen_address: settings.listen.clone(),
             udp_runtime: UdpRuntime::new(&settings.listen).await.map_err(Box::new)?,
+            region_watch,
             region_params: None,
         };
         Ok(gateway)
@@ -109,10 +108,14 @@ impl Gateway {
                 message = self.messages.recv() => match message {
                     Some(message) => self.handle_message(&logger, message).await,
                     None => {
-                        warn!(logger, "ignoring closed downlinks channel");
+                        warn!(logger, "ignoring closed message channel");
                         continue;
                     }
-                }
+                },
+                region_change = self.region_watch.changed() => match region_change {
+                    Ok(()) => self.region_params = self.region_watch.borrow().clone(),
+                    Err(_) => warn!(logger, "region watch disconnected")
+                },
             }
         }
     }
@@ -137,7 +140,7 @@ impl Gateway {
             }
             Event::PacketReceived(rxpk, _gateway_mac) => match Packet::try_from(rxpk) {
                 Ok(packet) if packet.is_potential_beacon() => {
-                    self.beacon_handler.received_beacon(packet).await
+                    self.beacons.received_beacon(packet).await
                 }
                 Ok(packet) => self.handle_uplink(logger, packet, Instant::now()).await,
                 Err(err) => {
@@ -165,29 +168,18 @@ impl Gateway {
             Message::TransmitBeacon(beacon, tx_resp) => {
                 self.handle_transmit_beacon(logger, beacon, tx_resp).await
             }
-            Message::RegionParamsChanged(region_params) => {
-                self.beacon_handler
-                    .region_params_changed(region_params.clone())
-                    .await;
-                self.region_params = Some(region_params);
-                info!(logger, "updated region";
-                    "region" => RegionParams::to_string(&self.region_params));
-            }
         }
     }
 
     fn tx_power(&mut self) -> Result<u32> {
-        let region_params = if let Some(region_params) = &self.region_params {
-            region_params
-        } else {
-            return Err(RegionError::no_region_params());
-        };
+        let region_params = self
+            .region_params
+            .as_ref()
+            .ok_or_else(RegionError::no_region_params)?;
 
-        if let Some(tx_power) = region_params.tx_power() {
-            Ok(tx_power)
-        } else {
-            Err(RegionError::no_region_tx_power())
-        }
+        region_params
+            .tx_power()
+            .ok_or_else(RegionError::no_region_tx_power)
     }
 
     async fn handle_transmit_beacon(

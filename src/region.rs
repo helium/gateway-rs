@@ -1,13 +1,12 @@
 use crate::{error::RegionError, Error, Result};
 use helium_proto::{
-    BlockchainRegionParamV1, GatewayRegionParamsRespV1, GatewayRegionParamsStreamedRespV1,
-    Region as ProtoRegion,
+    services::iot_config::GatewayRegionParamsResV1, BlockchainRegionParamV1, Region as ProtoRegion,
 };
 use rust_decimal::Decimal;
 use serde::{de, Deserialize, Deserializer};
 use std::{fmt, str::FromStr};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Region(ProtoRegion);
 
 impl From<Region> for ProtoRegion {
@@ -94,32 +93,20 @@ impl AsRef<[BlockchainRegionParamV1]> for RegionParams {
     }
 }
 
-impl TryFrom<GatewayRegionParamsStreamedRespV1> for RegionParams {
-    type Error = Error;
-    fn try_from(value: GatewayRegionParamsStreamedRespV1) -> Result<Self> {
-        let region = Region::from_i32(value.region)?;
-        let params = if let Some(params) = value.params {
-            params.region_params
-        } else {
-            return Err(RegionError::no_region_params());
-        };
-        Ok(Self {
-            gain: Decimal::new(value.gain as i64, 1),
-            params,
-            region,
-        })
+impl PartialEq for RegionParams {
+    fn eq(&self, other: &Self) -> bool {
+        self.gain.eq(&other.gain) && self.region.eq(&other.region) && self.params.eq(&other.params)
     }
 }
 
-impl TryFrom<GatewayRegionParamsRespV1> for RegionParams {
+impl TryFrom<GatewayRegionParamsResV1> for RegionParams {
     type Error = Error;
-    fn try_from(value: GatewayRegionParamsRespV1) -> Result<Self> {
+    fn try_from(value: GatewayRegionParamsResV1) -> Result<Self> {
         let region = Region::from_i32(value.region)?;
-        let params = if let Some(params) = value.params {
-            params.region_params
-        } else {
-            return Err(RegionError::no_region_params());
-        };
+        let params = value
+            .params
+            .ok_or_else(RegionError::no_region_params)?
+            .region_params;
         Ok(Self {
             gain: Decimal::new(value.gain as i64, 1),
             params,

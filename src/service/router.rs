@@ -36,17 +36,17 @@ pub struct RouterService {
 pub const CONDUIT_CAPACITY: usize = 50;
 
 impl RouterService {
-    pub fn new(uri: Uri, keypair: Arc<Keypair>) -> Result<Self> {
+    pub fn new(uri: Uri, keypair: Arc<Keypair>) -> Self {
         let packet_channel = Endpoint::from(uri.clone())
             .timeout(RPC_TIMEOUT)
             .connect_timeout(CONNECT_TIMEOUT)
             .connect_lazy();
-        Ok(Self {
+        Self {
             uri,
             packet_router_client: PacketClient::new(packet_channel),
             conduit: None,
             keypair,
-        })
+        }
     }
 
     pub async fn route(&mut self, msg: PacketRouterPacketUpV1) -> Result<()> {

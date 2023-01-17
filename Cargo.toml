@@ -16,9 +16,10 @@ members = ["lorawan", "beacon"]
 
 [workspace.dependencies]
 serde = {version = "1", features = ["rc", "derive"]}
-helium-proto = { git = "https://github.com/helium/proto", branch="master", features=["services"]}
+# helium-proto = { git = "https://github.com/helium/proto", branch="master", features=["services"]}
+helium-proto = { path = "../proto", features=["services"]}
 rand = "0.8"
-base64 = ">=0.21"
+base64 = "0"
 sha2 = "0"
 thiserror = "1.0"
 
@@ -32,7 +33,7 @@ serde = {workspace = true}
 serde_json = "1"
 serde_urlencoded = "*"
 http-serde = "1"
-tokio = { version = "1", default-features=false, features=["fs", "macros", "signal", "rt", "process", "time"] }
+tokio = { version = "1", default-features=false, features=["fs", "macros", "signal", "rt", "process", "time", "sync"] }
 tokio-stream = {version = "0", features = ["fs"] }
 futures = "*"
 triggered = "0.1"
@@ -64,7 +65,7 @@ beacon = { package = "beacon", path = "beacon" }
 rust_decimal = {version = "1", features = ["serde-with-float"]}
 exponential-backoff = {git = "https://github.com/yoshuawuyts/exponential-backoff", branch = "master"}
 semtech-udp = { version = ">=0.10.1", default-features=false, features=["server"] }
-helium-crypto = "0.6"
+helium-crypto = "0.6.2"
 
 [features]
 default = [ "ecc608" ]

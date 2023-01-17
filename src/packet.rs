@@ -2,7 +2,10 @@ use crate::{error::DecodeError, Error, Result};
 use helium_proto::{
     packet::PacketType,
     routing_information::Data as RoutingData,
-    services::{poc_lora, router::PacketRouterPacketDownV1},
+    services::{
+        poc_iot,
+        router::{PacketRouterPacketDownV1, PacketRouterPacketUpV1},
+    },
     DataRate as ProtoDataRate, Eui, RoutingInformation,
 };
 use lorawan::{Direction, PHYPayloadFrame, MHDR};
@@ -104,7 +107,25 @@ impl TryFrom<PacketRouterPacketDownV1> for Packet {
     }
 }
 
-impl TryFrom<Packet> for poc_lora::LoraWitnessReportReqV1 {
+impl TryFrom<Packet> for PacketRouterPacketUpV1 {
+    type Error = Error;
+    fn try_from(value: Packet) -> Result<Self> {
+        Ok(Self {
+            payload: value.payload.clone(),
+            timestamp: value.timestamp,
+            rssi: value.signal_strength as i32,
+            frequency: (value.frequency * 1_000_000.0) as u32,
+            datarate: ProtoDataRate::from_str(&value.datarate)? as i32,
+            snr: value.snr,
+            region: 0,
+            hold_time: 0,
+            gateway: vec![],
+            signature: vec![],
+        })
+    }
+}
+
+impl TryFrom<Packet> for poc_iot::IotWitnessReportReqV1 {
     type Error = Error;
     fn try_from(value: Packet) -> Result<Self> {
         let payload = match Packet::parse_frame(Direction::Uplink, value.payload()) {
@@ -130,7 +151,7 @@ impl TryFrom<Packet> for poc_lora::LoraWitnessReportReqV1 {
                 ));
             }
         };
-        let report = poc_lora::LoraWitnessReportReqV1 {
+        let report = poc_iot::IotWitnessReportReqV1 {
             pub_key: vec![],
             data: payload,
             tmst: value.timestamp as u32,

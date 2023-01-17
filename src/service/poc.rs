@@ -1,43 +1,36 @@
 use crate::{
     service::{CONNECT_TIMEOUT, RPC_TIMEOUT},
-    Keypair, MsgSign, Result,
+    Result,
 };
 use helium_proto::services::{
     self,
-    poc_lora::{LoraBeaconReportReqV1, LoraWitnessReportReqV1},
+    poc_iot::{IotBeaconReportReqV1, IotWitnessReportReqV1},
     Channel, Endpoint,
 };
 use http::Uri;
-use std::sync::Arc;
 
-type PocLoraClient = services::poc_lora::Client<Channel>;
+type PocIotClient = helium_proto::services::poc_iot::Client<Channel>;
 
 #[derive(Debug)]
-pub struct PocLoraService(PocLoraClient);
+pub struct PocIotService(PocIotClient);
 
-impl PocLoraService {
+impl PocIotService {
     pub fn new(uri: Uri) -> Self {
         let channel = Endpoint::from(uri)
             .connect_timeout(CONNECT_TIMEOUT)
             .timeout(RPC_TIMEOUT)
             .connect_lazy();
-        let client = services::poc_lora::Client::new(channel);
+        let client = services::poc_iot::Client::new(channel);
         Self(client)
     }
 
-    pub async fn submit_beacon(
-        &mut self,
-        mut req: LoraBeaconReportReqV1,
-        keypair: Arc<Keypair>,
-    ) -> Result {
-        req.pub_key = keypair.public_key().to_vec();
-        req.signature = req.sign(keypair).await?;
-        let _ = self.0.submit_lora_beacon(req).await?;
+    pub async fn submit_beacon(&mut self, req: IotBeaconReportReqV1) -> Result {
+        _ = self.0.submit_iot_beacon(req).await?;
         Ok(())
     }
 
-    pub async fn submit_witness(&mut self, req: LoraWitnessReportReqV1) -> Result {
-        let _ = self.0.submit_lora_witness(req).await?;
+    pub async fn submit_witness(&mut self, req: IotWitnessReportReqV1) -> Result {
+        _ = self.0.submit_iot_witness(req).await?;
         Ok(())
     }
 }

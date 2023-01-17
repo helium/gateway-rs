@@ -1,13 +1,15 @@
 //! This module provides proof-of-coverage (PoC) beaconing support.
 
 use crate::{
+    error::RegionError,
     gateway::{self, BeaconResp},
-    service::{entropy::EntropyService, poc::PocLoraService},
+    region_watcher,
+    service::{entropy::EntropyService, poc::PocIotService},
     settings::Settings,
-    sync, Base64, Error, Keypair, MsgSign, Packet, RegionParams, Result,
+    sync, Base64, Keypair, MsgSign, Packet, RegionParams, Result,
 };
 use futures::TryFutureExt;
-use helium_proto::{services::poc_lora, Message as ProtoMessage};
+use helium_proto::{services::poc_iot, Message as ProtoMessage};
 use http::Uri;
 use rand::{rngs::OsRng, Rng};
 use slog::{self, info, warn, Logger};
@@ -25,23 +27,18 @@ const BEACON_INTERVAL_JITTER_PERCENTAGE: u64 = 10;
 #[derive(Debug)]
 pub enum Message {
     ReceivedBeacon(Packet),
-    RegionParamsChanged(RegionParams),
 }
 
 pub type MessageSender = sync::MessageSender<Message>;
-pub type MessageChannel = sync::MessageChannel<Message>;
+pub type MessageReceiver = sync::MessageReceiver<Message>;
 
-pub fn message_channel() -> MessageChannel {
-    MessageChannel::new(10)
+pub fn message_channel() -> (MessageSender, MessageReceiver) {
+    sync::message_channel(10)
 }
 
 impl MessageSender {
     pub async fn received_beacon(&self, packet: Packet) {
         self.send(Message::ReceivedBeacon(packet)).await
-    }
-
-    pub async fn region_params_changed(&self, region_params: RegionParams) {
-        self.send(Message::RegionParamsChanged(region_params)).await;
     }
 }
 
@@ -51,7 +48,9 @@ pub struct Beaconer {
     /// gateway packet transmit message queue
     transmit: gateway::MessageSender,
     /// Our receive queue.
-    messages: MessageChannel,
+    messages: MessageReceiver,
+    /// Region change queue
+    region_watch: region_watcher::MessageReceiver,
     /// Beacon interval
     interval: Duration,
     /// The last beacon that was transitted
@@ -65,8 +64,9 @@ pub struct Beaconer {
 impl Beaconer {
     pub fn new(
         settings: &Settings,
+        messages: MessageReceiver,
+        region_watch: region_watcher::MessageReceiver,
         transmit: gateway::MessageSender,
-        messages: MessageChannel,
     ) -> Self {
         let interval = {
             let base_interval = settings.poc.interval;
@@ -82,6 +82,7 @@ impl Beaconer {
             keypair,
             transmit,
             messages,
+            region_watch,
             interval,
             last_beacon: None,
             region_params: None,
@@ -90,15 +91,44 @@ impl Beaconer {
         }
     }
 
+    pub async fn run(&mut self, shutdown: &triggered::Listener, logger: &Logger) -> Result {
+        let logger = logger.new(slog::o!("module" => "beacon"));
+        info!(logger, "starting";  "beacon_interval" => self.interval.as_secs());
+
+        let mut beacon_timer = time::interval(self.interval);
+
+        loop {
+            tokio::select! {
+                _ = shutdown.clone() => {
+                    info!(logger, "shutting down");
+                    return Ok(())
+                },
+                _ = beacon_timer.tick() => {
+                    self.handle_beacon_tick(&logger).await
+                },
+                message = self.messages.recv() => match message {
+                    Some(message) => self.handle_message(message, &logger).await,
+                    None => {
+                        warn!(logger, "ignoring closed message channel");
+                    }
+                },
+                region_change = self.region_watch.changed() => match region_change {
+                    Ok(()) => self.region_params = self.region_watch.borrow().clone(),
+                    Err(_) => warn!(logger, "region watch disconnected"),
+                }
+
+
+            }
+        }
+    }
+
     pub async fn mk_beacon(&mut self) -> Result<beacon::Beacon> {
+        let Some(region_params) = &self.region_params else {
+            return Err(RegionError::no_region_params())
+        };
+
         let remote_entropy = self.entropy_service.get_entropy().await?;
         let local_entropy = beacon::Entropy::local()?;
-
-        let region_params = if let Some(region_params) = &self.region_params {
-            region_params
-        } else {
-            return Err(Error::custom("no region set"));
-        };
         let beacon = beacon::Beacon::new(remote_entropy, local_entropy, region_params.as_ref())?;
         Ok(beacon)
     }
@@ -109,13 +139,7 @@ impl Beaconer {
     pub async fn send_beacon(&mut self, beacon: beacon::Beacon, logger: &Logger) {
         let beacon_id = beacon.beacon_id();
         info!(logger, "transmitting beacon"; "beacon" => &beacon_id);
-        let mut report = match poc_lora::LoraBeaconReportReqV1::try_from(beacon.clone()) {
-            Ok(report) => report,
-            Err(err) => {
-                warn!(logger, "failed to construct beacon report {err:?}");
-                return;
-            }
-        };
+
         let (powe, tmst) = match self.transmit.transmit_beacon(beacon.clone()).await {
             Ok(BeaconResp { powe, tmst }) => (powe, tmst),
             Err(err) => {
@@ -123,11 +147,18 @@ impl Beaconer {
                 return;
             }
         };
-        self.last_beacon = Some(beacon);
-        report.tx_power = powe;
-        report.tmst = tmst;
-        let _ = PocLoraService::new(self.poc_ingest_uri.clone())
-            .submit_beacon(report, self.keypair.clone())
+
+        self.last_beacon = Some(beacon.clone());
+
+        let report = match self.mk_beacon_report(beacon, powe, tmst).await {
+            Ok(report) => report,
+            Err(err) => {
+                warn!(logger, "failed to construct beacon report {err:?}"; "beacon" => &beacon_id);
+                return;
+            }
+        };
+        let _ = PocIotService::new(self.poc_ingest_uri.clone())
+            .submit_beacon(report)
             .inspect_err(|err| info!(logger, "failed to submit poc beacon report: {err:?}"; "beacon" => &beacon_id))
             .inspect_ok(|_| info!(logger, "poc beacon report submitted"; "beacon" => &beacon_id))
             .await;
@@ -136,14 +167,25 @@ impl Beaconer {
     async fn handle_message(&mut self, message: Message, logger: &Logger) {
         match message {
             Message::ReceivedBeacon(packet) => self.handle_received_beacon(packet, logger).await,
-            Message::RegionParamsChanged(region_params) => {
-                self.handle_region_params(region_params, logger)
-            }
         }
     }
 
-    async fn mk_witness_report(&self, packet: Packet) -> Result<poc_lora::LoraWitnessReportReqV1> {
-        let mut report = poc_lora::LoraWitnessReportReqV1::try_from(packet)?;
+    async fn mk_beacon_report(
+        &self,
+        beacon: beacon::Beacon,
+        tx_power: i32,
+        tmst: u32,
+    ) -> Result<poc_iot::IotBeaconReportReqV1> {
+        let mut report = poc_iot::IotBeaconReportReqV1::try_from(beacon)?;
+        report.tx_power = tx_power;
+        report.tmst = tmst;
+        report.pub_key = self.keypair.public_key().to_vec();
+        report.signature = report.sign(self.keypair.clone()).await?;
+        Ok(report)
+    }
+
+    async fn mk_witness_report(&self, packet: Packet) -> Result<poc_iot::IotWitnessReportReqV1> {
+        let mut report = poc_iot::IotWitnessReportReqV1::try_from(packet)?;
         report.pub_key = self.keypair.public_key().to_vec();
         report.signature = report.sign(self.keypair.clone()).await?;
         Ok(report)
@@ -178,7 +220,7 @@ impl Beaconer {
             }
         };
 
-        let _ = PocLoraService::new(self.poc_ingest_uri.clone())
+        let _ = PocIotService::new(self.poc_ingest_uri.clone())
             .submit_witness(report.clone())
             .inspect_err(|err| info!(logger, "failed to submit poc witness report: {err:?}"; "beacon" => report.data.to_b64()))
             .inspect_ok(|_| info!(logger, "poc witness report submitted"; "beacon" => report.data.to_b64()))
@@ -192,15 +234,12 @@ impl Beaconer {
 
     async fn handle_secondary_beacon(
         &mut self,
-        report: poc_lora::LoraWitnessReportReqV1,
+        report: poc_iot::IotWitnessReportReqV1,
         logger: &Logger,
     ) {
-        let region_params = match &self.region_params {
-            Some(region_params) => region_params,
-            None => {
-                warn!(logger, "no region params for secondary beacon");
-                return;
-            }
+        let Some(region_params) = &self.region_params else {
+            warn!(logger, "no region params for secondary beacon");
+            return;
         };
 
         // check if hash of witness is below the "difficulty threshold" for a secondary beacon
@@ -230,47 +269,6 @@ impl Beaconer {
             };
 
             self.send_beacon(beacon, logger).await
-        }
-    }
-
-    fn handle_region_params(&mut self, params: RegionParams, logger: &Logger) {
-        self.region_params = Some(params);
-        info!(logger, "updated region";
-              "region" => RegionParams::to_string(&self.region_params));
-    }
-
-    /// Enter `Beaconer`'s run loop.
-    ///
-    /// This routine is will run forever and only returns on error or
-    /// shut-down event (.e.g. Control-C, signal).
-    pub async fn run(&mut self, shutdown: &triggered::Listener, logger: &Logger) -> Result {
-        let logger = logger.new(slog::o!("module" => "beacon"));
-        info!(logger, "starting";  "beacon_interval" => self.interval.as_secs());
-
-        let mut beacon_timer = time::interval(self.interval);
-
-        loop {
-            if shutdown.is_triggered() {
-                return Ok(());
-            }
-
-            tokio::select! {
-                _ = shutdown.clone() => {
-                    info!(logger, "shutting down");
-                    return Ok(())
-                },
-                _ = beacon_timer.tick() => {
-                    self.handle_beacon_tick(&logger).await
-                },
-                message = self.messages.recv() => match message {
-                    Some(message) => self.handle_message(message, &logger).await,
-                    None => {
-                        warn!(logger, "ignoring closed messgae channel");
-                    }
-                }
-
-
-            }
         }
     }
 }

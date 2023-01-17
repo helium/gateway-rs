@@ -1,7 +1,5 @@
 use crate::{error::DecodeError, Result};
-use helium_proto::{
-    BlockchainTxn, BlockchainTxnAddGatewayV1, BlockchainTxnStateChannelCloseV1, Message, Txn,
-};
+use helium_proto::{BlockchainTxn, BlockchainTxnAddGatewayV1, Message, Txn};
 
 pub trait TxnEnvelope {
     fn in_envelope(&self) -> BlockchainTxn;
@@ -50,4 +48,3 @@ macro_rules! impl_txn_envelope {
 }
 
 impl_txn_envelope!(BlockchainTxnAddGatewayV1, AddGateway);
-impl_txn_envelope!(BlockchainTxnStateChannelCloseV1, StateChannelClose);

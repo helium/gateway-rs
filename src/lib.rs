@@ -7,6 +7,7 @@ pub mod keyed_uri;
 pub mod keypair;
 pub mod packet;
 pub mod region;
+pub mod region_watcher;
 pub mod router;
 pub mod server;
 pub mod service;

@@ -1,7 +1,4 @@
-use super::{
-    connect_uri, AddGatewayReq, ConfigReq, ConfigValue, GatewayStakingMode, HeightReq, HeightRes,
-    PubkeyReq, RegionReq, SignReq,
-};
+use super::{connect_uri, AddGatewayReq, GatewayStakingMode, PubkeyReq, RegionReq};
 use crate::{error::Error, settings::StakingMode, PublicKey, Region, Result, TxnEnvelope};
 use helium_proto::{services::local::Client, BlockchainTxnAddGatewayV1};
 use std::convert::TryFrom;
@@ -27,26 +24,6 @@ impl LocalClient {
         let public_key = PublicKey::try_from(response.address)?;
         let onboarding_key = PublicKey::try_from(response.onboarding_address)?;
         Ok((public_key, onboarding_key))
-    }
-
-    pub async fn sign(&mut self, data: &[u8]) -> Result<Vec<u8>> {
-        let response = self.client.sign(SignReq { data: data.into() }).await?;
-        let signature = response.into_inner().signature;
-        Ok(signature)
-    }
-
-    pub async fn config<T>(&mut self, keys: &[T]) -> Result<Vec<ConfigValue>>
-    where
-        T: ToString,
-    {
-        let keys = keys.iter().map(|s| s.to_string()).collect();
-        let response = self.client.config(ConfigReq { keys }).await?.into_inner();
-        Ok(response.values)
-    }
-
-    pub async fn height(&mut self) -> Result<HeightRes> {
-        let response = self.client.height(HeightReq {}).await?.into_inner();
-        Ok(response)
     }
 
     pub async fn region(&mut self) -> Result<Region> {

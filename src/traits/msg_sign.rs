@@ -3,12 +3,10 @@ use futures::TryFutureExt;
 use helium_crypto::Sign;
 use helium_proto::{
     services::{
-        poc_lora,
+        iot_config, poc_iot,
         router::{PacketRouterPacketUpV1, PacketRouterRegisterV1},
     },
-    BlockchainStateChannelOfferV1, BlockchainStateChannelPacketV1, BlockchainTxnAddGatewayV1,
-    BlockchainTxnStateChannelCloseV1, GatewayRegionParamsReqV1, GatewayRegionParamsUpdateReqV1,
-    Message,
+    BlockchainTxnAddGatewayV1, Message,
 };
 
 #[async_trait::async_trait]
@@ -37,10 +35,6 @@ macro_rules! impl_msg_sign {
     };
 }
 
-impl_msg_sign!(GatewayRegionParamsUpdateReqV1, signature);
-impl_msg_sign!(BlockchainStateChannelPacketV1, signature);
-impl_msg_sign!(BlockchainStateChannelOfferV1, signature);
-impl_msg_sign!(BlockchainTxnStateChannelCloseV1, signature);
 impl_msg_sign!(PacketRouterPacketUpV1, signature);
 impl_msg_sign!(PacketRouterRegisterV1, signature);
 impl_msg_sign!(
@@ -50,6 +44,6 @@ impl_msg_sign!(
     gateway_signature
 );
 
-impl_msg_sign!(GatewayRegionParamsReqV1, signature);
-impl_msg_sign!(poc_lora::LoraBeaconReportReqV1, signature);
-impl_msg_sign!(poc_lora::LoraWitnessReportReqV1, signature);
+impl_msg_sign!(iot_config::GatewayRegionParamsReqV1, signature);
+impl_msg_sign!(poc_iot::IotBeaconReportReqV1, signature);
+impl_msg_sign!(poc_iot::IotWitnessReportReqV1, signature);
