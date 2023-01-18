@@ -2,7 +2,8 @@ use crate::{error::RegionError, Error, Result};
 use helium_proto::{
     services::iot_config::GatewayRegionParamsResV1, BlockchainRegionParamV1, Region as ProtoRegion,
 };
-use rust_decimal::Decimal;
+use rand::Rng;
+use rust_decimal::prelude::{Decimal, ToPrimitive};
 use serde::{de, Deserialize, Deserializer};
 use std::{fmt, str::FromStr};
 
@@ -115,6 +116,12 @@ impl TryFrom<GatewayRegionParamsResV1> for RegionParams {
     }
 }
 
+// This is the currently minimimum conducted power supported by the semtech
+// packet forwarder
+lazy_static::lazy_static! {
+    static ref MIN_CONDUCTED_POWER: Decimal = Decimal::new(120, 1);
+}
+
 impl RegionParams {
     pub fn max_eirp(&self) -> Option<Decimal> {
         self.params
@@ -123,10 +130,25 @@ impl RegionParams {
             .map(|v| Decimal::new(v.max_eirp as i64, 1))
     }
 
-    pub fn tx_power(&self) -> Option<u32> {
-        use rust_decimal::prelude::ToPrimitive;
+    pub fn max_tx_power(&self) -> Option<u32> {
         self.max_eirp()
             .and_then(|max_eirp| (max_eirp - self.gain).trunc().to_u32())
+    }
+
+    pub fn min_tx_power(&self) -> Option<u32> {
+        (*MIN_CONDUCTED_POWER - self.gain)
+            .max(*MIN_CONDUCTED_POWER)
+            .trunc()
+            .to_u32()
+    }
+
+    pub fn rand_tx_power<R>(&self, rng: &mut R) -> Option<u32>
+    where
+        R: Rng + ?Sized,
+    {
+        self.min_tx_power()
+            .zip(self.max_tx_power())
+            .map(|(min, max)| rng.gen_range(min..=max))
     }
 
     pub fn to_string(v: &Option<Self>) -> String {

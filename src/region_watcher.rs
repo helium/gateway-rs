@@ -68,6 +68,7 @@ impl RegionWatcher {
                         self.request_retry += 1;
                     },
                     Ok(remote_params) => {
+                        // Reset to a small random offset from the interval
                         self.request_retry = 1;
                         if remote_params != *self.watch.borrow() {
                             _ = self.watch.send_replace(remote_params);

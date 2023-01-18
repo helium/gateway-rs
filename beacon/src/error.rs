@@ -10,6 +10,8 @@ pub enum Error {
     NoRegionParams,
     #[error("invalid beacon version")]
     InvalidVersion,
+    #[error("no valid datarate found")]
+    NoDataRate,
 }
 
 impl Error {
@@ -19,5 +21,9 @@ impl Error {
 
     pub fn invalid_version() -> Self {
         Self::InvalidVersion
+    }
+
+    pub fn no_data_rate() -> Self {
+        Self::NoDataRate
     }
 }

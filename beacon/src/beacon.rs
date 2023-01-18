@@ -1,14 +1,19 @@
 use crate::{Entropy, Error, Result};
-use helium_proto::{
-    services::poc_iot,
-    {BlockchainRegionParamV1, DataRate},
-};
+use helium_proto::{services::poc_iot, BlockchainRegionParamV1, DataRate};
 use rand::{seq::SliceRandom, Rng, SeedableRng};
 use sha2::{Digest, Sha256};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub const MAX_BEACON_V0_PAYLOAD_SIZE: usize = 10;
 pub const MIN_BEACON_V0_PAYLOAD_SIZE: usize = 5;
+
+// Supported datarates worldwide. Note that SF12 is not supported everywhere 
+pub const BEACON_DATA_RATES: &[DataRate] = &[
+    DataRate::Sf7bw125,
+    DataRate::Sf8bw125,
+    DataRate::Sf9bw125,
+    DataRate::Sf10bw125,
+];
 
 #[derive(Debug, Clone)]
 pub struct Beacon {
@@ -42,14 +47,22 @@ impl Beacon {
                     local_entropy.digest(&mut hasher);
                     hasher.finalize().to_vec()
                 };
+
+                // Construct a 32 byte seed from the hash of the local and
+                // remote entropy
                 let mut seed = [0u8; 32];
                 seed.copy_from_slice(&data[0..32]);
+                // Make a random generator
                 let mut rng = rand_chacha::ChaCha12Rng::from_seed(seed);
 
+                // And pick freqyency, payload_size and data_rate. Note that the
+                // ordering matters since the random number generator is used in
+                // this order.
                 let frequency = rand_frequency(region_params, &mut rng)?;
                 let payload_size =
                     rng.gen_range(MIN_BEACON_V0_PAYLOAD_SIZE..=MAX_BEACON_V0_PAYLOAD_SIZE);
-                let datarate = DataRate::Sf7bw125;
+
+                let datarate = rand_data_rate(BEACON_DATA_RATES, &mut rng)?;
 
                 Ok(Self {
                     data: {
@@ -57,7 +70,7 @@ impl Beacon {
                         data
                     },
                     frequency,
-                    datarate,
+                    datarate: datarate.to_owned(),
                     local_entropy,
                     remote_entropy,
                 })
@@ -80,6 +93,13 @@ where
         .choose(rng)
         .map(|params| params.channel_frequency)
         .ok_or_else(Error::no_region_params)
+}
+
+fn rand_data_rate<'a, R>(data_rates: &'a [DataRate], rng: &mut R) -> Result<&'a DataRate>
+where
+    R: Rng + ?Sized,
+{
+    data_rates.choose(rng).ok_or_else(Error::no_data_rate)
 }
 
 impl TryFrom<Beacon> for poc_iot::IotBeaconReportReqV1 {

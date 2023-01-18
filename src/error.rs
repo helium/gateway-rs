@@ -65,7 +65,7 @@ pub enum DecodeError {
     NoRx1Window,
     #[error("no datarate found in packet")]
     NoDataRate,
-    #[error("packet is a beacon")]
+    #[error("packet is not a beacon")]
     NotBeacon,
     #[error("invalid beacon datarate: {0}")]
     InvalidBeaconDataRate(String),
@@ -83,8 +83,6 @@ pub enum ServiceError {
     Channel,
     #[error("no service")]
     NoService,
-    #[error("block age {block_age}s > {max_age}s")]
-    Check { block_age: u64, max_age: u64 },
     #[error("Unable to connect to local server. Check that `helium_gateway` is running.")]
     LocalClientConnect(helium_proto::services::Error),
 }
@@ -190,9 +188,5 @@ impl Error {
 
     pub fn local_client_connect(e: helium_proto::services::Error) -> Error {
         Error::Service(ServiceError::LocalClientConnect(e))
-    }
-
-    pub fn gateway_service_check(block_age: u64, max_age: u64) -> Error {
-        Error::Service(ServiceError::Check { block_age, max_age })
     }
 }

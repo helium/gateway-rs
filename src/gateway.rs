@@ -171,14 +171,14 @@ impl Gateway {
         }
     }
 
-    fn tx_power(&mut self) -> Result<u32> {
+    fn max_tx_power(&mut self) -> Result<u32> {
         let region_params = self
             .region_params
             .as_ref()
             .ok_or_else(RegionError::no_region_params)?;
 
         region_params
-            .tx_power()
+            .max_tx_power()
             .ok_or_else(RegionError::no_region_tx_power)
     }
 
@@ -188,7 +188,7 @@ impl Gateway {
         beacon: Beacon,
         responder: sync::ResponseSender<Result<BeaconResp>>,
     ) {
-        let tx_power = match self.tx_power() {
+        let tx_power = match self.max_tx_power() {
             Ok(tx_power) => tx_power,
             Err(err) => {
                 warn!(logger, "ignoring transmit: {err}");
@@ -259,7 +259,7 @@ impl Gateway {
     }
 
     async fn handle_downlink(&mut self, logger: &Logger, downlink: Packet) {
-        let tx_power = match self.tx_power() {
+        let tx_power = match self.max_tx_power() {
             Ok(tx_power) => tx_power,
             Err(err) => {
                 warn!(logger, "ignoring transmit: {err}");

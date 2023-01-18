@@ -105,7 +105,7 @@ impl Router {
                 },
                 _ = reconnect_timer.tick() =>
                     self.handle_reconnect(&logger).await,
-                downlink_message = self.service.message() => match downlink_message {
+                downlink = self.service.recv() => match downlink {
                     Ok(Some(message)) => self.handle_downlink(&logger, message).await,
                     Ok(None) => warn!(logger, "router disconnected"),
                     Err(err) => warn!(logger, "router error {:?}", err),
@@ -116,9 +116,11 @@ impl Router {
 
     async fn handle_reconnect(&mut self, logger: &Logger) {
         info!(logger, "reconnecting");
-        self.service.disconnect();
-        match self.service.connect().await {
-            Ok(_) => info!(logger, "reconnected"),
+        match self.service.reconnect().await {
+            Ok(_) => {
+                info!(logger, "reconnected");
+                self.send_waiting_packets(logger).await
+            }
             Err(err) => warn!(logger, "could not reconnect {err:?}"),
         }
     }
@@ -156,12 +158,12 @@ impl Router {
         Ok(uplink)
     }
 
-    async fn send_packet(&mut self, logger: &Logger, packet: QuePacket) -> Result<()> {
+    async fn send_packet(&mut self, logger: &Logger, packet: QuePacket) -> Result {
         debug!(logger, "sending packet";
             "packet_hash" => packet.packet().hash().to_b64());
 
         let uplink = self.mk_uplink(packet).await?;
-        self.service.route(uplink).await
+        self.service.send(uplink).await
     }
 }
 
