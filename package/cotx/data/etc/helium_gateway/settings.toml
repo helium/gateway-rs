@@ -1,7 +1,0 @@
-[log]
-method = "syslog"
-level = "info"
-timestamp = false
-
-[update]
-platform = "cotx"

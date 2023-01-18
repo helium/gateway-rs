@@ -1,4 +1,0 @@
-#!/bin/sh
-
-rm -f /etc/rcU.d/S60helium_gateway
-rm -f /etc/rcK.d/K60helium_gateway

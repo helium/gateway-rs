@@ -1,4 +1,0 @@
-CHECK PROCESS helium_gateway PIDFILE /var/run/helium_gateway.pid
-	start program = "/etc/init.d/helium_gateway start"
-	stop program = "/etc/init.d/helium_gateway stop"
-	onreboot nostart

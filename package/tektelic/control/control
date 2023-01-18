@@ -1,7 +1,0 @@
-Package: helium-gateway
-Version: ${CARGO_MAKE_CRATE_VERSION}
-Architecture: kona
-Recommends: kona-region-config (>= 0.7-r7)
-Maintainer: info@helium.com
-Description: The Helium Gateway to attach your Tektelic LoRa gateway to the Helium Blockchain
-Priority: optional
