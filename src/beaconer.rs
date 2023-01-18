@@ -129,7 +129,7 @@ impl Beaconer {
 
         let remote_entropy = self.entropy_service.get_entropy().await?;
         let local_entropy = beacon::Entropy::local()?;
-        let beacon = beacon::Beacon::new(remote_entropy, local_entropy, region_params.as_ref())?;
+        let beacon = beacon::Beacon::new(remote_entropy, local_entropy, region_params)?;
         Ok(beacon)
     }
 
@@ -173,11 +173,11 @@ impl Beaconer {
     async fn mk_beacon_report(
         &self,
         beacon: beacon::Beacon,
-        tx_power: i32,
+        conducted_power: i32,
         tmst: u32,
     ) -> Result<poc_iot::IotBeaconReportReqV1> {
         let mut report = poc_iot::IotBeaconReportReqV1::try_from(beacon)?;
-        report.tx_power = tx_power;
+        report.tx_power = conducted_power;
         report.tmst = tmst;
         report.pub_key = self.keypair.public_key().to_vec();
         report.signature = report.sign(self.keypair.clone()).await?;
@@ -259,7 +259,7 @@ impl Beaconer {
                         .map(|local_entropy| (remote_entropy, local_entropy))
                 })
                 .and_then(|(remote_entropy, local_entropy)| {
-                    beacon::Beacon::new(remote_entropy, local_entropy, region_params.as_ref())
+                    beacon::Beacon::new(remote_entropy, local_entropy, region_params)
                 }) {
                 Ok(beacon) => beacon,
                 Err(err) => {

@@ -39,7 +39,7 @@ impl RegionWatcher {
     pub async fn run(&mut self, shutdown: &triggered::Listener, logger: &Logger) -> Result {
         let logger = logger.new(o!("module" => "region_watcher"));
         info!(logger, "starting"; 
-            "default_region" => self.default_region);
+            "default_region" => self.default_region.to_string());
 
         let backoff = Backoff::new(
             REGION_BACKOFF_RETRIES,

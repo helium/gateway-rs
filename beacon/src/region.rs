@@ -1,8 +1,8 @@
-use crate::{error::RegionError, Error, Result};
+use crate::{Error, Result};
 use helium_proto::{
     services::iot_config::GatewayRegionParamsResV1, BlockchainRegionParamV1, Region as ProtoRegion,
 };
-use rand::Rng;
+use rand::{prelude::SliceRandom, Rng};
 use rust_decimal::prelude::{Decimal, ToPrimitive};
 use serde::{de, Deserialize, Deserializer};
 use std::{fmt, str::FromStr};
@@ -66,18 +66,7 @@ impl Region {
     pub fn from_i32(v: i32) -> Result<Self> {
         ProtoRegion::from_i32(v)
             .map(Self)
-            .ok_or_else(|| Error::custom(format!("unsupported region {v}")))
-    }
-}
-
-impl slog::Value for Region {
-    fn serialize(
-        &self,
-        _record: &slog::Record,
-        key: slog::Key,
-        serializer: &mut dyn slog::Serializer,
-    ) -> slog::Result {
-        serializer.emit_str(key, &self.to_string())
+            .ok_or_else(|| Error::unsupported_region(v))
     }
 }
 
@@ -106,7 +95,7 @@ impl TryFrom<GatewayRegionParamsResV1> for RegionParams {
         let region = Region::from_i32(value.region)?;
         let params = value
             .params
-            .ok_or_else(RegionError::no_region_params)?
+            .ok_or_else(Error::no_region_params)?
             .region_params;
         Ok(Self {
             gain: Decimal::new(value.gain as i64, 1),
@@ -130,25 +119,33 @@ impl RegionParams {
             .map(|v| Decimal::new(v.max_eirp as i64, 1))
     }
 
-    pub fn max_tx_power(&self) -> Option<u32> {
+    pub fn max_conducted_power(&self) -> Option<u32> {
         self.max_eirp()
             .and_then(|max_eirp| (max_eirp - self.gain).trunc().to_u32())
     }
 
-    pub fn min_tx_power(&self) -> Option<u32> {
-        (*MIN_CONDUCTED_POWER - self.gain)
-            .max(*MIN_CONDUCTED_POWER)
-            .trunc()
-            .to_u32()
+    pub fn min_conducted_power(&self) -> Option<u32> {
+        (*MIN_CONDUCTED_POWER).trunc().to_u32()
     }
 
-    pub fn rand_tx_power<R>(&self, rng: &mut R) -> Option<u32>
+    pub fn rand_conducted_power<R>(&self, rng: &mut R) -> Result<u32>
     where
         R: Rng + ?Sized,
     {
-        self.min_tx_power()
-            .zip(self.max_tx_power())
+        self.min_conducted_power()
+            .zip(self.max_conducted_power())
             .map(|(min, max)| rng.gen_range(min..=max))
+            .ok_or_else(Error::no_region_params)
+    }
+
+    pub fn rand_frequency<R>(&self, rng: &mut R) -> Result<u64>
+    where
+        R: Rng + ?Sized,
+    {
+        self.params
+            .choose(rng)
+            .map(|params| params.channel_frequency)
+            .ok_or_else(Error::no_region_params)
     }
 
     pub fn to_string(v: &Option<Self>) -> String {

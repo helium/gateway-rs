@@ -39,6 +39,6 @@ impl ConfigService {
 
         let resp = self.client.region_params(req).await?.into_inner();
         resp.verify(&self.uri.pubkey)?;
-        RegionParams::try_from(resp)
+        Ok(RegionParams::try_from(resp)?)
     }
 }

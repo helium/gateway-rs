@@ -28,7 +28,7 @@ impl LocalClient {
 
     pub async fn region(&mut self) -> Result<Region> {
         let response = self.client.region(RegionReq {}).await?;
-        Region::from_i32(response.into_inner().region)
+        Ok(Region::from_i32(response.into_inner().region)?)
     }
 
     pub async fn add_gateway(

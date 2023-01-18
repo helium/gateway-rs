@@ -133,18 +133,7 @@ impl TryFrom<Packet> for poc_iot::IotWitnessReportReqV1 {
             _ => return Err(DecodeError::not_beacon()),
         };
         let dr = match ProtoDataRate::from_str(&value.datarate) {
-            Ok(value)
-                if [
-                    ProtoDataRate::Sf7bw125,
-                    ProtoDataRate::Sf8bw125,
-                    ProtoDataRate::Sf9bw125,
-                    ProtoDataRate::Sf10bw125,
-                    ProtoDataRate::Sf12bw125,
-                ]
-                .contains(&value) =>
-            {
-                value
-            }
+            Ok(value) if beacon::BEACON_DATA_RATES.contains(&value) => value,
             _ => {
                 return Err(DecodeError::invalid_beacon_data_rate(
                     value.datarate.clone(),

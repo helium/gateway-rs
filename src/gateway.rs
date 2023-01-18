@@ -178,7 +178,7 @@ impl Gateway {
             .ok_or_else(RegionError::no_region_params)?;
 
         region_params
-            .max_tx_power()
+            .max_conducted_power()
             .ok_or_else(RegionError::no_region_tx_power)
     }
 
