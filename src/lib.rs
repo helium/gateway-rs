@@ -6,22 +6,21 @@ pub mod gateway;
 pub mod keyed_uri;
 pub mod keypair;
 pub mod packet;
-pub mod region;
+pub mod region_watcher;
 pub mod router;
 pub mod server;
 pub mod service;
 pub mod settings;
-pub mod state_channel;
 pub mod sync;
 
 mod api;
 mod traits;
 
+pub use beacon::{Region, RegionParams};
 pub use error::{Error, Result};
 pub use keyed_uri::KeyedUri;
 pub use keypair::{Keypair, PublicKey};
 pub use packet::Packet;
-pub use region::{Region, RegionParams};
 pub use settings::{CacheSettings, Settings};
 pub use traits::*;
 

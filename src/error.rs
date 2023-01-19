@@ -61,6 +61,14 @@ pub enum DecodeError {
     InvalidCrc,
     #[error("unexpected transaction in envelope")]
     InvalidEnvelope,
+    #[error("no rx1 window in downlink packet")]
+    NoRx1Window,
+    #[error("no datarate found in packet")]
+    NoDataRate,
+    #[error("packet is not a beacon")]
+    NotBeacon,
+    #[error("invalid beacon datarate: {0}")]
+    InvalidBeaconDataRate(String),
 }
 
 #[derive(Error, Debug)]
@@ -75,8 +83,6 @@ pub enum ServiceError {
     Channel,
     #[error("no service")]
     NoService,
-    #[error("block age {block_age}s > {max_age}s")]
-    Check { block_age: u64, max_age: u64 },
     #[error("Unable to connect to local server. Check that `helium_gateway` is running.")]
     LocalClientConnect(helium_proto::services::Error),
 }
@@ -137,6 +143,22 @@ impl DecodeError {
     pub fn keypair_uri<T: ToString>(msg: T) -> Error {
         Error::Decode(DecodeError::KeypairUri(msg.to_string()))
     }
+
+    pub fn no_rx1_window() -> Error {
+        Error::Decode(DecodeError::NoRx1Window)
+    }
+
+    pub fn no_data_rate() -> Error {
+        Error::Decode(DecodeError::NoDataRate)
+    }
+
+    pub fn invalid_beacon_data_rate(datarate: String) -> Error {
+        Error::Decode(DecodeError::InvalidBeaconDataRate(datarate))
+    }
+
+    pub fn not_beacon() -> Error {
+        Error::Decode(DecodeError::NotBeacon)
+    }
 }
 
 impl RegionError {
@@ -166,9 +188,5 @@ impl Error {
 
     pub fn local_client_connect(e: helium_proto::services::Error) -> Error {
         Error::Service(ServiceError::LocalClientConnect(e))
-    }
-
-    pub fn gateway_service_check(block_age: u64, max_age: u64) -> Error {
-        Error::Service(ServiceError::Check { block_age, max_age })
     }
 }

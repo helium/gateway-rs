@@ -1,10 +1,8 @@
 use crate::{
-    api::{HeightRes, LocalClient},
+    api::LocalClient,
     cmd::*,
-    keyed_uri::KeyedUri,
-    service::gateway::GatewayVersion,
     settings::{self, Settings},
-    Error, Region, Result,
+    Region, Result,
 };
 use angry_purple_tiger::AnimalName;
 use helium_crypto::PublicKey;
@@ -20,7 +18,6 @@ pub enum InfoKey {
     Key,
     OnboardingKey,
     Name,
-    Gateway,
     Region,
 }
 
@@ -56,7 +53,6 @@ const INFO_FW: &str = "fw";
 const INFO_KEY: &str = "key";
 const INFO_ONBOARDING_KEY: &str = "onboarding";
 const INFO_NAME: &str = "name";
-const INFO_GATEWAY: &str = "gateway";
 const INFO_REGION: &str = "region";
 
 impl fmt::Display for InfoKey {
@@ -66,7 +62,6 @@ impl fmt::Display for InfoKey {
             Self::Key => INFO_KEY,
             Self::OnboardingKey => INFO_ONBOARDING_KEY,
             Self::Name => INFO_NAME,
-            Self::Gateway => INFO_GATEWAY,
             Self::Region => INFO_REGION,
         };
         f.write_str(s)
@@ -90,7 +85,6 @@ impl FromStr for InfoKey {
             INFO_KEY => Ok(Self::Key),
             INFO_ONBOARDING_KEY => Ok(Self::OnboardingKey),
             INFO_NAME => Ok(Self::Name),
-            INFO_GATEWAY => Ok(Self::Gateway),
             INFO_REGION => Ok(Self::Region),
             invalid => Err(InfoKeyParseError(invalid.to_string())),
         }
@@ -113,7 +107,6 @@ impl std::str::FromStr for InfoKeys {
 struct InfoCache {
     port: u16,
     public_keys: Option<(PublicKey, PublicKey)>,
-    height: Option<HeightRes>,
     region: Option<Region>,
 }
 
@@ -122,7 +115,6 @@ impl InfoCache {
         Self {
             port,
             public_keys: None,
-            height: None,
             region: None,
         }
     }
@@ -145,39 +137,6 @@ impl InfoCache {
     async fn onboarding_key(&mut self) -> Result<PublicKey> {
         let (_, onboarding_key) = self._public_keys().await?;
         Ok(onboarding_key)
-    }
-
-    async fn _height(&mut self) -> Result<HeightRes> {
-        if let Some(height) = &self.height {
-            return Ok(height.clone());
-        }
-        let mut client = LocalClient::new(self.port).await?;
-        let height = client.height().await?;
-        self.height = Some(height.clone());
-        Ok(height)
-    }
-
-    async fn height(&mut self) -> Result<u64> {
-        let height = self._height().await?;
-        Ok(height.height)
-    }
-
-    async fn block_age(&mut self) -> Result<u64> {
-        let height = self._height().await?;
-        Ok(height.block_age)
-    }
-
-    async fn gateway(&mut self) -> Result<crate::KeyedUri> {
-        let height = self._height().await?;
-        height
-            .gateway
-            .ok_or_else(|| Error::custom("No uri for gateway"))
-            .and_then(KeyedUri::try_from)
-    }
-
-    async fn gateway_version(&mut self) -> Result<Option<GatewayVersion>> {
-        let height = self._height().await?;
-        Ok(Some(GatewayVersion::from(height.gateway_version)))
     }
 
     async fn region(&mut self) -> Result<Region> {
@@ -208,16 +167,6 @@ impl InfoKey {
                 let public_key = cache.public_key().await?.to_string();
                 let name = public_key.parse::<AnimalName>().unwrap().to_string();
                 json!(name)
-            }
-            Self::Gateway => {
-                let gateway = cache.gateway().await?;
-                json!({
-                    "uri" : gateway.uri.to_string(),
-                    "key" : gateway.pubkey.to_string(),
-                    "height": cache.height().await?,
-                    "block_age": cache.block_age().await?,
-                    "version": cache.gateway_version().await?,
-                })
             }
             Self::Region => {
                 json!(cache.region().await?.to_string())

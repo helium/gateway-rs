@@ -1,13 +1,13 @@
-use crate::{error::RegionError, Error, Result};
+use crate::{Error, Result};
 use helium_proto::{
-    BlockchainRegionParamV1, GatewayRegionParamsRespV1, GatewayRegionParamsStreamedRespV1,
-    Region as ProtoRegion,
+    services::iot_config::GatewayRegionParamsResV1, BlockchainRegionParamV1, Region as ProtoRegion,
 };
-use rust_decimal::Decimal;
+use rand::{prelude::SliceRandom, Rng};
+use rust_decimal::prelude::{Decimal, ToPrimitive};
 use serde::{de, Deserialize, Deserializer};
 use std::{fmt, str::FromStr};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Region(ProtoRegion);
 
 impl From<Region> for ProtoRegion {
@@ -66,18 +66,7 @@ impl Region {
     pub fn from_i32(v: i32) -> Result<Self> {
         ProtoRegion::from_i32(v)
             .map(Self)
-            .ok_or_else(|| Error::custom(format!("unsupported region {v}")))
-    }
-}
-
-impl slog::Value for Region {
-    fn serialize(
-        &self,
-        _record: &slog::Record,
-        key: slog::Key,
-        serializer: &mut dyn slog::Serializer,
-    ) -> slog::Result {
-        serializer.emit_str(key, &self.to_string())
+            .ok_or_else(|| Error::unsupported_region(v))
     }
 }
 
@@ -94,15 +83,20 @@ impl AsRef<[BlockchainRegionParamV1]> for RegionParams {
     }
 }
 
-impl TryFrom<GatewayRegionParamsStreamedRespV1> for RegionParams {
+impl PartialEq for RegionParams {
+    fn eq(&self, other: &Self) -> bool {
+        self.gain.eq(&other.gain) && self.region.eq(&other.region) && self.params.eq(&other.params)
+    }
+}
+
+impl TryFrom<GatewayRegionParamsResV1> for RegionParams {
     type Error = Error;
-    fn try_from(value: GatewayRegionParamsStreamedRespV1) -> Result<Self> {
+    fn try_from(value: GatewayRegionParamsResV1) -> Result<Self> {
         let region = Region::from_i32(value.region)?;
-        let params = if let Some(params) = value.params {
-            params.region_params
-        } else {
-            return Err(RegionError::no_region_params());
-        };
+        let params = value
+            .params
+            .ok_or_else(Error::no_region_params)?
+            .region_params;
         Ok(Self {
             gain: Decimal::new(value.gain as i64, 1),
             params,
@@ -111,21 +105,10 @@ impl TryFrom<GatewayRegionParamsStreamedRespV1> for RegionParams {
     }
 }
 
-impl TryFrom<GatewayRegionParamsRespV1> for RegionParams {
-    type Error = Error;
-    fn try_from(value: GatewayRegionParamsRespV1) -> Result<Self> {
-        let region = Region::from_i32(value.region)?;
-        let params = if let Some(params) = value.params {
-            params.region_params
-        } else {
-            return Err(RegionError::no_region_params());
-        };
-        Ok(Self {
-            gain: Decimal::new(value.gain as i64, 1),
-            params,
-            region,
-        })
-    }
+// This is the currently minimimum conducted power supported by the semtech
+// packet forwarder
+lazy_static::lazy_static! {
+    static ref MIN_CONDUCTED_POWER: Decimal = Decimal::new(120, 1);
 }
 
 impl RegionParams {
@@ -136,10 +119,33 @@ impl RegionParams {
             .map(|v| Decimal::new(v.max_eirp as i64, 1))
     }
 
-    pub fn tx_power(&self) -> Option<u32> {
-        use rust_decimal::prelude::ToPrimitive;
+    pub fn max_conducted_power(&self) -> Option<u32> {
         self.max_eirp()
             .and_then(|max_eirp| (max_eirp - self.gain).trunc().to_u32())
+    }
+
+    pub fn min_conducted_power(&self) -> Option<u32> {
+        (*MIN_CONDUCTED_POWER).trunc().to_u32()
+    }
+
+    pub fn rand_conducted_power<R>(&self, rng: &mut R) -> Result<u32>
+    where
+        R: Rng + ?Sized,
+    {
+        self.min_conducted_power()
+            .zip(self.max_conducted_power())
+            .map(|(min, max)| rng.gen_range(min..=max))
+            .ok_or_else(Error::no_region_params)
+    }
+
+    pub fn rand_frequency<R>(&self, rng: &mut R) -> Result<u64>
+    where
+        R: Rng + ?Sized,
+    {
+        self.params
+            .choose(rng)
+            .map(|params| params.channel_frequency)
+            .ok_or_else(Error::no_region_params)
     }
 
     pub fn to_string(v: &Option<Self>) -> String {

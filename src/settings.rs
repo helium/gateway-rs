@@ -32,12 +32,11 @@ pub struct Settings {
     pub region: Region,
     /// Log settings
     pub log: LogSettings,
-    /// The routers to deliver packets to when no routers are found while
-    /// processing a packet.
-    pub routers: Option<Vec<KeyedUri>>,
-    /// The validator(s) to query for chain related state. Defaults to a Helium
-    /// validator.
-    pub gateways: Vec<KeyedUri>,
+    /// The config service to use for region and other config settings
+    pub config: KeyedUri,
+    /// The packet router to deliver all packets.
+    #[serde(with = "http_serde::uri")]
+    pub router: Uri,
     /// Cache settings
     pub cache: CacheSettings,
     /// Proof-of-coverage (PoC) settings.
@@ -228,15 +227,6 @@ pub mod log_level {
             deserializer.deserialize_str(LevelVisitor)
         }
     }
-
-    // pub fn deserialize<'de, D>(d: D) -> std::result::Result<slog::Level, D::Error>
-    // where
-    //     D: Deserializer<'de>,
-    // {
-    //     let s = String::deserialize(d)?;
-    //     s.parse()
-    //         .map_err(|_| de::Error::custom(format!("invalid log level \"{s}\"")))
-    // }
 }
 
 pub mod log_method {

@@ -1,7 +1,12 @@
 use crate::{error::DecodeError, Error, Result};
 use helium_proto::{
-    packet::PacketType, routing_information::Data as RoutingData, services::poc_lora,
-    BlockchainStateChannelResponseV1, DataRate as ProtoDataRate, Eui, RoutingInformation,
+    packet::PacketType,
+    routing_information::Data as RoutingData,
+    services::{
+        poc_iot,
+        router::{PacketRouterPacketDownV1, PacketRouterPacketUpV1},
+    },
+    DataRate as ProtoDataRate, Eui, RoutingInformation,
 };
 use lorawan::{Direction, PHYPayloadFrame, MHDR};
 use semtech_udp::{
@@ -75,6 +80,84 @@ impl TryFrom<push_data::RxPk> for Packet {
     }
 }
 
+impl TryFrom<PacketRouterPacketDownV1> for Packet {
+    type Error = Error;
+
+    fn try_from(pr_down: PacketRouterPacketDownV1) -> Result<Self> {
+        let window = pr_down.rx1.ok_or_else(DecodeError::no_rx1_window)?;
+        let datarate = helium_proto::DataRate::from_i32(window.datarate)
+            .ok_or_else(DecodeError::no_data_rate)?;
+        let packet = helium_proto::Packet {
+            oui: 0,
+            r#type: PacketType::Lorawan.into(),
+            payload: pr_down.payload,
+            timestamp: window.timestamp,
+            signal_strength: 0.0,
+            frequency: window.frequency as f32 / 1_000_000.0,
+            datarate: datarate.to_string(),
+            snr: 0.0,
+            routing: None,
+            rx2_window: pr_down.rx2.map(|window| helium_proto::Window {
+                timestamp: window.timestamp,
+                frequency: window.frequency as f32 / 1_000_000.0,
+                datarate: window.datarate.to_string(),
+            }),
+        };
+        Ok(Self(packet))
+    }
+}
+
+impl TryFrom<Packet> for PacketRouterPacketUpV1 {
+    type Error = Error;
+    fn try_from(value: Packet) -> Result<Self> {
+        Ok(Self {
+            payload: value.payload.clone(),
+            timestamp: value.timestamp,
+            rssi: value.signal_strength as i32,
+            frequency: (value.frequency * 1_000_000.0) as u32,
+            datarate: ProtoDataRate::from_str(&value.datarate)? as i32,
+            snr: value.snr,
+            region: 0,
+            hold_time: 0,
+            gateway: vec![],
+            signature: vec![],
+        })
+    }
+}
+
+impl TryFrom<Packet> for poc_iot::IotWitnessReportReqV1 {
+    type Error = Error;
+    fn try_from(value: Packet) -> Result<Self> {
+        let payload = match Packet::parse_frame(Direction::Uplink, value.payload()) {
+            Ok(PHYPayloadFrame::Proprietary(payload)) => payload,
+            _ => return Err(DecodeError::not_beacon()),
+        };
+        let dr = match ProtoDataRate::from_str(&value.datarate) {
+            Ok(value) if beacon::BEACON_DATA_RATES.contains(&value) => value,
+            _ => {
+                return Err(DecodeError::invalid_beacon_data_rate(
+                    value.datarate.clone(),
+                ));
+            }
+        };
+        let report = poc_iot::IotWitnessReportReqV1 {
+            pub_key: vec![],
+            data: payload,
+            tmst: value.timestamp as u32,
+            timestamp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map_err(Error::from)?
+                .as_nanos() as u64,
+            signal: (value.signal_strength * 10.0) as i32,
+            snr: (value.snr * 10.0) as i32,
+            frequency: to_hz(value.frequency),
+            datarate: dr as i32,
+            signature: vec![],
+        };
+        Ok(report)
+    }
+}
+
 impl From<helium_proto::Packet> for Packet {
     fn from(v: helium_proto::Packet) -> Self {
         Self(v)
@@ -126,22 +209,39 @@ impl Packet {
             .unwrap_or(false)
     }
 
-    pub fn to_pull_resp(&self, use_rx2: bool, tx_power: u32) -> Result<Option<pull_resp::TxPk>> {
-        let (timestamp, frequency, datarate) = if use_rx2 {
-            if let Some(rx2) = &self.0.rx2_window {
-                (Some(rx2.timestamp), rx2.frequency, rx2.datarate.parse()?)
-            } else {
-                return Ok(None);
-            }
-        } else {
-            (
-                Some(self.0.timestamp),
-                self.0.frequency,
-                self.0.datarate.parse()?,
-            )
+    pub fn to_rx1_pull_resp(&self, tx_power: u32) -> Result<pull_resp::TxPk> {
+        self.inner_to_pull_resp(
+            self.0.timestamp,
+            self.0.frequency,
+            self.0.datarate.parse()?,
+            tx_power,
+        )
+    }
+
+    pub fn to_rx2_pull_resp(&self, tx_power: u32) -> Result<Option<pull_resp::TxPk>> {
+        let rx2 = match &self.0.rx2_window {
+            Some(window) => window,
+            None => return Ok(None),
         };
-        Ok(Some(pull_resp::TxPk {
-            imme: timestamp.is_none(),
+
+        self.inner_to_pull_resp(
+            rx2.timestamp,
+            rx2.frequency,
+            rx2.datarate.parse()?,
+            tx_power,
+        )
+        .map(Some)
+    }
+
+    fn inner_to_pull_resp(
+        &self,
+        timestamp: u64,
+        frequency: f32,
+        datarate: DataRate,
+        tx_power: u32,
+    ) -> Result<pull_resp::TxPk> {
+        Ok(pull_resp::TxPk {
+            imme: timestamp == 0,
             ipol: true,
             modu: Modulation::LORA,
             codr: CodingRate::_4_5,
@@ -153,18 +253,14 @@ impl Packet {
             powe: tx_power as u64,
             rfch: 0,
             tmst: match timestamp {
-                Some(t) => Some(StringOrNum::N(t as u32)),
-                None => Some(StringOrNum::S("immediate".to_string())),
+                0 => Some(StringOrNum::S("immediate".to_string())),
+                non_zero => Some(StringOrNum::N(non_zero as u32)),
             },
             tmms: None,
             fdev: None,
             prea: None,
             ncrc: None,
-        }))
-    }
-
-    pub fn from_state_channel_response(response: BlockchainStateChannelResponseV1) -> Option<Self> {
-        response.downlink.map(Self)
+        })
     }
 
     pub fn hash(&self) -> Vec<u8> {
@@ -180,48 +276,6 @@ impl Packet {
             // integer div/ceil from: https://stackoverflow.com/a/2745086
             ((payload_size + DC_PAYLOAD_SIZE - 1) / DC_PAYLOAD_SIZE) as u64
         }
-    }
-
-    pub fn to_witness_report(self) -> Result<poc_lora::LoraWitnessReportReqV1> {
-        let payload = match Self::parse_frame(Direction::Uplink, self.payload()) {
-            Ok(PHYPayloadFrame::Proprietary(payload)) => payload,
-            _ => return Err(Error::custom("not a beacon")),
-        };
-        let dr = match ProtoDataRate::from_str(&self.datarate) {
-            Ok(value)
-                if [
-                    ProtoDataRate::Sf7bw125,
-                    ProtoDataRate::Sf8bw125,
-                    ProtoDataRate::Sf9bw125,
-                    ProtoDataRate::Sf10bw125,
-                    ProtoDataRate::Sf12bw125,
-                ]
-                .contains(&value) =>
-            {
-                value
-            }
-            _ => {
-                return Err(Error::custom(format!(
-                    "invalid beacon witness datarate: {}",
-                    self.datarate
-                )));
-            }
-        };
-        let report = poc_lora::LoraWitnessReportReqV1 {
-            pub_key: vec![],
-            data: payload,
-            tmst: self.timestamp as u32,
-            timestamp: SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .map_err(Error::from)?
-                .as_nanos() as u64,
-            signal: (self.signal_strength * 10.0) as i32,
-            snr: (self.snr * 10.0) as i32,
-            frequency: to_hz(self.frequency),
-            datarate: dr as i32,
-            signature: vec![],
-        };
-        Ok(report)
     }
 }
 

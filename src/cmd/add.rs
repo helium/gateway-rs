@@ -17,7 +17,7 @@ pub struct Cmd {
     #[structopt(long)]
     payer: PublicKey,
 
-    /// The staking mode for adding the light gateway
+    /// The staking mode for adding the gateway
     #[structopt(long, default_value = "dataonly")]
     mode: StakingMode,
 }
