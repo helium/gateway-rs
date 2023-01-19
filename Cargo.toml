@@ -24,7 +24,7 @@ sha2 = "0"
 thiserror = "1.0"
 
 [dependencies]
-structopt = "0"
+clap = {version = "4", features = ["derive"]}
 cfg-if = "1"
 semver = "0"
 config = {version="0", default-features=false, features=["toml"]}

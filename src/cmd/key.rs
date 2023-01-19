@@ -1,23 +1,34 @@
 use crate::{
-    cmd::info::{self, InfoKey, InfoKeys},
+    cmd::info::{self, InfoKey},
     Result, Settings,
 };
-use structopt::StructOpt;
 
 /// Commands on gateway keys
-#[derive(Debug, StructOpt)]
-pub enum Cmd {
+#[derive(Debug, clap::Args)]
+pub struct Cmd {
+    #[command(subcommand)]
+    command: KeyCmd,
+}
+
+#[derive(Debug, clap::Subcommand)]
+pub enum KeyCmd {
     Info(Info),
 }
 
 /// Commands on gateway keys
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Args)]
 pub struct Info {}
 
 impl Cmd {
     pub async fn run(&self, settings: Settings) -> Result {
+        self.command.run(settings).await
+    }
+}
+
+impl KeyCmd {
+    pub async fn run(&self, settings: Settings) -> Result {
         match self {
-            Cmd::Info(cmd) => cmd.run(settings).await,
+            Self::Info(cmd) => cmd.run(settings).await,
         }
     }
 }
@@ -25,7 +36,7 @@ impl Cmd {
 impl Info {
     pub async fn run(&self, settings: Settings) -> Result {
         let cmd = info::Cmd {
-            keys: InfoKeys(vec![InfoKey::Name, InfoKey::Key, InfoKey::OnboardingKey]),
+            keys: vec![InfoKey::Name, InfoKey::Key, InfoKey::Onboarding],
         };
         cmd.run(settings).await
     }

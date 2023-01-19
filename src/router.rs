@@ -56,7 +56,7 @@ impl Router {
         region_watch: region_watcher::MessageReceiver,
         transmit: gateway::MessageSender,
     ) -> Self {
-        let service = RouterService::new(settings.router.clone(), settings.keypair.clone());
+        let service = RouterService::new(settings.router.uri.clone(), settings.keypair.clone());
         let store = RouterStore::new(&settings.cache);
         Self {
             service,

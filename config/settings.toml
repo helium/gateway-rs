@@ -4,13 +4,14 @@
 ## the secrets. The default one is file based one since all devices 
 ## can support it.
 
-## File based: 
+# File based: 
 keypair = "/etc/helium_gateway/gateway_key.bin"
-## ECC608 based
+
+# Ecc608 based:
 # keypair = "ecc://i2c-1:96?slot=0"
 # onboarding = "ecc://i2c-1:96?slot=15"
 
-## The address to listen on for the (semtech) packet forwarder
+# The address to listen on for the (semtech) packet forwarder
 listen = "127.0.0.1:1680"
 
 # The local port to serve the local grpc on. 
@@ -31,7 +32,7 @@ level = "info"
 timestamp = false
 
 [cache]
-#  Maximum number of packets to queue up for the packet router
+# Maximum number of packets to queue up for the packet router
 max_packets = 20
 
 [poc]
@@ -44,5 +45,9 @@ ingest_uri = "http://mainnet-pociot.helium.io:9080"
 # configuration items
 [config]
 pubkey = "115PmCR6fpFihdjw626JXYdUEdzwjh66yoWzWkMvB9CRGEx1U6G"
-uri = "http://3.132.190.192:8080"
+uri = "http://mainnet-config.helium.io:6080/"
 
+# The router uri is where lorawan packets are delivered to the helium packet
+# router. 
+[router]
+uri = "http://mainnet-router.heliun.io:8080/"

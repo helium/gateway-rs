@@ -1,4 +1,4 @@
-use crate::{api::GatewayStakingMode, Error, KeyedUri, Keypair, PublicKey, Region, Result};
+use crate::{api::GatewayStakingMode, KeyedUri, Keypair, PublicKey, Region, Result};
 use config::{Config, Environment, File};
 use http::uri::Uri;
 pub use log_method::LogMethod;
@@ -35,8 +35,7 @@ pub struct Settings {
     /// The config service to use for region and other config settings
     pub config: KeyedUri,
     /// The packet router to deliver all packets.
-    #[serde(with = "http_serde::uri")]
-    pub router: Uri,
+    pub router: RouterSettings,
     /// Cache settings
     pub cache: CacheSettings,
     /// Proof-of-coverage (PoC) settings.
@@ -77,6 +76,13 @@ pub struct PocSettings {
     /// increase rewards
     #[serde(default = "default_poc_interval")]
     pub interval: u64,
+}
+
+/// Settings for packet routing
+#[derive(Debug, Deserialize, Clone)]
+pub struct RouterSettings {
+    #[serde(with = "http_serde::uri")]
+    pub uri: Uri,
 }
 
 impl Settings {
@@ -126,7 +132,8 @@ fn default_poc_interval() -> u64 {
     6 * 3600
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Copy, clap::ValueEnum)]
+#[clap(rename_all = "lower")]
 #[repr(u8)]
 pub enum StakingMode {
     DataOnly = 0,
@@ -156,23 +163,11 @@ impl From<&StakingMode> for GatewayStakingMode {
 
 impl fmt::Display for StakingMode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            StakingMode::DataOnly => f.write_str("dataonly"),
-            StakingMode::Full => f.write_str("full"),
-            StakingMode::Light => f.write_str("light"),
-        }
-    }
-}
-
-impl FromStr for StakingMode {
-    type Err = Error;
-    fn from_str(v: &str) -> Result<Self> {
-        match v.to_lowercase().as_ref() {
-            "light" => Ok(Self::Light),
-            "full" => Ok(Self::Full),
-            "dataonly" => Ok(Self::DataOnly),
-            _ => Err(Error::custom(format!("invalid staking mode {v}"))),
-        }
+        use clap::ValueEnum;
+        self.to_possible_value()
+            .expect("no values are skipped")
+            .get_name()
+            .fmt(f)
     }
 }
 

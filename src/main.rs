@@ -1,3 +1,4 @@
+use clap::Parser;
 use gateway_rs::{
     cmd,
     error::Result,
@@ -5,31 +6,32 @@ use gateway_rs::{
 };
 use slog::{self, debug, error, o, Drain, Logger};
 use std::{io, path::PathBuf};
-use structopt::StructOpt;
 use tokio::{io::AsyncReadExt, signal, time::Duration};
 
-#[derive(Debug, StructOpt)]
-#[structopt(name = env!("CARGO_BIN_NAME"), version = env!("CARGO_PKG_VERSION"), about = "Helium Light Gateway")]
+#[derive(Debug, Parser)]
+#[command(version = env!("CARGO_PKG_VERSION"))]
+#[command(name = env!("CARGO_BIN_NAME"))]
+/// Helium Gateway
 pub struct Cli {
     /// Configuration file to use
-    #[structopt(short = "c", default_value = "/etc/helium_gateway/settings.toml")]
+    #[arg(short = 'c', default_value = "/etc/helium_gateway/settings.toml")]
     config: PathBuf,
 
     /// Daemonize the application
-    #[structopt(long)]
+    #[arg(long)]
     daemon: bool,
 
     /// Monitor stdin and terminate when stdin closes.
     ///
     /// This flag is not cmopatible with the daemon flag
-    #[structopt(long)]
+    #[arg(long)]
     stdin: bool,
 
-    #[structopt(subcommand)]
+    #[command(subcommand)]
     cmd: Cmd,
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Subcommand)]
 pub enum Cmd {
     Key(cmd::key::Cmd),
     Info(cmd::info::Cmd),
@@ -76,7 +78,7 @@ fn mk_logger(settings: &Settings) -> Logger {
 }
 
 pub fn main() -> Result {
-    let cli = Cli::from_args();
+    let cli = Cli::parse();
     if cli.daemon {
         daemonize::Daemonize::new()
             .pid_file(format!("/var/run/{}.pid", env!("CARGO_BIN_NAME")))

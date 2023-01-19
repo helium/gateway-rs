@@ -4,21 +4,20 @@ use crate::{
 };
 use helium_proto::BlockchainTxnAddGatewayV1;
 use serde_json::json;
-use structopt::StructOpt;
 
 /// Construct an add gateway transaction for this gateway.
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Args)]
 pub struct Cmd {
     /// The target owner account of this gateway
-    #[structopt(long)]
+    #[arg(long)]
     owner: PublicKey,
 
     /// The account that will pay account for this addition
-    #[structopt(long)]
+    #[arg(long)]
     payer: PublicKey,
 
     /// The staking mode for adding the gateway
-    #[structopt(long, default_value = "dataonly")]
+    #[arg(long, default_value = "dataonly")]
     mode: StakingMode,
 }
 

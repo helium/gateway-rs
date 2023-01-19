@@ -9,101 +9,49 @@ use helium_crypto::PublicKey;
 
 use serde_json::json;
 use std::collections::HashMap;
-use std::{fmt, str::FromStr};
-use structopt::StructOpt;
+use std::fmt;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, clap::ValueEnum, PartialOrd, Ord, Copy, PartialEq, Eq)]
 pub enum InfoKey {
     Fw,
     Key,
-    OnboardingKey,
+    Onboarding,
     Name,
     Region,
 }
 
-#[derive(Debug, Clone)]
-pub struct InfoKeys(pub(crate) Vec<InfoKey>);
-
 /// Info command. Retrieve all or a subset of information from the running
 /// service.
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Args)]
 pub struct Cmd {
     /// Information keys to fetch
-    #[structopt(
-        long,
-        short,
-        multiple = false,
-        default_value = "fw,key,onboarding,name,region,gateway"
-    )]
-    pub keys: InfoKeys,
+    #[arg(value_enum, required = true)]
+    pub keys: Vec<InfoKey>,
 }
 
 impl Cmd {
     pub async fn run(&self, settings: Settings) -> Result {
         let mut info_cache = InfoCache::new(settings.api);
         let mut info: HashMap<String, serde_json::Value> = HashMap::new();
-        for key in &self.keys.0 {
+        for key in &self.keys {
             info.insert(key.to_string(), key.to_status(&mut info_cache).await?);
         }
         print_json(&info)
     }
 }
 
-const INFO_FW: &str = "fw";
-const INFO_KEY: &str = "key";
-const INFO_ONBOARDING_KEY: &str = "onboarding";
-const INFO_NAME: &str = "name";
-const INFO_REGION: &str = "region";
-
 impl fmt::Display for InfoKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let s = match self {
-            Self::Fw => INFO_FW,
-            Self::Key => INFO_KEY,
-            Self::OnboardingKey => INFO_ONBOARDING_KEY,
-            Self::Name => INFO_NAME,
-            Self::Region => INFO_REGION,
+            Self::Fw => "fw",
+            Self::Key => "key",
+            Self::Onboarding => "onboarding",
+            Self::Name => "name",
+            Self::Region => "region",
         };
         f.write_str(s)
     }
 }
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct InfoKeyParseError(String);
-
-impl fmt::Display for InfoKeyParseError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "invalid key: {}", self.0)
-    }
-}
-
-impl FromStr for InfoKey {
-    type Err = InfoKeyParseError;
-    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        match s {
-            INFO_FW => Ok(Self::Fw),
-            INFO_KEY => Ok(Self::Key),
-            INFO_ONBOARDING_KEY => Ok(Self::OnboardingKey),
-            INFO_NAME => Ok(Self::Name),
-            INFO_REGION => Ok(Self::Region),
-            invalid => Err(InfoKeyParseError(invalid.to_string())),
-        }
-    }
-}
-
-impl std::str::FromStr for InfoKeys {
-    type Err = InfoKeyParseError;
-
-    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let keys: std::result::Result<Vec<InfoKey>, _> = s
-            .split(',')
-            .map(|x| x.trim().to_owned().parse::<InfoKey>())
-            .collect();
-
-        Ok(InfoKeys(keys?))
-    }
-}
-
 struct InfoCache {
     port: u16,
     public_keys: Option<(PublicKey, PublicKey)>,
@@ -160,7 +108,7 @@ impl InfoKey {
             Self::Key => {
                 json!(cache.public_key().await?.to_string())
             }
-            Self::OnboardingKey => {
+            Self::Onboarding => {
                 json!(cache.onboarding_key().await?.to_string())
             }
             Self::Name => {

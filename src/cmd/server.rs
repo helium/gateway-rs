@@ -1,9 +1,8 @@
 use crate::*;
 use slog::Logger;
-use structopt::StructOpt;
 
 /// Run the gateway service
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Args)]
 pub struct Cmd {}
 
 impl Cmd {
