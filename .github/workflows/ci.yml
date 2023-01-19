@@ -89,11 +89,11 @@ jobs:
             --no-default-features \
             --features ${{ matrix.feature }} \
             --release
-          cp config/default.toml target/${{ matrix.target }}/release
+          cp config/settings.toml target/${{ matrix.target }}/release
           tar -zcvf helium-gateway-${{ matrix.feature }}-${{ matrix.target }}.tar.gz \
             -C target/${{ matrix.target }}/release \
               helium_gateway \
-              default.toml
+              settings.toml
         env:
           RUST_BACKTRACE: 1
           LIBCLANG_PATH: "/usr/lib/llvm-14/lib/"

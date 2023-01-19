@@ -59,7 +59,7 @@ pub struct LogSettings {
 /// Settings for cache storage
 #[derive(Debug, Deserialize, Clone)]
 pub struct CacheSettings {
-    // Maximum number of packets to queue up per router client
+    // Maximum number of packets to queue up for the packet router
     pub max_packets: u16,
 }
 
@@ -80,21 +80,15 @@ pub struct PocSettings {
 }
 
 impl Settings {
-    /// Load Settings from a given path. Settings are loaded from a default.toml
-    /// file in the given path, followed by merging in an optional settings.toml
-    /// in the same folder.
+    /// Settings are loaded from the file in the given path.
     ///
     /// Environemnt overrides have the same name as the entries in the settings
     /// file in uppercase and prefixed with "GW_". For example "GW_KEY" will
     /// override the key file location.
     pub fn new(path: &Path) -> Result<Self> {
-        let default_file = path.join("default.toml");
-        let settings_file = path.join("settings.toml");
         Config::builder()
-            // Source default config
-            .add_source(File::with_name(default_file.to_str().expect("file name")))
-            // Add optional settings file
-            .add_source(File::with_name(settings_file.to_str().expect("file name")).required(false))
+            // Source settings file
+            .add_source(File::with_name(path.to_str().expect("file name")).required(false))
             // Add in settings from the environment (with a prefix of APP)
             // Eg.. `GW_DEBUG=1 ./target/app` would set the `debug` key
             .add_source(Environment::with_prefix("gw").separator("_"))
