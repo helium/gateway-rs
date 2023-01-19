@@ -11,9 +11,8 @@ use tokio::{io::AsyncReadExt, signal, time::Duration};
 #[derive(Debug, StructOpt)]
 #[structopt(name = env!("CARGO_BIN_NAME"), version = env!("CARGO_PKG_VERSION"), about = "Helium Light Gateway")]
 pub struct Cli {
-    /// Configuration folder to use. default.toml will be loaded first and any
-    /// custom settings in settings.toml merged in.
-    #[structopt(short = "c", default_value = "/etc/helium_gateway")]
+    /// Configuration file to use
+    #[structopt(short = "c", default_value = "/etc/helium_gateway/settings.toml")]
     config: PathBuf,
 
     /// Daemonize the application

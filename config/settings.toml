@@ -1,0 +1,48 @@
+## gateway-rs configuration file
+
+## Keypair is a string that supports specifying different locations for 
+## the secrets. The default one is file based one since all devices 
+## can support it.
+
+## File based: 
+keypair = "/etc/helium_gateway/gateway_key.bin"
+## ECC608 based
+# keypair = "ecc://i2c-1:96?slot=0"
+# onboarding = "ecc://i2c-1:96?slot=15"
+
+## The address to listen on for the (semtech) packet forwarder
+listen = "127.0.0.1:1680"
+
+# The local port to serve the local grpc on. 
+# Do NOT expose this port outside of the host network for security
+api = 4467
+
+# The default region to use until a region is received from the Helium network.
+# This value should line up with the configured region of the semtech packet
+# forwarder. 
+region = "US915"
+
+[log]
+# The logging method to use. Supported values are "stdio" or syslog"
+method = "stdio"
+# The logging level to assume on startup
+level = "info"
+# Whether the logged output should include timestamps
+timestamp = false
+
+[cache]
+#  Maximum number of packets to queue up for the packet router
+max_packets = 20
+
+[poc]
+# The uri to fetch entropy for poc beacons
+entropy_uri = "https://entropy.helium.io/entropy"
+# The uri for IOT ingest services to deliver beacons and witnesses
+ingest_uri = "http://mainnet-pociot.helium.io:9080"
+
+# The config service is used to fetch and monitor region parameters and other
+# configuration items
+[config]
+pubkey = "115PmCR6fpFihdjw626JXYdUEdzwjh66yoWzWkMvB9CRGEx1U6G"
+uri = "http://3.132.190.192:8080"
+

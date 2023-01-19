@@ -34,7 +34,7 @@ The project builds binary compressed tar
 [release](https://github.com/helium/gateway-rs/releases) files which are named
 after the crypto module used and the cpu architecture they were built for. For
 example `helium-gateway-ecc608-aarch64-unknown-linux-gnu.tar.gz` contains the
-`helium_gateway` executable with ecc608 support and it's `default.toml`
+`helium_gateway` executable with ecc608 support and it's `setttings.toml`
 configuration file.
 
 Releases are tagged using [semantic versioning](https://semver.org) with a
@@ -69,31 +69,25 @@ helium-gateway pre-installed, manual installation requires you to:
 3. `scp` a downloaded and uncompressed release package for the supported
    platform to the gateway. e.g.
    ```shell
-   scp helium_gateway default.toml <gateway>:/tmp/
+   scp helium_gateway settings.toml <gateway>:/tmp/
    ```
 4. `ssh` into the device and copy the application and configuaration into a
    suitable location using a command like:
 
    ```shell
    mkdir /etc/helium_gateway
-   mv /tmp/default.toml /etc/
+   mv /tmp/settings.toml /etc/helium_gateway/
    mv /tmp/helium_gateway /usr/bin/
    ```
 
-5. Configure the logging method to use by adding a `settings.toml` in the same
-   location you put the `default.toml` file and update the `[log]` section with
-   the logging method to use based on your system. Supported values are
-   `[stdio]` or `[syslog]`. Note you may need to configure the `syslog` service
-   on your device to accept the logs.
+5. Configure the logging method to use by updating the `settings.toml` file's
+   `[log]` section with the logging method to use based on your system.
+   Supported values are `stdio` or `syslog`. Note you may need to configure
+   the `syslog` service on your device to accept the logs.
 
 6. Configure the region if required. The default region of the gateway is
    `US915`, if your region is different you can set the right one in the
-   `settings.toml` file you created in step 5. Just add the following line at the
-   beginning of the file:
-
-   ```shell
-   region = "<region>"
-   ```
+   `settings.toml` file.
 
    The support region values are listed in the (region protobuf definition]
    (https://github.com/helium/proto/blob/master/src/region.proto)
@@ -103,11 +97,11 @@ helium-gateway pre-installed, manual installation requires you to:
    your platform/linux on how best to do this.
 
    The startup command for the application is as follows. Note you will need to
-   adjust the path to `helium_gateway` or the folder for the config files for
-   the `-c` option.
+   adjust the path to `helium_gateway` or the path to the settings file to use
+   for the `-c` option.
 
    ```shell
-   /usr/bin/helium_gateway -c /etc/helium_gateway server
+   /usr/bin/helium_gateway -c /etc/helium_gateway/settings.toml server
    ```
 
 If this command succeeds the logs on the gateway will show the service starting
@@ -207,47 +201,15 @@ general information on how to use the application.
 
 ### Settings file
 
-The Helium Gateway application is configured using TOML files for your settings.
-The defaults can be found in the
-[default.toml](https://github.com/helium/gateway-rs/blob/main/config/default.toml)
-file in this repo. You should not edit this file directly, rather you should
-create a `settings.toml` file and store it either at the default expected
-locaton `/etc/helium_gateway/settings.toml` or at a custom location of your
-choosing by passing the `-c` flag to the `helium_gateway` application as shown
-below in the [general usage section](#general-usage-info).
-
-You can customize any of the fields shown in the
-[default.toml](https://github.com/helium/gateway-rs/blob/main/config/default.toml)
-file. You do not need to include all fields in the `settings.toml` file - only
-the ones you want to change from default values - however maintaining the
-correct sections is highly recommended to avoid any unexpected behaviour.
-
-By maintaining the same layout as the `default.toml` file you can avoid any
-unexpected errors.
-
-The following are the settings that can be changed and their default and
-optional values:
-
-```
-# can be any file location where you store the gateway_key.bin file
-keypair = "/etc/helium_gateway/gateway_key.bin"
-# can be any ip address and port combination
-listen = "127.0.0.1:1680"
-# possible values are listed in the region proto
-region = "US915"
-
-[log]
-# either stdio or syslog
-method = "stdio"
-# possible values are: debug | info | warn
-level = "info"
-# either true or false
-timestamp = false
-
-[cache]
-# The location of the cache store for the great gateway service
-store = "/etc/helium_gateway/cache"
-```
+The Helium Gateway application is configured using a TOML settings file. The
+released settings file can be found in the
+[settings.toml](https://github.com/helium/gateway-rs/blob/main/config/settings.toml)
+file in this repo. Edit this file with specifics for your target platform and
+store it either at the default expected locaton
+`/etc/helium_gateway/settings.toml` or at a custom location of your choosing. If
+you store the file in a non default location you will need to pass the `-c` flag
+to the `helium_gateway` application as shown below in the [general usage
+section](#general-usage-info).
 
 ### Using the ECC crypto chip
 
@@ -276,22 +238,21 @@ instructions on configuring, locking, and testing an ECC chip.
 
 ### Envrionment variables
 
-Instead of overriding paramaters in the
-[default.toml](https://github.com/helium/gateway-rs/blob/main/config/default.toml)
-file using a `settings.toml` file as described above, you can instead use
-environment variables. The environment variable name will be the same name as
-the entries in the settings file in uppercase and prefixed with "GW\_". For
-example, following on from the above example where we change the region using
-`region = "EU868"` in the settings file, setting an environment variable of
-`GW_REGION="EU868"` will override the region setting. If the settings are in one
-of the lower sections such as the `[log]` section then you need
-to also include that in the environment variable name such as `GW_LOG_LEVEL`.
+Instead of editing paramaters in the
+[settings.toml](https://github.com/helium/gateway-rs/blob/main/config/settings.toml)
+file as described above, you can also use environment variables. The environment
+variable name will be the same name as the entries in the settings file in
+uppercase and prefixed with "GW\_". For example, following on from the above
+example where we change the region using `region = "EU868"` in the settings
+file, setting an environment variable of `GW_REGION="EU868"` will override the
+region setting. If the settings are in one of the lower sections such as the
+`[log]` section then you need to also include that in the environment variable
+name such as `GW_LOG_LEVEL`.
 
-The settings are loaded first from `default.toml`, then from a `settings.toml`
-file, and then from environment variables and any duplicates are overriden in
-the order. Therefore, please note that if you have a setting in all three
-locations, the environment variable will override the settings in the other two
-locations.
+The settings are loaded first from the `settings.toml` file, and then from
+environment variables and any duplicates are overriden in the order. Therefore,
+please note that if you have a setting in both locations, the environment
+variable will override the settings in the other two locations.
 
 ### General usage info
 
@@ -299,7 +260,7 @@ Using the Helium Gateway application is pretty simple, and the vast majority of
 the information you will need to use it can be gleaned by using the `--help`
 flag which provides the following output:
 
-```
+````
 Helium Light Gateway
 
 USAGE:
@@ -311,15 +272,14 @@ FLAGS:
     -V, --version    Prints version information
 
 OPTIONS:
-    -c <config>        Configuration folder to use. default.toml will be loaded first and any custom settings in
-                       settings.toml merged in [default: /etc/helium_gateway]
+    -c <config>        Configuration file to use [default: /etc/helium_gateway/settings.toml]
 
 SUBCOMMANDS:
     add       Construct an add gateway transaction for this gateway
     help      Prints this message or the help of the given subcommand(s)
+    info      Info command. Retrieve all or a subset of information from the running service
     key       Commands on gateway keys
-    server    Run the gateway service
-```
+    server    Run the gateway service```
 
 As you can see, apart from the `help` command, there are four core subcommands
 that you can pass: `add`, `key`, `server`. The descriptions of what these
@@ -329,10 +289,12 @@ more detail in the sections below.
 The only option available is the `config` option using the `-c` flag. This tells
 the application where your configuration file is located and can be used as
 follows whilst passing any of the other commands such as `server` or `add`
-(default is `/etc/helium_gateway`):
+(default is `/etc/helium_gateway/settings.toml`):
 
-```
-./helium_gateway -c /location/of/config/folder server
+````
+
+./helium_gateway -c /location/of/config/file server
+
 ```
 
 Lastly you can check the version, read the help information or daemonize the
@@ -347,27 +309,31 @@ process can be found [on the docs article for Data Only
 Hotspots](https://docs.helium.com/mine-hnt/data-only-hotspots/#add-hotspot).
 
 ```
+
 Construct an add gateway transaction for this gateway
 
 USAGE:
-    helium_gateway add [OPTIONS] --owner <owner> --payer <payer>
+helium_gateway add [OPTIONS] --owner <owner> --payer <payer>
 
 FLAGS:
-    -h, --help       Prints help information
-    -V, --version    Prints version information
+-h, --help Prints help information
+-V, --version Prints version information
 
 OPTIONS:
-        --mode <mode>      The staking mode for adding the light gateway [default: dataonly]
-        --owner <owner>    The target owner account of this gateway
-        --payer <payer>    The account that will pay account for this addition
+--mode <mode> The staking mode for adding the light gateway [default: dataonly]
+--owner <owner> The target owner account of this gateway
+--payer <payer> The account that will pay account for this addition
+
 ```
 
 So for example, to construct a dataonly add gateway transaction you would enter
 the following command at the terminal:
 
 ```
+
 ./helium_gateway add --owner WALLET_ADDRESS --payer WALLET_ADDRESS
-```
+
+````
 
 You need to substitute WALLET_ADDRESS for the wallet address you will use for
 the owner of the hotspot and the payer of the transaction fees
@@ -387,7 +353,7 @@ The output of this command is a JSON object which looks like the following:
   "staking fee": 1000000,
   "txn": "CrkBCiEBrlImpYLbJ0z0hw5b4g9isRyPrgbXs9X+RrJ4pJJc9MkSIQA7yIy7F+9oPYCTmDz+v782GMJ4AC+jM+VfjvUgAHflWSJGMEQCIGfugfLkXv23vJcfwPYjLlMyzYhKp+Rg8B2YKwnsDHaUAiASkdxUO4fdS33D7vyid8Tulizo9SLEL1lduyvda9YVRCohAa5SJqWC2ydM9IcOW+IPYrEcj64G17PV/kayeKSSXPTJOMCEPUDo+wM="
 }
-```
+````
 
 You can also pass a `--mode` flag followed by the hotspot type (`dataonly |
 light | full`) as shown below:
@@ -472,5 +438,5 @@ Running it is as simple as:
 However as discussed above you can also pass the `-c` option to tell the service that you are using a different location for your config files:
 
 ```
-./helium_gateway -c /location/of/config/folder server
+./helium_gateway -c /location/of/config/file server
 ```
