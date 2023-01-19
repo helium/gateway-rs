@@ -92,6 +92,10 @@ helium-gateway pre-installed, manual installation requires you to:
    The support region values are listed in the (region protobuf definition]
    (https://github.com/helium/proto/blob/master/src/region.proto)
 
+   **NOTE**: This regional setting is only used for uplinks. Due to TX power
+   regulations the gateway, location needs to be asserted on the blockchain to
+   be able to send downlinks.
+
 7. Start the service by either starting it manually or hooking it into the
    `init.d`, `systemd`, or equivalent system services for your platform. Consult
    your platform/linux on how best to do this.
