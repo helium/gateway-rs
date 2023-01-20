@@ -29,7 +29,7 @@ method = "stdio"
 # The logging level to assume on startup
 level = "info"
 # Whether the logged output should include timestamps
-timestamp = false
+timestamp = true
 
 [poc]
 # The uri to fetch entropy for poc beacons

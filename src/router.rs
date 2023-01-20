@@ -2,17 +2,24 @@ use crate::{
     error::RegionError, gateway, region_watcher, service::router::RouterService, sync, Base64,
     Error, Keypair, MsgSign, Packet, Region, RegionParams, Result, Settings,
 };
+use exponential_backoff::Backoff;
 use helium_proto::services::router::{PacketRouterPacketDownV1, PacketRouterPacketUpV1};
 use slog::{debug, info, o, warn, Logger};
-use std::{collections::VecDeque, sync::Arc, time::Instant};
-use tokio::time::{self, Duration};
+use std::{collections::VecDeque, sync::Arc, time::Instant as StdInstant};
+use tokio::time::{self, Duration, Instant};
 
-pub const STORE_GC_INTERVAL: Duration = Duration::from_secs(60);
-const RECONNECT_INTERVAL: Duration = Duration::from_secs(1800); // 30 minutes
+const STORE_GC_INTERVAL: Duration = Duration::from_secs(60);
+
+const RECONNECT_BACKOFF_RETRIES: u32 = 20;
+const RECONNECT_BACKOFF_MIN_WAIT: Duration = Duration::from_secs(5);
+const RECONNECT_BACKOFF_MAX_WAIT: Duration = Duration::from_secs(1800); // 30 minutes
 
 #[derive(Debug)]
 pub enum Message {
-    Uplink { packet: Packet, received: Instant },
+    Uplink {
+        packet: Packet,
+        received: StdInstant,
+    },
 }
 
 pub type MessageSender = sync::MessageSender<Message>;
@@ -23,7 +30,7 @@ pub fn message_channel() -> (MessageSender, MessageReceiver) {
 }
 
 impl MessageSender {
-    pub async fn uplink(&self, packet: Packet, received: Instant) {
+    pub async fn uplink(&self, packet: Packet, received: StdInstant) {
         self.send(Message::Uplink { packet, received }).await
     }
 }
@@ -33,6 +40,7 @@ pub struct Router {
     region_watch: region_watcher::MessageReceiver,
     transmit: gateway::MessageSender,
     service: RouterService,
+    reconnect_retry: u32,
     region: Option<Region>,
     keypair: Arc<Keypair>,
     store: RouterStore,
@@ -45,7 +53,7 @@ pub struct RouterStore {
 
 #[derive(Debug)]
 pub struct QuePacket {
-    received: Instant,
+    received: StdInstant,
     packet: Packet,
 }
 
@@ -67,6 +75,7 @@ impl Router {
             transmit,
             messages,
             store,
+            reconnect_retry: 0,
         }
     }
 
@@ -78,7 +87,16 @@ impl Router {
         info!(logger, "starting");
 
         let mut store_gc_timer = time::interval(STORE_GC_INTERVAL);
-        let mut reconnect_timer = time::interval(RECONNECT_INTERVAL);
+
+        let reconnect_backoff = Backoff::new(
+            RECONNECT_BACKOFF_RETRIES,
+            RECONNECT_BACKOFF_MIN_WAIT,
+            RECONNECT_BACKOFF_MAX_WAIT,
+        );
+
+        // Use a deadline based sleep for reconnect to allow the store gc timer
+        // to fire without resetting the reconnect timer
+        let mut reconnect_sleep = Instant::now() + RECONNECT_BACKOFF_MIN_WAIT;
 
         loop {
             tokio::select! {
@@ -104,8 +122,9 @@ impl Router {
                         info!(logger, "discarded {} queued packets", removed);
                     }
                 },
-                _ = reconnect_timer.tick() =>
-                    self.handle_reconnect(&logger).await,
+                _ = time::sleep_until(reconnect_sleep) => {
+                    reconnect_sleep = self.handle_reconnect(&logger, &reconnect_backoff).await;
+                },
                 downlink = self.service.recv() => match downlink {
                     Ok(Some(message)) => self.handle_downlink(&logger, message).await,
                     Ok(None) => warn!(logger, "router disconnected"),
@@ -115,18 +134,30 @@ impl Router {
         }
     }
 
-    async fn handle_reconnect(&mut self, logger: &Logger) {
+    async fn handle_reconnect(&mut self, logger: &Logger, reconnect_backoff: &Backoff) -> Instant {
         info!(logger, "reconnecting");
         match self.service.reconnect().await {
             Ok(_) => {
                 info!(logger, "reconnected");
+                self.reconnect_retry = RECONNECT_BACKOFF_RETRIES;
                 self.send_waiting_packets(logger).await
             }
-            Err(err) => warn!(logger, "could not reconnect {err:?}"),
+            Err(err) => {
+                warn!(logger, "could not reconnect {err:?}");
+                if self.reconnect_retry == RECONNECT_BACKOFF_RETRIES {
+                    self.reconnect_retry = 0;
+                } else {
+                    self.reconnect_retry += 1;
+                }
+            }
         }
+        Instant::now()
+            + reconnect_backoff
+                .next(self.reconnect_retry)
+                .unwrap_or(RECONNECT_BACKOFF_MAX_WAIT)
     }
 
-    async fn handle_uplink(&mut self, logger: &Logger, uplink: Packet, received: Instant) {
+    async fn handle_uplink(&mut self, logger: &Logger, uplink: Packet, received: StdInstant) {
         match self.store.store_waiting_packet(uplink, received) {
             Ok(_) => self.send_waiting_packets(logger).await,
             Err(err) => warn!(logger, "ignoring failed uplink {:?}", err),
@@ -197,7 +228,7 @@ impl RouterStore {
         }
     }
 
-    pub fn store_waiting_packet(&mut self, packet: Packet, received: Instant) -> Result {
+    pub fn store_waiting_packet(&mut self, packet: Packet, received: StdInstant) -> Result {
         self.waiting_packets
             .push_back(QuePacket { packet, received });
         if self.waiting_packets_len() > self.max_packets as usize {

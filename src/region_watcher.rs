@@ -5,7 +5,7 @@ use std::{sync::Arc, time::Duration};
 use tokio::{sync::watch, time};
 
 const REGION_BACKOFF_RETRIES: u32 = 10;
-const REGION_BACKOFF_MIN_WAIT: Duration = Duration::from_secs(60);
+const REGION_BACKOFF_MIN_WAIT: Duration = Duration::from_secs(5);
 const REGION_BACKOFF_MAX_WAIT: Duration = Duration::from_secs(3600); // 60 minutes
 
 pub type MessageSender = watch::Sender<Option<RegionParams>>;
@@ -37,9 +37,12 @@ impl RegionWatcher {
     }
 
     pub async fn run(&mut self, shutdown: &triggered::Listener, logger: &Logger) -> Result {
-        let logger = logger.new(o!("module" => "region_watcher"));
-        info!(logger, "starting"; 
-            "default_region" => self.default_region.to_string());
+        let logger = logger.new(o!(
+            "module" => "region_watcher",
+            "config_uri" => self.config_uri.uri.to_string(),
+            "default_region" => self.default_region.to_string(),
+        ));
+        info!(logger, "starting");
 
         let backoff = Backoff::new(
             REGION_BACKOFF_RETRIES,
@@ -48,11 +51,6 @@ impl RegionWatcher {
         );
 
         loop {
-            // Check if shutdown trigger already happened
-            if shutdown.is_triggered() {
-                return Ok(());
-            }
-
             let sleep = backoff
                 .next(self.request_retry)
                 .unwrap_or(REGION_BACKOFF_MAX_WAIT);
