@@ -36,8 +36,6 @@ pub struct Settings {
     pub config: KeyedUri,
     /// The packet router to deliver all packets.
     pub router: RouterSettings,
-    /// Cache settings
-    pub cache: CacheSettings,
     /// Proof-of-coverage (PoC) settings.
     pub poc: PocSettings,
 }
@@ -53,13 +51,6 @@ pub struct LogSettings {
 
     /// Whehter to show timestamps in the stdio output stream (default false)
     pub timestamp: bool,
-}
-
-/// Settings for cache storage
-#[derive(Debug, Deserialize, Clone)]
-pub struct CacheSettings {
-    // Maximum number of packets to queue up for the packet router
-    pub max_packets: u16,
 }
 
 /// Settings for proof-of-coverage (PoC).
@@ -83,6 +74,8 @@ pub struct PocSettings {
 pub struct RouterSettings {
     #[serde(with = "http_serde::uri")]
     pub uri: Uri,
+    // Maximum number of packets to queue up for the packet router
+    pub queue: u16,
 }
 
 impl Settings {

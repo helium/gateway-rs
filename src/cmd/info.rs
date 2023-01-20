@@ -99,7 +99,7 @@ impl InfoCache {
 }
 
 impl InfoKey {
-    async fn to_status(&self, cache: &mut InfoCache) -> Result<serde_json::Value> {
+    async fn to_status(self, cache: &mut InfoCache) -> Result<serde_json::Value> {
         let v = match self {
             Self::Fw => {
                 let version = settings::version();

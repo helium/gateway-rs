@@ -31,10 +31,6 @@ level = "info"
 # Whether the logged output should include timestamps
 timestamp = false
 
-[cache]
-# Maximum number of packets to queue up for the packet router
-max_packets = 20
-
 [poc]
 # The uri to fetch entropy for poc beacons
 entropy_uri = "https://entropy.helium.io/entropy"
@@ -50,4 +46,7 @@ uri = "http://mainnet-config.helium.io:6080/"
 # The router uri is where lorawan packets are delivered to the helium packet
 # router. 
 [router]
-uri = "http://mainnet-router.heliun.io:8080/"
+uri = "http://mainnet-router.helium.io:8080/"
+# Maximum number of packets to queue up for the packet router
+queue = 20
+

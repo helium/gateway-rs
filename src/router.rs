@@ -1,6 +1,6 @@
 use crate::{
     error::RegionError, gateway, region_watcher, service::router::RouterService, sync, Base64,
-    CacheSettings, Error, Keypair, MsgSign, Packet, Region, RegionParams, Result, Settings,
+    Error, Keypair, MsgSign, Packet, Region, RegionParams, Result, Settings,
 };
 use helium_proto::services::router::{PacketRouterPacketDownV1, PacketRouterPacketUpV1};
 use slog::{debug, info, o, warn, Logger};
@@ -56,8 +56,9 @@ impl Router {
         region_watch: region_watcher::MessageReceiver,
         transmit: gateway::MessageSender,
     ) -> Self {
-        let service = RouterService::new(settings.router.uri.clone(), settings.keypair.clone());
-        let store = RouterStore::new(&settings.cache);
+        let router_settings = &settings.router;
+        let service = RouterService::new(router_settings.uri.clone(), settings.keypair.clone());
+        let store = RouterStore::new(router_settings.queue);
         Self {
             service,
             region: Some(settings.region),
@@ -188,8 +189,7 @@ impl TryFrom<QuePacket> for PacketRouterPacketUpV1 {
 }
 
 impl RouterStore {
-    pub fn new(settings: &CacheSettings) -> Self {
-        let max_packets = settings.max_packets;
+    pub fn new(max_packets: u16) -> Self {
         let waiting_packets = VecDeque::new();
         Self {
             waiting_packets,
