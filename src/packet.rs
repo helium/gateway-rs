@@ -3,7 +3,7 @@ use helium_proto::{
     packet::PacketType,
     routing_information::Data as RoutingData,
     services::{
-        poc_iot,
+        poc_lora,
         router::{PacketRouterPacketDownV1, PacketRouterPacketUpV1},
     },
     DataRate as ProtoDataRate, Eui, RoutingInformation,
@@ -125,7 +125,7 @@ impl TryFrom<Packet> for PacketRouterPacketUpV1 {
     }
 }
 
-impl TryFrom<Packet> for poc_iot::IotWitnessReportReqV1 {
+impl TryFrom<Packet> for poc_lora::LoraWitnessReportReqV1 {
     type Error = Error;
     fn try_from(value: Packet) -> Result<Self> {
         let payload = match Packet::parse_frame(Direction::Uplink, value.payload()) {
@@ -140,7 +140,7 @@ impl TryFrom<Packet> for poc_iot::IotWitnessReportReqV1 {
                 ));
             }
         };
-        let report = poc_iot::IotWitnessReportReqV1 {
+        let report = poc_lora::LoraWitnessReportReqV1 {
             pub_key: vec![],
             data: payload,
             tmst: value.timestamp as u32,

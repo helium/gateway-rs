@@ -3,7 +3,7 @@ use futures::TryFutureExt;
 use helium_crypto::Sign;
 use helium_proto::{
     services::{
-        iot_config, poc_iot,
+        iot_config, poc_lora,
         router::{PacketRouterPacketUpV1, PacketRouterRegisterV1},
     },
     BlockchainTxnAddGatewayV1, Message,
@@ -45,5 +45,5 @@ impl_msg_sign!(
 );
 
 impl_msg_sign!(iot_config::GatewayRegionParamsReqV1, signature);
-impl_msg_sign!(poc_iot::IotBeaconReportReqV1, signature);
-impl_msg_sign!(poc_iot::IotWitnessReportReqV1, signature);
+impl_msg_sign!(poc_lora::LoraBeaconReportReqV1, signature);
+impl_msg_sign!(poc_lora::LoraWitnessReportReqV1, signature);

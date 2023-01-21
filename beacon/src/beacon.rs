@@ -1,5 +1,5 @@
 use crate::{Entropy, Error, RegionParams, Result};
-use helium_proto::{services::poc_iot, DataRate};
+use helium_proto::{services::poc_lora, DataRate};
 use rand::{seq::SliceRandom, Rng, SeedableRng};
 use sha2::{Digest, Sha256};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -94,7 +94,7 @@ where
     data_rates.choose(rng).ok_or_else(Error::no_data_rate)
 }
 
-impl TryFrom<Beacon> for poc_iot::IotBeaconReportReqV1 {
+impl TryFrom<Beacon> for poc_lora::LoraBeaconReportReqV1 {
     type Error = Error;
     fn try_from(v: Beacon) -> Result<Self> {
         Ok(Self {
