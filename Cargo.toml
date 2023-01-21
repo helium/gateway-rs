@@ -32,8 +32,8 @@ serde = {workspace = true}
 serde_json = "1"
 serde_urlencoded = "*"
 http-serde = "1"
-tokio = { version = "1", default-features=false, features=["fs", "macros", "signal", "rt", "process", "time", "sync"] }
-tokio-stream = {version = "0", features = ["fs"] }
+tokio = { version="1", default-features=false, features=["macros", "signal", "rt", "time", "sync"] }
+tokio-stream = {version="0", default-features=false }
 futures = "*"
 triggered = "0.1"
 slog = "2"

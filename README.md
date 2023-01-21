@@ -44,16 +44,13 @@ alpha/beta releases.
 
 ## Linux Dependencies
 
-This application requires a Linux-based environment for two big reasons:
+This application requires a Linux-based environment for the following reasons:
 
 - `tokio`: the `gateway-rs` application, written in Rust, depends on
   [Tokio](https://docs.rs/tokio) for its runtime. Tokio binds to Linux
   interfaces such as `epoll` and `kqeueue`. It is technically possible to port
   Tokio to another OS or RTOS (this has been done for Windows), but it would be
   no simple undertaking.
-- `curl`: for fetching entropy and other web based resources over SSL, `curl` is
-  used. This was a simple way to use SSL without bloating the `helium_gateway`
-  binary with additional libraries.
 
 ## Installing
 

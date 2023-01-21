@@ -1,6 +1,5 @@
 pub mod beaconer;
 pub mod cmd;
-pub mod curl;
 pub mod error;
 pub mod gateway;
 pub mod keyed_uri;

@@ -27,8 +27,6 @@ pub enum Error {
     Gateway(#[from] crate::gateway::GatewayError),
     #[error("region error")]
     Region(#[from] RegionError),
-    #[error("curl error")]
-    Curl(#[from] crate::curl::Error),
     #[error("system time")]
     SystemTime(#[from] std::time::SystemTimeError),
 }
