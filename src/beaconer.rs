@@ -9,7 +9,7 @@ use crate::{
     sync, Base64, Keypair, MsgSign, Packet, RegionParams, Result,
 };
 use futures::TryFutureExt;
-use helium_proto::{services::poc_iot, Message as ProtoMessage};
+use helium_proto::{services::poc_lora, Message as ProtoMessage};
 use http::Uri;
 use rand::{rngs::OsRng, Rng};
 use slog::{self, info, warn, Logger};
@@ -175,8 +175,8 @@ impl Beaconer {
         beacon: beacon::Beacon,
         conducted_power: i32,
         tmst: u32,
-    ) -> Result<poc_iot::IotBeaconReportReqV1> {
-        let mut report = poc_iot::IotBeaconReportReqV1::try_from(beacon)?;
+    ) -> Result<poc_lora::LoraBeaconReportReqV1> {
+        let mut report = poc_lora::LoraBeaconReportReqV1::try_from(beacon)?;
         report.tx_power = conducted_power;
         report.tmst = tmst;
         report.pub_key = self.keypair.public_key().to_vec();
@@ -184,8 +184,8 @@ impl Beaconer {
         Ok(report)
     }
 
-    async fn mk_witness_report(&self, packet: Packet) -> Result<poc_iot::IotWitnessReportReqV1> {
-        let mut report = poc_iot::IotWitnessReportReqV1::try_from(packet)?;
+    async fn mk_witness_report(&self, packet: Packet) -> Result<poc_lora::LoraWitnessReportReqV1> {
+        let mut report = poc_lora::LoraWitnessReportReqV1::try_from(packet)?;
         report.pub_key = self.keypair.public_key().to_vec();
         report.signature = report.sign(self.keypair.clone()).await?;
         Ok(report)
@@ -234,7 +234,7 @@ impl Beaconer {
 
     async fn handle_secondary_beacon(
         &mut self,
-        report: poc_iot::IotWitnessReportReqV1,
+        report: poc_lora::LoraWitnessReportReqV1,
         logger: &Logger,
     ) {
         let Some(region_params) = &self.region_params else {
