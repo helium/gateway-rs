@@ -33,7 +33,7 @@ timestamp = true
 
 [poc]
 # The uri to fetch entropy for poc beacons
-entropy_uri = "http://entropy.helium.io"
+entropy_uri = "http://entropy.iot.mainnet.helium.io:7080"
 # The uri for IOT ingest services to deliver beacons and witnesses
 ingest_uri = "http://mainnet-pociot.helium.io:9080"
 
