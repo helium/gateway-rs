@@ -58,7 +58,7 @@ pub struct Beaconer {
     /// Use for channel plan and FR parameters
     region_params: Option<RegionParams>,
     poc_ingest_uri: Uri,
-    entropy_service: EntropyService,
+    entropy_uri: Uri,
 }
 
 impl Beaconer {
@@ -75,7 +75,7 @@ impl Beaconer {
             Duration::from_secs(base_interval + jitter)
         };
         let poc_ingest_uri = settings.poc.ingest_uri.clone();
-        let entropy_service = EntropyService::new(settings.poc.entropy_uri.clone());
+        let entropy_uri = settings.poc.entropy_uri.clone();
         let keypair = settings.keypair.clone();
 
         Self {
@@ -87,7 +87,7 @@ impl Beaconer {
             last_beacon: None,
             region_params: None,
             poc_ingest_uri,
-            entropy_service,
+            entropy_uri,
         }
     }
 
@@ -127,7 +127,8 @@ impl Beaconer {
             return Err(RegionError::no_region_params())
         };
 
-        let remote_entropy = self.entropy_service.get_entropy().await?;
+        let mut entropy_service = EntropyService::new(self.entropy_uri.clone());
+        let remote_entropy = entropy_service.get_entropy().await?;
         let local_entropy = beacon::Entropy::local()?;
         let beacon = beacon::Beacon::new(remote_entropy, local_entropy, region_params)?;
         Ok(beacon)

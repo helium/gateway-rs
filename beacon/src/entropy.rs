@@ -1,5 +1,6 @@
 use crate::{Error, Result};
 use base64::{engine::general_purpose::STANDARD, Engine};
+use helium_proto::EntropyReportV1;
 use rand::{rngs::OsRng, RngCore};
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
@@ -98,6 +99,16 @@ mod serde_base64 {
 impl std::fmt::Display for Entropy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&STANDARD.encode(&self.data))
+    }
+}
+
+impl From<EntropyReportV1> for Entropy {
+    fn from(value: EntropyReportV1) -> Self {
+        Self {
+            version: value.version,
+            timestamp: value.timestamp as i64,
+            data: value.data,
+        }
     }
 }
 
