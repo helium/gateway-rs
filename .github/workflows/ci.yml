@@ -7,9 +7,6 @@ on:
 
 name: ci
 
-env:
-  BUILD_CMD: cross
-
 jobs:
   hygiene:
     runs-on: ubuntu-22.04
@@ -51,23 +48,14 @@ jobs:
           - aarch64-unknown-linux-gnu
           - mips-unknown-linux-musl
           - mipsel-unknown-linux-musl
-          - x86_64-unknown-linux-gnu
-        feature:
-          - ecc608
-        include:
-          - target: x86_64-unknown-linux-gnu
-            feature: tpm
+          - x86_64-tpm-debian-gnu
+
     steps:
       - uses: dtolnay/rust-toolchain@stable
+      - uses: davidB/rust-cargo-make@v1
       - uses: actions/checkout@v3
 
-      - name: install dependencies
-        if: ${{ matrix.feature == 'tpm' }}
-        run: |
-          sudo apt-get install -y libtss2-dev llvm-dev libclang-dev clang
-
       - name: install cross
-        if: ${{ ! startsWith(matrix.target, 'x86_64') }}
         uses: jaxxstorm/action-install-gh-release@v1.9.0
         env:
           ## Allow cross install into PATH
@@ -76,35 +64,18 @@ jobs:
         with:
           repo: rust-embedded/cross
 
-      - name: confirm build command
-        if: ${{ startsWith(matrix.target, 'x86_64') }}
-        run: |
-          echo "BUILD_CMD=cargo" >> $GITHUB_ENV
+      - name: build target
+        run: cargo make --profile ${{ matrix.target }} build
 
-      - name: build binary
-        run: |
-          ${{ env.BUILD_CMD }} \
-            build \
-            --target ${{ matrix.target }} \
-            --no-default-features \
-            --features ${{ matrix.feature }} \
-            --release
-          cp config/settings.toml target/${{ matrix.target }}/release
-          tar -zcvf helium-gateway-${{ matrix.feature }}-${{ matrix.target }}.tar.gz \
-            -C target/${{ matrix.target }}/release \
-              helium_gateway \
-              settings.toml
-        env:
-          RUST_BACKTRACE: 1
-          LIBCLANG_PATH: "/usr/lib/llvm-14/lib/"
+      - name: package target
+        run: cargo make --profile ${{ matrix.target }} pkg
 
-      - name: cache binary
+      - name: cache artifact
         uses: actions/upload-artifact@v3
         with:
-          name: helium-gateway-${{ matrix.feature }}-${{ matrix.target }}
+          name: helium-gateway-${{ matrix.target }}
           if-no-files-found: error
-          path: |
-            helium-gateway-${{ matrix.feature }}-${{ matrix.target }}.tar.gz
+          path: helium-gateway-*.tar.gz
 
   release:
     if: startsWith(github.ref, 'refs/tags')
@@ -122,6 +93,5 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ steps.vars.outputs.tag }}
-          name: Release ${{ steps.vars.outputs.tag }}
+          fail_on_unmatched_files: true
           files: helium-gateway-*.tar.gz

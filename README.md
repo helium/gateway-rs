@@ -113,8 +113,12 @@ and the local packet forwarder client connecting to the gateway service.
 The following targets are being built. Adding a new target involves creating a
 pull request against this repository with the right cpu target tuple.
 
-- Review [the open issues](https://github.com/helium/gateway-rs/issues) to see if it's already in progress. If not, file an issue.
-- Join the `#gateway` channel on [Helium Discord](https://discord.gg/helium) and let us know what platform we're missing.
+- Review [the open issues](https://github.com/helium/gateway-rs/issues) to see
+  if it's already in progress. If not, file an issue. Note that new targets are
+  developed and supported by Helium makers and Community members.
+- Join the `#gateway-development` channel on [Helium
+  Discord](https://discord.gg/helium) and work the the community to add target
+  support.
 
 Note that platforms will be tested much faster if you join the development process!
 
@@ -140,10 +144,9 @@ Note that platforms will be tested much faster if you join the development proce
 |                                | :white_check_mark: [Kona Micro] IoT Gateway                                                                                 |
 |                                | :white_check_mark: [Kona Enterprise] IoT Gateway                                                                            |
 |                                | :white_check_mark: [RisingHF RHF2S027] Light Hotspot                                                                        |
-| x86_64-unknown-linux-gnu       | :white_check_mark: Debian x86_64                                                                                            |
+| x86_64-tpm-debian-gnu          | :white_check_mark: Debian x86_64 (tpm)                                                                                      |
 |                                | :white_check_mark: FreedomfFi gateway                                                                                       |
 
-[ramips_24kec]: https://downloads.rakwireless.com/WIFI/RAK634/Hardware%20Specification/RAK634_Module_Specification_V1.0.pdf
 [rak833]: https://github.com/RAKWireless/RAK2247-RAK833-LoRaGateway-OpenWRT-MT7628
 [rak7258]: https://store.rakwireless.com/products/rak7258-micro-gateway
 [rak7249]: https://store.rakwireless.com/products/rak7249-diy-outdoor-gateway
@@ -178,12 +181,12 @@ target as part of the supported matrix of gateway platforms!
    ```shell
    cargo install cross
    ```
-3. Build the application binary using the target triplet from the supported
-   targets. Note the use of the `--release` flag to optimize the target
-   binary for size. Debug builds may be to large to run on some targets.
+3. Build the application binary using the target triplet/profile from the
+   supported targets. Note that debug builds may be to large to run on some
+   targets.
 
    ```shell
-   cross build --target <target> --release
+   cargo build --profile <target> --release build
    ```
 
    The resulting application binary is located in
@@ -191,6 +194,9 @@ target as part of the supported matrix of gateway platforms!
    ```
    target/<target>/release/helium_gateway
    ```
+
+   **NOTE** The target triplet and profile may not be the same. For example the
+   `x86_64-tpm-debian-gnu` profile uses the `x86_64-unknown-linux-gnu` target
 
 ## Additional usage info
 
