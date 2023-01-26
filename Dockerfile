@@ -2,26 +2,22 @@
 # Cargo Build Stage
 # ------------------------------------------------------------------------------
 
-FROM rust:latest as cargo-build
+FROM rust:alpine as cargo-build
 
-RUN apt-get update && \
-    apt-get upgrade -y && \
-    apt-get install -y cmake musl-tools
-
-RUN rustup default nightly
-RUN rustup target add x86_64-unknown-linux-musl
+RUN apk add --no-cache musl-dev cmake protoc gcompat
 
 WORKDIR /tmp/helium_gateway
 COPY . .
-RUN cargo build --release --target x86_64-unknown-linux-musl
+RUN cargo build --release
 
 # ------------------------------------------------------------------------------
 # Final Stage
 # ------------------------------------------------------------------------------
-FROM alpine:latest
+FROM rust:alpine
+ENV RUST_BACKTRACE=1
 ENV GW_UPDATE_ENABLED=false
 ENV GW_LISTEN="0.0.0.0:1680"
-COPY --from=cargo-build /tmp/helium_gateway/target/x86_64-unknown-linux-musl/release/helium_gateway /usr/local/bin/helium_gateway
+COPY --from=cargo-build /tmp/helium_gateway/target/release/helium_gateway /usr/local/bin/helium_gateway
 RUN mkdir /etc/helium_gateway
 COPY config/settings.toml /etc/helium_gateway/settings.toml
 CMD ["helium_gateway", "server"]
