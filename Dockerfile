@@ -3,11 +3,10 @@
 # ------------------------------------------------------------------------------
 
 FROM rust:alpine as cargo-build
-
 RUN apk add --no-cache musl-dev cmake protoc gcompat
-
 WORKDIR /tmp/helium_gateway
 COPY . .
+ENV PROTOC=/usr/bin/protoc
 RUN cargo build --release
 
 # ------------------------------------------------------------------------------
