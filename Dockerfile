@@ -1,7 +1,6 @@
 # ------------------------------------------------------------------------------
 # Cargo Build Stage
 # ------------------------------------------------------------------------------
-
 FROM rust:alpine as cargo-build
 RUN apk add --no-cache musl-dev cmake protoc gcompat
 WORKDIR /tmp/helium_gateway
@@ -12,7 +11,7 @@ RUN cargo build --release
 # ------------------------------------------------------------------------------
 # Final Stage
 # ------------------------------------------------------------------------------
-FROM rust:alpine
+FROM alpine:3.17.1
 ENV RUST_BACKTRACE=1
 ENV GW_UPDATE_ENABLED=false
 ENV GW_LISTEN="0.0.0.0:1680"
