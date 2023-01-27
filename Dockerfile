@@ -1,3 +1,25 @@
+# ==============================================================================
+# This Docker file is designed support multi-architecture[1] images.
+#
+# How you build depends on your use case. If you only want to build
+# for the architecture you're invoking docker from (host arch):
+#
+#     docker build .
+#
+# However, if you want to build for another architecture or multiple
+# architectures, use buildx[2]:
+#
+#     docker buildx build --platform linux/arm64,linux/amd64 .
+#
+# Adding support for additional architectures requires editing the
+# `case "$TARGETPLATFORM" in` in the build stage (and likely quite a
+# bit of googling).
+#
+# 1: https://www.docker.com/blog/how-to-rapidly-build-multi-architecture-images-with-buildx
+# 2: https://docs.docker.com/build/install-buildx
+# ==============================================================================
+
+
 # ------------------------------------------------------------------------------
 # Cargo Build Stage
 #
@@ -32,6 +54,7 @@ RUN rustup target add $(cat rust_target.txt)
 
 RUN cargo build --release --target=$(cat rust_target.txt)
 RUN mv target/$(cat rust_target.txt)/release/helium_gateway .
+
 
 # ------------------------------------------------------------------------------
 # Final Stage
