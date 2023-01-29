@@ -11,7 +11,7 @@ via Semtech's Gateway Messaging Protocol (GWMP, using JSON v1 or v2).
 In turn, the Helium Gateway application does two things:
 
 - Periodically sends and witnesses Proof of Coverage beacons, which are reported
-  to the Proot of Coverage ingest oracles
+  to the Proof of Coverage ingest oracles
 - connects and routes packets to the Helium Packet Router
 
 ```
