@@ -109,7 +109,7 @@ impl Beaconer {
         } else {
             return Err(Error::custom("no region set"));
         };
-        let beacon = beacon::Beacon::new(remote_entropy, local_entropy, region_params.as_ref())?;
+        let beacon = beacon::Beacon::new(remote_entropy, local_entropy, region_params)?;
         Ok(beacon)
     }
 
@@ -230,7 +230,7 @@ impl Beaconer {
                         .map(|local_entropy| (remote_entropy, local_entropy))
                 })
                 .and_then(|(remote_entropy, local_entropy)| {
-                    beacon::Beacon::new(remote_entropy, local_entropy, region_params.as_ref())
+                    beacon::Beacon::new(remote_entropy, local_entropy, region_params)
                 }) {
                 Ok(beacon) => beacon,
                 Err(err) => {

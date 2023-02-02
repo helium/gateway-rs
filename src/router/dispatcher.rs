@@ -162,7 +162,7 @@ impl Dispatcher {
     pub async fn run(&mut self, shutdown: triggered::Listener, logger: &Logger) -> Result {
         let logger = logger.new(o!("module" => "dispatcher"));
         info!(logger, "starting"; 
-            "region" => self.region);
+            "region" => self.region.to_string());
 
         if let Some(default_routers) = &self.default_routers {
             for default_router in default_routers {
@@ -448,7 +448,7 @@ impl Dispatcher {
                 self.region = region_params.region;
                 info!(
                     logger, "updated region";
-                    "region" => self.region,
+                    "region" => self.region.to_string(),
                     "height" => update_height
                 );
                 // Tell downlink handler

@@ -65,10 +65,10 @@ impl Response for GatewayRespV1 {
     fn region_params(&self) -> Result<RegionParams> {
         match &self.msg {
             Some(gateway_resp_v1::Msg::RegionParamsStreamedResp(params)) => {
-                RegionParams::try_from(params.to_owned())
+                Ok(RegionParams::try_from(params.to_owned())?)
             }
             Some(gateway_resp_v1::Msg::RegionParamsResp(params)) => {
-                RegionParams::try_from(params.to_owned())
+                Ok(RegionParams::try_from(params.to_owned())?)
             }
             msg => Err(Error::custom(
                 format!("Unexpected gateway message {msg:?}",),
