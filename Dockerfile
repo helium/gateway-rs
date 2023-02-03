@@ -29,7 +29,7 @@
 FROM --platform=$BUILDPLATFORM rust:latest AS cargo-build
 RUN apt-get update && \
     apt-get upgrade -y && \
-    apt-get install -y cmake musl-tools clang llvm -y
+    apt-get install -y cmake musl-tools clang llvm
 
 WORKDIR /tmp/helium_gateway
 COPY . .
