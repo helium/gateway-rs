@@ -46,12 +46,9 @@ impl Beacon {
                 let mut seed = [0u8; 32];
                 seed.copy_from_slice(&seed_data);
                 // Make a random generator
-                let rng = rand_chacha::ChaCha12Rng::from_seed(seed);
+                let mut rng = rand_chacha::ChaCha12Rng::from_seed(seed);
 
-                let data = rng
-                    .sample_iter(rand::distributions::Standard)
-                    .take(BEACON_PAYLOAD_SIZE)
-                    .collect::<Vec<u8>>();
+                let data = rand_payload(&mut rng, BEACON_PAYLOAD_SIZE);
 
                 // Selet frequency based on the the first two bytes of the
                 // beacon data
@@ -80,6 +77,15 @@ impl Beacon {
     }
 }
 
+fn rand_payload<R>(rng: &mut R, size: usize) -> Vec<u8>
+where
+    R: Rng + ?Sized,
+{
+    rng.sample_iter(rand::distributions::Standard)
+        .take(size)
+        .collect::<Vec<u8>>()
+}
+
 impl TryFrom<Beacon> for poc_lora::LoraBeaconReportReqV1 {
     type Error = Error;
     fn try_from(v: Beacon) -> Result<Self> {
@@ -103,5 +109,18 @@ impl TryFrom<Beacon> for poc_lora::LoraBeaconReportReqV1 {
                 .as_nanos() as u64,
             signature: vec![],
         })
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_beacon_payload() {
+        let mut rng = rand_chacha::ChaCha12Rng::seed_from_u64(0);
+        let data = rand_payload(&mut rng, BEACON_PAYLOAD_SIZE);
+
+        assert_eq!(BEACON_PAYLOAD_SIZE, data.len());
     }
 }
