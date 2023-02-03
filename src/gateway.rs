@@ -196,18 +196,13 @@ impl Gateway {
         }
     }
 
-    fn tx_power(&mut self) -> Result<u32> {
-        let region_params = if let Some(region_params) = &self.region_params {
-            region_params
-        } else {
-            return Err(RegionError::no_region_params());
-        };
+    fn max_tx_power(&mut self) -> Result<u32> {
+        let region_params = self
+            .region_params
+            .as_ref()
+            .ok_or_else(RegionError::no_region_params)?;
 
-        if let Some(tx_power) = region_params.tx_power() {
-            Ok(tx_power)
-        } else {
-            Err(RegionError::no_region_tx_power())
-        }
+        Ok(region_params.max_conducted_power()?)
     }
 
     async fn handle_transmit_beacon(
@@ -216,7 +211,7 @@ impl Gateway {
         beacon: Beacon,
         responder: sync::ResponseSender<Result<BeaconResp>>,
     ) {
-        let tx_power = match self.tx_power() {
+        let tx_power = match self.max_tx_power() {
             Ok(tx_power) => tx_power,
             Err(err) => {
                 warn!(logger, "ignoring transmit: {err}");
@@ -287,7 +282,7 @@ impl Gateway {
     }
 
     async fn handle_downlink(&mut self, logger: &Logger, downlink: Packet) {
-        let tx_power = match self.tx_power() {
+        let tx_power = match self.max_tx_power() {
             Ok(tx_power) => tx_power,
             Err(err) => {
                 warn!(logger, "ignoring transmit: {err}");
@@ -361,9 +356,7 @@ impl Gateway {
 }
 
 pub fn beacon_to_pull_resp(beacon: &Beacon, tx_power: u64) -> Result<pull_resp::TxPk> {
-    // TODO: safe assumption to assume these will always match the used
-    // subset?
-    let datr = beacon.datarate.to_string().parse().unwrap();
+    let datr = beacon.datarate.to_string().parse()?;
     // convert hz to mhz
     let freq = beacon.frequency as f64 / 1e6;
     let data: Vec<u8> = PHYPayload::proprietary(beacon.data.as_slice()).try_into()?;

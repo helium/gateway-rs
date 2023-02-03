@@ -112,7 +112,7 @@ impl RouterClient {
                     Some(Message::RegionChanged(region)) => {
                         self.region = region;
                         info!(logger, "updated region";
-                            "region" => region);
+                            "region" => region.to_string());
                     },
                     Some(Message::Stop) => {
                         info!(logger, "stop requested, shutting down");
