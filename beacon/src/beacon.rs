@@ -1,10 +1,11 @@
 use crate::{Entropy, Error, RegionParams, Result};
 use byteorder::{ByteOrder, LittleEndian};
 use helium_proto::{services::poc_lora, DataRate};
+use rand::{Rng, SeedableRng};
 use sha2::{Digest, Sha256};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-pub const BEACON_PAYLOAD_SIZE: usize = 52;
+pub const BEACON_PAYLOAD_SIZE: usize = 51;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Beacon {
@@ -33,15 +34,21 @@ impl Beacon {
     ) -> Result<Self> {
         match remote_entropy.version {
             0 | 1 => {
-                let mut data = {
+                let seed_data = {
                     let mut hasher = Sha256::new();
                     remote_entropy.digest(&mut hasher);
                     local_entropy.digest(&mut hasher);
                     hasher.finalize().to_vec()
                 };
 
-                // Truncate data
-                data.truncate(BEACON_PAYLOAD_SIZE);
+                // Construct a 32 byte seed from the hash of the local and
+                // remote entropy
+                let mut seed = [0u8; 32];
+                seed.copy_from_slice(&seed_data);
+                // Make a random generator
+                let mut rng = rand_chacha::ChaCha12Rng::from_seed(seed);
+
+                let data = rand_payload(&mut rng, BEACON_PAYLOAD_SIZE);
 
                 // Selet frequency based on the the first two bytes of the
                 // beacon data
@@ -70,6 +77,15 @@ impl Beacon {
     }
 }
 
+fn rand_payload<R>(rng: &mut R, size: usize) -> Vec<u8>
+where
+    R: Rng + ?Sized,
+{
+    rng.sample_iter(rand::distributions::Standard)
+        .take(size)
+        .collect::<Vec<u8>>()
+}
+
 impl TryFrom<Beacon> for poc_lora::LoraBeaconReportReqV1 {
     type Error = Error;
     fn try_from(v: Beacon) -> Result<Self> {
@@ -93,5 +109,18 @@ impl TryFrom<Beacon> for poc_lora::LoraBeaconReportReqV1 {
                 .as_nanos() as u64,
             signature: vec![],
         })
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_beacon_payload() {
+        let mut rng = rand_chacha::ChaCha12Rng::seed_from_u64(0);
+        let data = rand_payload(&mut rng, BEACON_PAYLOAD_SIZE);
+
+        assert_eq!(BEACON_PAYLOAD_SIZE, data.len());
     }
 }

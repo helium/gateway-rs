@@ -6,6 +6,7 @@ edition = "2021"
 license = "Apache-2.0"
 
 [dependencies]
+rand_chacha = "0"
 prost = {workspace = true}
 helium-proto = {workspace = true}
 rand = {workspace = true}
