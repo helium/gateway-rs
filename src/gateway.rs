@@ -177,9 +177,7 @@ impl Gateway {
             .as_ref()
             .ok_or_else(RegionError::no_region_params)?;
 
-        region_params
-            .max_conducted_power()
-            .ok_or_else(RegionError::no_region_tx_power)
+        Ok(region_params.max_conducted_power()?)
     }
 
     async fn handle_transmit_beacon(
@@ -312,9 +310,7 @@ impl Gateway {
 }
 
 pub fn beacon_to_pull_resp(beacon: &Beacon, tx_power: u64) -> Result<pull_resp::TxPk> {
-    // TODO: safe assumption to assume these will always match the used
-    // subset?
-    let datr = beacon.datarate.to_string().parse().unwrap();
+    let datr = beacon.datarate.to_string().parse()?;
     // convert hz to mhz
     let freq = beacon.frequency as f64 / 1e6;
     let data: Vec<u8> = PHYPayload::proprietary(beacon.data.as_slice()).try_into()?;

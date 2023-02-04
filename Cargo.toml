@@ -15,6 +15,7 @@ doc = false
 members = ["lorawan", "beacon"]
 
 [workspace.dependencies]
+byteorder = "1"
 serde = {version = "1", features = ["rc", "derive"]}
 rust_decimal = {version = "1", features = ["serde-with-float"]}
 helium-proto = { git = "https://github.com/helium/proto", branch="master", features=["services"]}
@@ -22,6 +23,7 @@ rand = "0.8"
 base64 = "0"
 sha2 = "0"
 thiserror = "1.0"
+prost = "0"
 
 [dependencies]
 clap = {version = "4", features = ["derive"]}
@@ -44,8 +46,7 @@ slog-scope = "4"
 slog-stdlog = "4"
 thiserror = {workspace = true}
 rand = {workspace = true}
-rust_decimal = {workspace = true}
-prost = "0"
+prost = {workspace = true}
 daemonize = "0.4"
 tonic = "0"
 http = "*"

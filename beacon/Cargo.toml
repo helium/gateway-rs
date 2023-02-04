@@ -7,6 +7,7 @@ license = "Apache-2.0"
 
 [dependencies]
 rand_chacha = "0"
+prost = {workspace = true}
 helium-proto = {workspace = true}
 rand = {workspace = true}
 base64 = {workspace = true}
@@ -14,6 +15,7 @@ serde = {workspace = true}
 sha2 = {workspace = true}
 thiserror = {workspace = true}
 rust_decimal = {workspace = true}
+byteorder = {workspace = true}
 lazy_static = "1"
 
 [dev-dependencies]

@@ -194,8 +194,10 @@ name = "beacon"
 version = "0.1.0"
 dependencies = [
  "base64 0.21.0",
+ "byteorder",
  "helium-proto",
  "lazy_static",
+ "prost",
  "rand",
  "rand_chacha",
  "rust_decimal",
@@ -838,7 +840,6 @@ dependencies = [
  "lorawan",
  "prost",
  "rand",
- "rust_decimal",
  "semtech-udp",
  "semver",
  "serde",

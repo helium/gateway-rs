@@ -132,14 +132,8 @@ impl TryFrom<Packet> for poc_lora::LoraWitnessReportReqV1 {
             Ok(PHYPayloadFrame::Proprietary(payload)) => payload,
             _ => return Err(DecodeError::not_beacon()),
         };
-        let dr = match ProtoDataRate::from_str(&value.datarate) {
-            Ok(value) if beacon::BEACON_DATA_RATES.contains(&value) => value,
-            _ => {
-                return Err(DecodeError::invalid_beacon_data_rate(
-                    value.datarate.clone(),
-                ));
-            }
-        };
+        let dr = ProtoDataRate::from_str(&value.datarate)
+            .map_err(|_| DecodeError::invalid_beacon_data_rate(value.datarate.clone()))?;
         let report = poc_lora::LoraWitnessReportReqV1 {
             pub_key: vec![],
             data: payload,

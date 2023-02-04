@@ -1,21 +1,13 @@
 use crate::{Entropy, Error, RegionParams, Result};
+use byteorder::{ByteOrder, LittleEndian};
 use helium_proto::{services::poc_lora, DataRate};
-use rand::{seq::SliceRandom, Rng, SeedableRng};
+use rand::{Rng, SeedableRng};
 use sha2::{Digest, Sha256};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-pub const MAX_BEACON_V0_PAYLOAD_SIZE: usize = 10;
-pub const MIN_BEACON_V0_PAYLOAD_SIZE: usize = 5;
+pub const BEACON_PAYLOAD_SIZE: usize = 51;
 
-// Supported datarates worldwide. Note that SF12 is not supported everywhere
-pub const BEACON_DATA_RATES: &[DataRate] = &[
-    DataRate::Sf7bw125,
-    DataRate::Sf8bw125,
-    DataRate::Sf9bw125,
-    DataRate::Sf10bw125,
-];
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Beacon {
     pub data: Vec<u8>,
 
@@ -30,11 +22,11 @@ impl Beacon {
     /// Construct a new beacon with a given remote and local entropy. The remote
     /// and local entropy are checked for version equality.
     ///
-    /// Version 0 beacons use a Sha256 of the remote and local entropy (data and
-    /// timestamp), which is then used as a 32 byte seed to a ChaCha12 rng. This
-    /// rng is used to choose a random data rate, a random frequency and
-    /// conducted power from the given region parameters and a payload size
-    /// between MIN_BEACON_V0_PAYLOAD_SIZE and MAX_BEACON_V0_PAYLOAD_SIZE.
+    /// Version 0/1 beacons use a Sha256 of the remote and local entropy (data
+    /// and timestamp), which is then used (truncated) as the beacon payload.
+    /// The frequency is derived from the first two bytes of the beacon payload,
+    /// while the data_rate is derived from the packet size (spreading factor)
+    /// and bandwidth as set in the region parameters
     pub fn new(
         remote_entropy: Entropy,
         local_entropy: Entropy,
@@ -42,7 +34,7 @@ impl Beacon {
     ) -> Result<Self> {
         match remote_entropy.version {
             0 | 1 => {
-                let mut data = {
+                let seed_data = {
                     let mut hasher = Sha256::new();
                     remote_entropy.digest(&mut hasher);
                     local_entropy.digest(&mut hasher);
@@ -52,24 +44,22 @@ impl Beacon {
                 // Construct a 32 byte seed from the hash of the local and
                 // remote entropy
                 let mut seed = [0u8; 32];
-                seed.copy_from_slice(&data[0..32]);
+                seed.copy_from_slice(&seed_data);
                 // Make a random generator
                 let mut rng = rand_chacha::ChaCha12Rng::from_seed(seed);
 
-                // Note that the ordering matters since the random number
-                // generator is used in this order.
-                let frequency = region_params.rand_frequency(&mut rng)?;
-                let payload_size =
-                    rng.gen_range(MIN_BEACON_V0_PAYLOAD_SIZE..=MAX_BEACON_V0_PAYLOAD_SIZE);
+                let data = rand_payload(&mut rng, BEACON_PAYLOAD_SIZE);
 
-                let datarate = rand_data_rate(BEACON_DATA_RATES, &mut rng)?;
-                let conducted_power = region_params.rand_conducted_power(&mut rng)?;
+                // Selet frequency based on the the first two bytes of the
+                // beacon data
+                let freq_seed = LittleEndian::read_u16(&data) as usize;
+                let frequency =
+                    region_params.params[freq_seed % region_params.params.len()].channel_frequency;
+                let datarate = region_params.select_datarate(data.len())?;
+                let conducted_power = region_params.max_conducted_power()?;
 
                 Ok(Self {
-                    data: {
-                        data.truncate(payload_size);
-                        data
-                    },
+                    data,
                     frequency,
                     datarate: datarate.to_owned(),
                     local_entropy,
@@ -87,11 +77,13 @@ impl Beacon {
     }
 }
 
-fn rand_data_rate<'a, R>(data_rates: &'a [DataRate], rng: &mut R) -> Result<&'a DataRate>
+fn rand_payload<R>(rng: &mut R, size: usize) -> Vec<u8>
 where
     R: Rng + ?Sized,
 {
-    data_rates.choose(rng).ok_or_else(Error::no_data_rate)
+    rng.sample_iter(rand::distributions::Standard)
+        .take(size)
+        .collect::<Vec<u8>>()
 }
 
 impl TryFrom<Beacon> for poc_lora::LoraBeaconReportReqV1 {
@@ -117,5 +109,18 @@ impl TryFrom<Beacon> for poc_lora::LoraBeaconReportReqV1 {
                 .as_nanos() as u64,
             signature: vec![],
         })
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_beacon_payload() {
+        let mut rng = rand_chacha::ChaCha12Rng::seed_from_u64(0);
+        let data = rand_payload(&mut rng, BEACON_PAYLOAD_SIZE);
+
+        assert_eq!(BEACON_PAYLOAD_SIZE, data.len());
     }
 }
