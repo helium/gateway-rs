@@ -6,7 +6,7 @@ use beacon::Beacon;
 use futures::TryFutureExt;
 use lorawan::PHYPayload;
 use semtech_udp::{
-    pull_resp,
+    pull_resp::{self, Time},
     server_runtime::{Error as SemtechError, Event, UdpRuntime},
     tx_ack, CodingRate, MacAddress, Modulation,
 };
@@ -362,7 +362,7 @@ pub fn beacon_to_pull_resp(beacon: &Beacon, tx_power: u64) -> Result<pull_resp::
     let data: Vec<u8> = PHYPayload::proprietary(beacon.data.as_slice()).try_into()?;
 
     Ok(pull_resp::TxPk {
-        imme: true,
+        time: Time::immediate(),
         ipol: false,
         modu: Modulation::LORA,
         codr: CodingRate::_4_5,
@@ -371,8 +371,6 @@ pub fn beacon_to_pull_resp(beacon: &Beacon, tx_power: u64) -> Result<pull_resp::
         data: pull_resp::PhyData::new(data),
         powe: tx_power,
         rfch: 0,
-        tmst: None,
-        tmms: None,
         fdev: None,
         prea: None,
         ncrc: None,

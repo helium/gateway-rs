@@ -64,7 +64,7 @@ lorawan = { package = "lorawan", path = "lorawan" }
 beacon = { package = "beacon", path = "beacon" }
 rust_decimal = {version = "1", features = ["serde-with-float"]}
 exponential-backoff = {git = "https://github.com/yoshuawuyts/exponential-backoff", branch = "master"}
-semtech-udp = { version = ">=0.10.1,<1", default-features=false, features=["server"] }
+semtech-udp = { version = ">=0.10.5", default-features=false, features=["server"] }
 helium-crypto = "0.6"
 
 [features]
