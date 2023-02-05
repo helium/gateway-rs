@@ -1,6 +1,7 @@
 //! This module provides proof-of-coverage (PoC) beaconing support.
 
 use crate::{
+    error::RegionError,
     gateway::{self, BeaconResp},
     service::{entropy::EntropyService, poc::PocLoraService},
     settings::Settings,
@@ -103,12 +104,11 @@ impl Beaconer {
     pub async fn mk_beacon(&mut self) -> Result<beacon::Beacon> {
         let remote_entropy = self.entropy_service.get_entropy().await?;
         let local_entropy = beacon::Entropy::local()?;
+        let region_params = self
+            .region_params
+            .as_ref()
+            .ok_or_else(RegionError::no_region_params)?;
 
-        let region_params = if let Some(region_params) = &self.region_params {
-            region_params
-        } else {
-            return Err(Error::custom("no region set"));
-        };
         let beacon = beacon::Beacon::new(remote_entropy, local_entropy, region_params)?;
         Ok(beacon)
     }
