@@ -96,12 +96,13 @@ jobs:
           fail_on_unmatched_files: true
           files: helium-gateway-*.tar.gz
 
-  buildx:
+  docker_buildx:
     needs: [hygiene]
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
         with:
+          # Needed for 'git describe'
           fetch-depth: 0
 
       - name: Setup Docker buildx
@@ -113,8 +114,8 @@ jobs:
         uses: docker/login-action@v2
         with:
           registry: quay.io
-          username: ${{ secrets.QUAY_TEST_USER }}
-          password: ${{ secrets.QUAY_TEST_UPLOAD_TOKEN }}
+          username: ${{ secrets.QUAY_MINER_USER }}
+          password: ${{ secrets.QUAY_MINER_UPLOAD_TOKEN }}
 
       # We publish all builds to the test-images repo.
       - name: Publish image to test-images repo
@@ -127,12 +128,11 @@ jobs:
 
       # Publish to miner quay-repo on release only.
       - name: Publish release image to miner repo
-        # One time only, lets publish a gwrs image to miner without
-        # the check.
-        # if: startsWith(github.ref, 'refs/tags')
+        if: startsWith(github.ref, 'refs/tags')
         run: |
           docker buildx build \
           --platform linux/arm64,linux/amd64 \
-          --tag quay.io/team-helium/miner:gateway-"$(git describe)" \
+          --tag quay.io/team-helium/miner:gateway-"${GITHUB_REF#refs/*/}" \
+          --tag quay.io/team-helium/miner:gateway-latest \
           --push \
           .
