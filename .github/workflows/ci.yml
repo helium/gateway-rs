@@ -97,9 +97,12 @@ jobs:
           files: helium-gateway-*.tar.gz
 
   buildx:
+    needs: [hygiene]
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
       - name: Setup Docker buildx
         uses: docker/setup-buildx-action@v2
@@ -113,14 +116,23 @@ jobs:
           username: ${{ secrets.QUAY_TEST_USER }}
           password: ${{ secrets.QUAY_TEST_UPLOAD_TOKEN }}
 
-      # The following is for testing this PR only. This will be
-      # replaced with tag-gated publishing to
-      # quay.io/team-helium/test-images, along with proper
-      # git-tag-based image-tags
-      - name: Publish Docker image
+      # We publish all builds to the test-images repo.
+      - name: Publish image to test-images repo
         run: |
           docker buildx build \
           --platform linux/arm64,linux/amd64 \
-          --tag quay.io/team-helium/test-images:gwrs-pr-353 \
+          --tag quay.io/team-helium/test-images:gateway-"$(git describe)" \
+          --push \
+          .
+
+      # Publish to miner quay-repo on release only.
+      - name: Publish release image to miner repo
+        # One time only, lets publish a gwrs image to miner without
+        # the check.
+        # if: startsWith(github.ref, 'refs/tags')
+        run: |
+          docker buildx build \
+          --platform linux/arm64,linux/amd64 \
+          --tag quay.io/team-helium/miner:gateway-"$(git describe)" \
           --push \
           .
