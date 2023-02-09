@@ -106,5 +106,21 @@ jobs:
         with:
           platforms: linux/amd64,linux/arm64
 
-      - name: Build multi-architecture Docker image
-        run: docker buildx build --platform linux/arm64,linux/amd64 .
+      - name: Login to Quay.io
+        uses: docker/login-action@v2
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_TEST_USER }}
+          password: ${{ secrets.QUAY_TEST_UPLOAD_TOKEN }}
+
+      # The following is for testing this PR only. This will be
+      # replaced with tag-gated publishing to
+      # quay.io/team-helium/test-images, along with proper
+      # git-tag-based image-tags
+      - name: Publish Docker image
+        run: |
+          docker buildx build \
+          --platform linux/arm64,linux/amd64 \
+          --tag quay.io/team-helium/test-images:gwrs-pr-353 \
+          --push \
+          .
