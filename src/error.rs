@@ -85,8 +85,6 @@ pub enum ServiceError {
 pub enum RegionError {
     #[error("no region params found or active")]
     NoRegionParams,
-    #[error("no region tx power defined in region params")]
-    NoRegionTxPower,
 }
 
 macro_rules! from_err {
@@ -142,10 +140,6 @@ impl DecodeError {
 impl RegionError {
     pub fn no_region_params() -> Error {
         Error::Region(RegionError::NoRegionParams)
-    }
-
-    pub fn no_region_tx_power() -> Error {
-        Error::Region(RegionError::NoRegionTxPower)
     }
 }
 
