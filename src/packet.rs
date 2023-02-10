@@ -10,9 +10,9 @@ use helium_proto::{
 };
 use lorawan::{Direction, PHYPayloadFrame, MHDR};
 use semtech_udp::{
-    pull_resp::{self, PhyData},
+    pull_resp::{self, PhyData, Time},
     push_data::{self, CRC},
-    CodingRate, DataRate, Modulation, StringOrNum,
+    CodingRate, DataRate, Modulation,
 };
 use sha2::{Digest, Sha256};
 use std::{
@@ -234,8 +234,11 @@ impl Packet {
         datarate: DataRate,
         tx_power: u32,
     ) -> Result<pull_resp::TxPk> {
-        Ok(pull_resp::TxPk {
-            imme: timestamp == 0,
+        Ok(Some(pull_resp::TxPk {
+            time: match timestamp {
+                None => Time::immediate(),
+                Some(tmst) => Time::by_tmst(tmst as u32),
+            },
             ipol: true,
             modu: Modulation::LORA,
             codr: CodingRate::_4_5,
@@ -246,15 +249,10 @@ impl Packet {
             data: PhyData::new(self.0.payload.clone()),
             powe: tx_power as u64,
             rfch: 0,
-            tmst: match timestamp {
-                0 => Some(StringOrNum::S("immediate".to_string())),
-                non_zero => Some(StringOrNum::N(non_zero as u32)),
-            },
-            tmms: None,
             fdev: None,
             prea: None,
             ncrc: None,
-        })
+        }))
     }
 
     pub fn hash(&self) -> Vec<u8> {
