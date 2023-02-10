@@ -234,11 +234,8 @@ impl Packet {
         datarate: DataRate,
         tx_power: u32,
     ) -> Result<pull_resp::TxPk> {
-        Ok(Some(pull_resp::TxPk {
-            time: match timestamp {
-                None => Time::immediate(),
-                Some(tmst) => Time::by_tmst(tmst as u32),
-            },
+        Ok(pull_resp::TxPk {
+            time: Time::by_tmst(timestamp as u32),
             ipol: true,
             modu: Modulation::LORA,
             codr: CodingRate::_4_5,
@@ -252,7 +249,7 @@ impl Packet {
             fdev: None,
             prea: None,
             ncrc: None,
-        }))
+        })
     }
 
     pub fn hash(&self) -> Vec<u8> {

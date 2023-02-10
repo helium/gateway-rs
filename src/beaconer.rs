@@ -15,7 +15,6 @@ use rand::{rngs::OsRng, Rng};
 use slog::{self, info, warn, Logger};
 use std::sync::Arc;
 use tokio::time::{self, Duration, Instant};
-use triggered::Listener;
 use xxhash_rust::xxh64::xxh64;
 
 /// To prevent a thundering herd of hotspots all beaconing at the same time, we
@@ -97,15 +96,13 @@ impl Beaconer {
         let logger = logger.new(slog::o!("module" => "beacon"));
         info!(logger, "starting";  "beacon_interval" => self.interval.as_secs());
 
-        let mut beacon_timer = time::interval(self.interval);
-
         loop {
             tokio::select! {
                 _ = shutdown.clone() => {
                     info!(logger, "shutting down");
                     return Ok(())
                 },
-                _ = beacon_timer.tick() => {
+                _ = time::sleep_until(self.next_beacon_time) => {
                     self.handle_beacon_tick(&logger).await
                 },
                 message = self.messages.recv() => match message {
@@ -115,7 +112,15 @@ impl Beaconer {
                     }
                 },
                 region_change = self.region_watch.changed() => match region_change {
-                    Ok(()) => self.region_params = self.region_watch.borrow().clone(),
+                    Ok(()) => {
+                        // Recalculate beacon time based on if this was the first time region
+                        // params have arrived
+                        self.next_beacon_time =
+                            Self::mk_next_beacon_time(self.interval, self.region_params.is_none());
+                        self.region_params = self.region_watch.borrow().clone();
+                        info!(logger, "updated region";
+                            "region" => RegionParams::to_string(&self.region_params));
+                    },
                     Err(_) => warn!(logger, "region watch disconnected"),
                 }
 
@@ -129,7 +134,9 @@ impl Beaconer {
             .region_params
             .as_ref()
             .ok_or_else(RegionError::no_region_params)?;
-        let remote_entropy = self.entropy_service.get_entropy().await?;
+
+        let mut entropy_service = EntropyService::new(self.entropy_uri.clone());
+        let remote_entropy = entropy_service.get_entropy().await?;
         let local_entropy = beacon::Entropy::local()?;
 
         let beacon = beacon::Beacon::new(remote_entropy, local_entropy, region_params)?;
@@ -287,49 +294,6 @@ impl Beaconer {
             now + Duration::from_secs(jitter)
         } else {
             now + interval
-        }
-    }
-
-    fn handle_region_params(&mut self, params: RegionParams, logger: &Logger) {
-        // Recalculate beacon time based on if this was the first region params
-        // have arrived
-        self.next_beacon_time =
-            Self::mk_next_beacon_time(self.interval, self.region_params.is_none());
-        self.region_params = Some(params);
-        info!(logger, "updated region";
-              "region" => RegionParams::to_string(&self.region_params));
-    }
-
-    /// Enter `Beaconer`'s run loop.
-    ///
-    /// This routine is will run forever and only returns on error or
-    /// shut-down event (.e.g. Control-C, signal).
-    pub async fn run(&mut self, shutdown: Listener, logger: &Logger) -> Result {
-        let logger = logger.new(slog::o!("module" => "beacon"));
-        info!(logger, "starting";  "beacon_interval" => self.interval.as_secs());
-
-        loop {
-            if shutdown.is_triggered() {
-                return Ok(());
-            }
-
-            tokio::select! {
-                _ = shutdown.clone() => {
-                    info!(logger, "shutting down");
-                    return Ok(())
-                },
-                _ = time::sleep_until(self.next_beacon_time) => {
-                    self.handle_beacon_tick(&logger).await
-                },
-                message = self.messages.recv() => match message {
-                    Some(message) => self.handle_message(message, &logger).await,
-                    None => {
-                        warn!(logger, "ignoring closed messgae channel");
-                    }
-                }
-
-
-            }
         }
     }
 }
