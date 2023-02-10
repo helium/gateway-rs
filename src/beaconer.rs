@@ -12,8 +12,8 @@ use helium_proto::{services::poc_lora, Message as ProtoMessage};
 use http::Uri;
 use rand::{rngs::OsRng, Rng};
 use slog::{self, info, warn, Logger};
-use std::{sync::Arc, time::Duration};
-use tokio::time;
+use std::sync::Arc;
+use tokio::time::{self, Duration, Instant};
 use triggered::Listener;
 use xxhash_rust::xxh64::xxh64;
 
@@ -65,6 +65,8 @@ pub struct Beaconer {
     messages: MessageReceiver,
     /// Beacon interval
     interval: Duration,
+    // Time next beacon attempt is o be made
+    next_beacon_time: Instant,
     /// The last beacon that was transitted
     last_beacon: Option<beacon::Beacon>,
     /// Use for channel plan and FR parameters
@@ -79,12 +81,7 @@ impl Beaconer {
         transmit: gateway::MessageSender,
         messages: MessageReceiver,
     ) -> Self {
-        let interval = {
-            let base_interval = settings.poc.interval;
-            let max_jitter = (base_interval * BEACON_INTERVAL_JITTER_PERCENTAGE) / 100;
-            let jitter = OsRng.gen_range(0..=max_jitter);
-            Duration::from_secs(base_interval + jitter)
-        };
+        let interval = Duration::from_secs(settings.poc.interval);
         let poc_ingest_uri = settings.poc.ingest_uri.clone();
         let entropy_service = EntropyService::new(settings.poc.entropy_uri.clone());
         let keypair = settings.keypair.clone();
@@ -95,6 +92,10 @@ impl Beaconer {
             messages,
             interval,
             last_beacon: None,
+            // Set a beacon at least an interval out... arrival of region_params
+            // will recalculate this time and no arrival of region_params will
+            // cause the beacon to not occur
+            next_beacon_time: Instant::now() + interval,
             region_params: None,
             poc_ingest_uri,
             entropy_service,
@@ -102,12 +103,12 @@ impl Beaconer {
     }
 
     pub async fn mk_beacon(&mut self) -> Result<beacon::Beacon> {
-        let remote_entropy = self.entropy_service.get_entropy().await?;
-        let local_entropy = beacon::Entropy::local()?;
         let region_params = self
             .region_params
             .as_ref()
             .ok_or_else(RegionError::no_region_params)?;
+        let remote_entropy = self.entropy_service.get_entropy().await?;
+        let local_entropy = beacon::Entropy::local()?;
 
         let beacon = beacon::Beacon::new(remote_entropy, local_entropy, region_params)?;
         Ok(beacon)
@@ -167,7 +168,9 @@ impl Beaconer {
                 return;
             }
         };
-        self.send_beacon(beacon, logger).await
+        self.send_beacon(beacon, logger).await;
+        self.next_beacon_time =
+            Self::mk_next_beacon_time(self.interval, self.region_params.is_none());
     }
 
     async fn handle_received_beacon(&mut self, packet: Packet, logger: &Logger) {
@@ -243,7 +246,24 @@ impl Beaconer {
         }
     }
 
+    /// Construct a beacon time based on the interval and whether this is the
+    /// "first time" to beacon. The first beacon time is closed by in time
+    fn mk_next_beacon_time(interval: Duration, first_params: bool) -> Instant {
+        let now = Instant::now();
+        if first_params {
+            let max_jitter = (interval.as_secs() * BEACON_INTERVAL_JITTER_PERCENTAGE) / 100;
+            let jitter = OsRng.gen_range(0..=max_jitter);
+            now + Duration::from_secs(jitter)
+        } else {
+            now + interval
+        }
+    }
+
     fn handle_region_params(&mut self, params: RegionParams, logger: &Logger) {
+        // Recalculate beacon time based on if this was the first region params
+        // have arrived
+        self.next_beacon_time =
+            Self::mk_next_beacon_time(self.interval, self.region_params.is_none());
         self.region_params = Some(params);
         info!(logger, "updated region";
               "region" => RegionParams::to_string(&self.region_params));
@@ -257,8 +277,6 @@ impl Beaconer {
         let logger = logger.new(slog::o!("module" => "beacon"));
         info!(logger, "starting";  "beacon_interval" => self.interval.as_secs());
 
-        let mut beacon_timer = time::interval(self.interval);
-
         loop {
             if shutdown.is_triggered() {
                 return Ok(());
@@ -269,7 +287,7 @@ impl Beaconer {
                     info!(logger, "shutting down");
                     return Ok(())
                 },
-                _ = beacon_timer.tick() => {
+                _ = time::sleep_until(self.next_beacon_time) => {
                     self.handle_beacon_tick(&logger).await
                 },
                 message = self.messages.recv() => match message {
