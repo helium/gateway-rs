@@ -43,7 +43,7 @@ impl Entropy {
 
     pub(crate) fn digest<D: Digest>(&self, state: &mut D) {
         state.update(&self.data);
-        state.update(self.timestamp.to_ne_bytes());
+        state.update(self.timestamp.to_be_bytes());
     }
 }
 
