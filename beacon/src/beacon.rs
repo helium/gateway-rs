@@ -3,6 +3,7 @@ use byteorder::{ByteOrder, LittleEndian};
 use helium_proto::{services::poc_lora, DataRate};
 use rand::{Rng, SeedableRng};
 use sha2::{Digest, Sha256};
+use slog::{info, Logger};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub const BEACON_PAYLOAD_SIZE: usize = 51;
@@ -31,6 +32,7 @@ impl Beacon {
         remote_entropy: Entropy,
         local_entropy: Entropy,
         region_params: &RegionParams,
+        logger: &Logger,
     ) -> Result<Self> {
         match remote_entropy.version {
             0 | 1 => {
@@ -40,7 +42,6 @@ impl Beacon {
                     local_entropy.digest(&mut hasher);
                     hasher.finalize().to_vec()
                 };
-
                 // Construct a 32 byte seed from the hash of the local and
                 // remote entropy
                 let mut seed = [0u8; 32];
@@ -49,6 +50,14 @@ impl Beacon {
                 let mut rng = rand_chacha::ChaCha12Rng::from_seed(seed);
 
                 let data = rand_payload(&mut rng, BEACON_PAYLOAD_SIZE);
+                info!(logger,
+                    "*** remote entropy:  {:?}  local entropy: {:?} seed data: {:?} seed: {:?} data: {:?} ",
+                    remote_entropy.data,
+                    local_entropy.data,
+                    seed_data,
+                    seed,
+                    data,
+                );
 
                 // Selet frequency based on the the first two bytes of the
                 // beacon data

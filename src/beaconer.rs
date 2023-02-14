@@ -129,7 +129,7 @@ impl Beaconer {
         }
     }
 
-    pub async fn mk_beacon(&mut self) -> Result<beacon::Beacon> {
+    pub async fn mk_beacon(&mut self, logger: &Logger) -> Result<beacon::Beacon> {
         let region_params = self
             .region_params
             .as_ref()
@@ -139,7 +139,7 @@ impl Beaconer {
         let remote_entropy = entropy_service.get_entropy().await?;
         let local_entropy = beacon::Entropy::local()?;
 
-        let beacon = beacon::Beacon::new(remote_entropy, local_entropy, region_params)?;
+        let beacon = beacon::Beacon::new(remote_entropy, local_entropy, region_params, logger)?;
         Ok(beacon)
     }
 
@@ -202,7 +202,7 @@ impl Beaconer {
     }
 
     async fn handle_beacon_tick(&mut self, logger: &Logger) {
-        let beacon = match self.mk_beacon().await {
+        let beacon = match self.mk_beacon(logger).await {
             Ok(beacon) => beacon,
             Err(err) => {
                 warn!(logger, "failed to construct beacon: {err:?}");
@@ -271,7 +271,7 @@ impl Beaconer {
                         .map(|local_entropy| (remote_entropy, local_entropy))
                 })
                 .and_then(|(remote_entropy, local_entropy)| {
-                    beacon::Beacon::new(remote_entropy, local_entropy, region_params)
+                    beacon::Beacon::new(remote_entropy, local_entropy, region_params, logger)
                 }) {
                 Ok(beacon) => beacon,
                 Err(err) => {
