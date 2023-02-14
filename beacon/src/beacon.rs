@@ -51,8 +51,9 @@ impl Beacon {
 
                 let data = rand_payload(&mut rng, BEACON_PAYLOAD_SIZE);
                 info!(logger,
-                    "*** remote entropy:  {:?}  local entropy: {:?} seed data: {:?} seed: {:?} data: {:?} ",
+                    "*** remote entropy:  {:?}  remote entropy ts: {:?} local entropy: {:?} seed data: {:?} seed: {:?} data: {:?} ",
                     remote_entropy.data,
+                    remote_entropy.timestamp,
                     local_entropy.data,
                     seed_data,
                     seed,
