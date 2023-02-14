@@ -17,6 +17,12 @@ thiserror = {workspace = true}
 rust_decimal = {workspace = true}
 byteorder = {workspace = true}
 lazy_static = "1"
+slog = "2"
+slog-async = "2"
+slog-term = "2"
+slog-syslog = "0"
+slog-scope = "4"
+slog-stdlog = "4"
 
 [dev-dependencies]
 serde_json = "1"

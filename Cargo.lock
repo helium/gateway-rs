@@ -213,6 +213,12 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.6",
+ "slog",
+ "slog-async",
+ "slog-scope",
+ "slog-stdlog",
+ "slog-syslog",
+ "slog-term",
  "thiserror",
 ]
 
