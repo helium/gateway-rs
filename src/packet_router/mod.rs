@@ -1,6 +1,6 @@
 use crate::{
-    error::RegionError, gateway, region_watcher, service::router::RouterService, sync, Base64,
-    Error, Keypair, MsgSign, Packet, Region, RegionParams, Result, Settings,
+    error::RegionError, gateway, region_watcher, service::packet_router::PacketRouterService, sync,
+    Base64, Error, Keypair, MsgSign, Packet, Region, RegionParams, Result, Settings,
 };
 use exponential_backoff::Backoff;
 use helium_proto::services::router::{PacketRouterPacketDownV1, PacketRouterPacketUpV1};
@@ -35,11 +35,11 @@ impl MessageSender {
     }
 }
 
-pub struct Router {
+pub struct PacketRouter {
     messages: MessageReceiver,
     region_watch: region_watcher::MessageReceiver,
     transmit: gateway::MessageSender,
-    service: RouterService,
+    service: PacketRouterService,
     reconnect_retry: u32,
     region: Option<Region>,
     keypair: Arc<Keypair>,
@@ -57,7 +57,7 @@ pub struct QuePacket {
     packet: Packet,
 }
 
-impl Router {
+impl PacketRouter {
     pub fn new(
         settings: &Settings,
         messages: MessageReceiver,
@@ -65,7 +65,8 @@ impl Router {
         transmit: gateway::MessageSender,
     ) -> Self {
         let router_settings = &settings.router;
-        let service = RouterService::new(router_settings.uri.clone(), settings.keypair.clone());
+        let service =
+            PacketRouterService::new(router_settings.uri.clone(), settings.keypair.clone());
         let store = RouterStore::new(router_settings.queue);
         Self {
             service,

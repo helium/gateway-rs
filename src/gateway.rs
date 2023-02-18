@@ -1,5 +1,5 @@
 use crate::{
-    beaconer, error::RegionError, region_watcher, router, sync, Packet, RegionParams, Result,
+    beaconer, error::RegionError, region_watcher, packet_router, sync, Packet, RegionParams, Result,
     Settings,
 };
 use beacon::Beacon;
@@ -64,7 +64,7 @@ impl MessageSender {
 
 pub struct Gateway {
     messages: MessageReceiver,
-    uplinks: router::MessageSender,
+    uplinks: packet_router::MessageSender,
     beacons: beaconer::MessageSender,
     downlink_mac: MacAddress,
     udp_runtime: UdpRuntime,
@@ -78,7 +78,7 @@ impl Gateway {
         settings: &Settings,
         messages: MessageReceiver,
         region_watch: region_watcher::MessageReceiver,
-        uplinks: router::MessageSender,
+        uplinks: packet_router::MessageSender,
         beacons: beaconer::MessageSender,
     ) -> Result<Self> {
         let gateway = Gateway {

@@ -31,9 +31,9 @@ type PacketReceiver = tonic::Streaming<EnvelopeDownV1>;
 // attempted. It will ensure that the register rpc is called on the constructed
 // connection before a packet is sent.
 #[derive(Debug)]
-pub struct RouterService {
+pub struct PacketRouterService {
     pub uri: Uri,
-    conduit: Option<RouterConduit>,
+    conduit: Option<PacketRouterConduit>,
     keypair: Arc<Keypair>,
 }
 
@@ -41,14 +41,14 @@ pub struct RouterService {
 /// `packet_router` service. It does not connect on construction but on the
 /// first messsage sent.
 #[derive(Debug)]
-struct RouterConduit {
+struct PacketRouterConduit {
     tx: PacketSender,
     rx: PacketReceiver,
 }
 
 pub const CONDUIT_CAPACITY: usize = 50;
 
-impl RouterConduit {
+impl PacketRouterConduit {
     async fn new(uri: Uri) -> Result<Self> {
         let endpoint = Endpoint::from(uri)
             .timeout(RPC_TIMEOUT)
@@ -98,7 +98,7 @@ impl RouterConduit {
     }
 }
 
-impl RouterService {
+impl PacketRouterService {
     pub fn new(uri: Uri, keypair: Arc<Keypair>) -> Self {
         Self {
             uri,
@@ -145,7 +145,7 @@ impl RouterService {
     }
 
     pub async fn connect(&mut self) -> Result {
-        let mut conduit = RouterConduit::new(self.uri.clone()).await?;
+        let mut conduit = PacketRouterConduit::new(self.uri.clone()).await?;
         conduit.register(self.keypair.clone()).await?;
         self.conduit = Some(conduit);
         Ok(())
