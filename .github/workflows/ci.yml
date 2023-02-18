@@ -96,3 +96,46 @@ jobs:
         with:
           fail_on_unmatched_files: true
           files: helium-gateway-*.tar.gz
+          name: Release ${GITHUB_REF#refs/*/}
+
+  docker_buildx:
+    # Ensure we don't publish images until we pass clippy.
+    needs: [build]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          # Needed for 'git describe'
+          fetch-depth: 0
+
+      - name: Setup Docker buildx
+        uses: docker/setup-buildx-action@v2
+        with:
+          platforms: linux/amd64,linux/arm64
+
+      - name: Login to Quay.io
+        uses: docker/login-action@v2
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_MINER_USER }}
+          password: ${{ secrets.QUAY_MINER_UPLOAD_TOKEN }}
+
+      # We publish all builds to the test-images repo.
+      - name: Publish image to test-images repo
+        run: |
+          docker buildx build \
+          --platform linux/arm64,linux/amd64 \
+          --tag quay.io/team-helium/test-images:gateway-"$(git describe)" \
+          --push \
+          .
+
+      # Publish to miner quay-repo on release only.
+      - name: Publish release image to miner repo
+        if: startsWith(github.ref, 'refs/tags')
+        run: |
+          docker buildx build \
+          --platform linux/arm64,linux/amd64 \
+          --tag quay.io/team-helium/miner:gateway-"${GITHUB_REF#refs/*/}" \
+          --tag quay.io/team-helium/miner:gateway-latest \
+          --push \
+          .
