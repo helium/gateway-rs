@@ -1,11 +1,15 @@
 use crate::{
-    error::RegionError, gateway, region_watcher, service::packet_router::PacketRouterService, sync,
-    Base64, Error, Keypair, MsgSign, Packet, Region, RegionParams, Result, Settings,
+    error::RegionError,
+    gateway,
+    message_cache::{CacheMessage, MessageCache},
+    region_watcher,
+    service::packet_router::PacketRouterService,
+    sync, Base64, Keypair, MsgSign, Packet, Region, RegionParams, Result, Settings,
 };
 use exponential_backoff::Backoff;
 use helium_proto::services::router::{PacketRouterPacketDownV1, PacketRouterPacketUpV1};
 use slog::{debug, info, o, warn, Logger};
-use std::{collections::VecDeque, sync::Arc, time::Instant as StdInstant};
+use std::{sync::Arc, time::Instant as StdInstant};
 use tokio::time::{self, Duration, Instant};
 
 const STORE_GC_INTERVAL: Duration = Duration::from_secs(60);
@@ -43,18 +47,7 @@ pub struct PacketRouter {
     reconnect_retry: u32,
     region: Option<Region>,
     keypair: Arc<Keypair>,
-    store: RouterStore,
-}
-
-pub struct RouterStore {
-    waiting_packets: VecDeque<QuePacket>,
-    max_packets: u16,
-}
-
-#[derive(Debug)]
-pub struct QuePacket {
-    received: StdInstant,
-    packet: Packet,
+    store: MessageCache<Packet>,
 }
 
 impl PacketRouter {
@@ -67,7 +60,7 @@ impl PacketRouter {
         let router_settings = &settings.router;
         let service =
             PacketRouterService::new(router_settings.uri.clone(), settings.keypair.clone());
-        let store = RouterStore::new(router_settings.queue);
+        let store = MessageCache::new(router_settings.queue);
         Self {
             service,
             region: Some(settings.region),
@@ -118,7 +111,7 @@ impl PacketRouter {
                     Err(_) => warn!(logger, "region watch disconnected")
                 },
                 _ = store_gc_timer.tick() => {
-                    let removed = self.store.gc_waiting_packets(STORE_GC_INTERVAL);
+                    let removed = self.store.gc(STORE_GC_INTERVAL);
                     if removed > 0 {
                         info!(logger, "discarded {} queued packets", removed);
                     }
@@ -159,7 +152,7 @@ impl PacketRouter {
     }
 
     async fn handle_uplink(&mut self, logger: &Logger, uplink: Packet, received: StdInstant) {
-        match self.store.store_waiting_packet(uplink, received) {
+        match self.store.store(uplink, received) {
             Ok(_) => self.send_waiting_packets(logger).await,
             Err(err) => warn!(logger, "ignoring failed uplink {:?}", err),
         }
@@ -173,7 +166,7 @@ impl PacketRouter {
     }
 
     async fn send_waiting_packets(&mut self, logger: &Logger) {
-        while let Some(packet) = self.store.pop_waiting_packet() {
+        while let Some(packet) = self.store.pop_waiting() {
             match self.send_packet(logger, packet).await {
                 Ok(()) => (),
                 Err(err) => warn!(logger, "failed to send uplink {err:?}"),
@@ -181,77 +174,21 @@ impl PacketRouter {
         }
     }
 
-    pub async fn mk_uplink(&self, packet: QuePacket) -> Result<PacketRouterPacketUpV1> {
+    pub async fn mk_uplink(&self, packet: CacheMessage<Packet>) -> Result<PacketRouterPacketUpV1> {
         let region = self.region.ok_or_else(RegionError::no_region_params)?;
 
-        let mut uplink = PacketRouterPacketUpV1::try_from(packet)?;
+        let mut uplink: PacketRouterPacketUpV1 = packet.into_inner().try_into()?;
         uplink.region = region.into();
         uplink.gateway = self.keypair.public_key().into();
         uplink.signature = uplink.sign(self.keypair.clone()).await?;
         Ok(uplink)
     }
 
-    async fn send_packet(&mut self, logger: &Logger, packet: QuePacket) -> Result {
+    async fn send_packet(&mut self, logger: &Logger, packet: CacheMessage<Packet>) -> Result {
         debug!(logger, "sending packet";
-            "packet_hash" => packet.packet().hash().to_b64());
+            "packet_hash" => packet.hash().to_b64());
 
         let uplink = self.mk_uplink(packet).await?;
         self.service.send(uplink).await
-    }
-}
-
-impl QuePacket {
-    pub fn hold_time(&self) -> Duration {
-        self.received.elapsed()
-    }
-
-    pub fn packet(&self) -> &Packet {
-        &self.packet
-    }
-}
-
-impl TryFrom<QuePacket> for PacketRouterPacketUpV1 {
-    type Error = Error;
-    fn try_from(value: QuePacket) -> Result<Self> {
-        let hold_time = value.hold_time().as_millis() as u64;
-        let mut packet = Self::try_from(value.packet)?;
-        packet.hold_time = hold_time;
-        Ok(packet)
-    }
-}
-
-impl RouterStore {
-    pub fn new(max_packets: u16) -> Self {
-        let waiting_packets = VecDeque::new();
-        Self {
-            waiting_packets,
-            max_packets,
-        }
-    }
-
-    pub fn store_waiting_packet(&mut self, packet: Packet, received: StdInstant) -> Result {
-        self.waiting_packets
-            .push_back(QuePacket { packet, received });
-        if self.waiting_packets_len() > self.max_packets as usize {
-            self.waiting_packets.pop_front();
-        }
-        Ok(())
-    }
-
-    pub fn pop_waiting_packet(&mut self) -> Option<QuePacket> {
-        self.waiting_packets.pop_front()
-    }
-
-    pub fn waiting_packets_len(&self) -> usize {
-        self.waiting_packets.len()
-    }
-
-    /// Removes waiting packets older than the given duration. Returns the number
-    /// of packets that were removed.
-    pub fn gc_waiting_packets(&mut self, duration: Duration) -> usize {
-        let before_len = self.waiting_packets.len();
-        self.waiting_packets
-            .retain(|packet| packet.received.elapsed() <= duration);
-        before_len - self.waiting_packets.len()
     }
 }
