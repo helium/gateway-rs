@@ -104,9 +104,6 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
-        with:
-          # Needed for 'git describe'
-          fetch-depth: 0
 
       - name: Setup Docker buildx
         uses: docker/setup-buildx-action@v2
@@ -120,12 +117,20 @@ jobs:
           username: ${{ secrets.QUAY_MINER_USER }}
           password: ${{ secrets.QUAY_MINER_UPLOAD_TOKEN }}
 
+      - name: Derive appropriate image-tag
+        if: github.event_name == 'pull_request'
+        run: echo "image_tag=PR${{ github.event.pull_request.number }}-$(git rev-parse --short ${{ github.event.pull_request.head.sha }})" >> $GITHUB_ENV
+
+      - name: Derive appropriate image-tag
+        if: github.event_name != 'pull_request'
+        run: echo "image_tag=$(git describe)" >> $GITHUB_ENV
+
       # We publish all builds to the test-images repo.
       - name: Publish image to test-images repo
         run: |
           docker buildx build \
           --platform linux/arm64,linux/amd64 \
-          --tag quay.io/team-helium/test-images:gateway-"$(git describe)" \
+          --tag quay.io/team-helium/test-images:gateway-"${{ env.image_tag }}" \
           --push \
           .
 
