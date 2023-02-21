@@ -145,6 +145,14 @@ impl TryFrom<GatewayRegionParamsResV1> for RegionParams {
 }
 
 impl RegionParams {
+    pub fn for_region(region: Region) -> Self {
+        Self {
+            region,
+            gain: 0.into(),
+            params: vec![],
+        }
+    }
+
     pub fn from_bytes(region: Region, gain: u64, data: &[u8]) -> Result<Self> {
         let params = BlockchainRegionParamsV1::decode(data)?.region_params;
         let gain = Decimal::new(gain as i64, 1);
@@ -245,12 +253,11 @@ impl RegionParams {
 
         DataRate::from_str(&format!("{spreading}BW{bandwidth}")).map_err(|_| Error::no_data_rate())
     }
+}
 
-    pub fn to_string(v: &Option<Self>) -> String {
-        match v {
-            None => "none".to_string(),
-            Some(params) => params.region.to_string(),
-        }
+impl std::fmt::Display for RegionParams {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.region.fmt(f)
     }
 }
 

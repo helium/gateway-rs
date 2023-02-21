@@ -5,6 +5,7 @@ use std::{
 
 use crate::{
     error::DecodeError,
+    impl_msg_sign,
     service::{CONNECT_TIMEOUT, RPC_TIMEOUT},
     Error, Keypair, MsgSign, Result,
 };
@@ -25,6 +26,9 @@ type PacketClient = PacketRouterClient<Channel>;
 
 type PacketSender = mpsc::Sender<EnvelopeUpV1>;
 type PacketReceiver = tonic::Streaming<EnvelopeDownV1>;
+
+impl_msg_sign!(PacketRouterRegisterV1, signature);
+impl_msg_sign!(PacketRouterPacketUpV1, signature);
 
 // The router service maintains a re-connectable connection to a remote packet
 // router. The service will connect when (re)connect or a packet send is

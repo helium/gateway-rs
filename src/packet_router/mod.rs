@@ -1,10 +1,9 @@
 use crate::{
-    error::RegionError,
     gateway,
     message_cache::{CacheMessage, MessageCache},
     region_watcher,
     service::packet_router::PacketRouterService,
-    sync, Base64, Keypair, MsgSign, Packet, Region, RegionParams, Result, Settings,
+    sync, Base64, Keypair, MsgSign, Packet, RegionParams, Result, Settings,
 };
 use exponential_backoff::Backoff;
 use helium_proto::services::router::{PacketRouterPacketDownV1, PacketRouterPacketUpV1};
@@ -45,7 +44,7 @@ pub struct PacketRouter {
     transmit: gateway::MessageSender,
     service: PacketRouterService,
     reconnect_retry: u32,
-    region: Option<Region>,
+    region_params: RegionParams,
     keypair: Arc<Keypair>,
     store: MessageCache<Packet>,
 }
@@ -61,9 +60,10 @@ impl PacketRouter {
         let service =
             PacketRouterService::new(router_settings.uri.clone(), settings.keypair.clone());
         let store = MessageCache::new(router_settings.queue);
+        let region_params = region_watcher::current(&region_watch);
         Self {
             service,
-            region: Some(settings.region),
+            region_params,
             region_watch,
             keypair: settings.keypair.clone(),
             transmit,
@@ -104,10 +104,7 @@ impl PacketRouter {
                     None => warn!(logger, "ignoring closed message channel"),
                 },
                 region_change = self.region_watch.changed() => match region_change {
-                    Ok(()) => match *self.region_watch.borrow() {
-                        Some(RegionParams { region, ..}) => self.region = Some(region),
-                        None => self.region = None,
-                    },
+                    Ok(()) => self.region_params = region_watcher::current(&self.region_watch),
                     Err(_) => warn!(logger, "region watch disconnected")
                 },
                 _ = store_gc_timer.tick() => {
@@ -175,10 +172,8 @@ impl PacketRouter {
     }
 
     pub async fn mk_uplink(&self, packet: CacheMessage<Packet>) -> Result<PacketRouterPacketUpV1> {
-        let region = self.region.ok_or_else(RegionError::no_region_params)?;
-
         let mut uplink: PacketRouterPacketUpV1 = packet.into_inner().try_into()?;
-        uplink.region = region.into();
+        uplink.region = self.region_params.region.into();
         uplink.gateway = self.keypair.public_key().into();
         uplink.signature = uplink.sign(self.keypair.clone()).await?;
         Ok(uplink)

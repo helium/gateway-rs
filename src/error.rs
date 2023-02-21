@@ -81,6 +81,8 @@ pub enum ServiceError {
     Channel,
     #[error("no service")]
     NoService,
+    #[error("age {age}s > {max_age}s")]
+    Check { age: u64, max_age: u64 },
     #[error("Unable to connect to local server. Check that `helium_gateway` is running.")]
     LocalClientConnect(helium_proto::services::Error),
 }
@@ -176,6 +178,10 @@ impl Error {
 
     pub fn no_service() -> Error {
         Error::Service(ServiceError::NoService)
+    }
+
+    pub fn gateway_service_check(age: u64, max_age: u64) -> Error {
+        Error::Service(ServiceError::Check { age, max_age })
     }
 
     pub fn local_client_connect(e: helium_proto::services::Error) -> Error {

@@ -67,9 +67,10 @@ semtech-udp = { version = ">=0.10.5", default-features=false, features=["server"
 helium-crypto = "0.6"
 
 [features]
-default = [ "ecc608" ]
+default = [ "ecc608", "validator"]
 ecc608 = [ "helium-crypto/ecc608" ]
 tpm = ["helium-crypto/tpm"]
+validator = []
 
 [profile.release]
 opt-level = "z"

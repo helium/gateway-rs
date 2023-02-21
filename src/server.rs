@@ -16,12 +16,19 @@ pub async fn run(shutdown: &triggered::Listener, settings: &Settings, logger: &L
 
     let mut beaconer =
         beaconer::Beaconer::new(settings, beacon_rx, region_rx.clone(), gateway_tx.clone());
+
+    #[cfg(not(feature = "validator"))]
     let mut router = packet_router::PacketRouter::new(
         settings,
         router_rx,
         region_rx.clone(),
         gateway_tx.clone(),
     );
+
+    #[cfg(feature = "validator")]
+    let mut router =
+        crate::router::Dispatcher::new(settings, router_rx, region_rx.clone(), gateway_tx.clone());
+
     let mut gateway = gateway::Gateway::new(
         settings,
         gateway_rx,

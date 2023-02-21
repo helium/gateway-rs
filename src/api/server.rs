@@ -3,7 +3,7 @@ use super::{
     SignRes,
 };
 use crate::{
-    region_watcher, settings::StakingMode, Error, Keypair, PublicKey, Region, Result, Settings,
+    region_watcher, settings::StakingMode, Error, Keypair, PublicKey, Result, Settings,
     TxnEnvelope, TxnFee, TxnFeeConfig,
 };
 use futures::TryFutureExt;
@@ -18,7 +18,6 @@ pub type ApiResult<T> = std::result::Result<Response<T>, Status>;
 
 pub struct LocalServer {
     region_watch: region_watcher::MessageReceiver,
-    default_region: Region,
     keypair: Arc<Keypair>,
     onboarding_key: PublicKey,
     listen_port: u16,
@@ -30,7 +29,6 @@ impl LocalServer {
             keypair: settings.keypair.clone(),
             onboarding_key: settings.onboarding_key(),
             listen_port: settings.api,
-            default_region: settings.region,
             region_watch,
         })
     }
@@ -59,11 +57,9 @@ impl Api for LocalServer {
 
     async fn region(&self, _request: Request<RegionReq>) -> ApiResult<RegionRes> {
         let region_params = self.region_watch.borrow();
-        let region = region_params
-            .as_ref()
-            .map_or_else(|| self.default_region, |params| params.region)
-            .into();
-        Ok(Response::new(RegionRes { region }))
+        Ok(Response::new(RegionRes {
+            region: region_params.region.into(),
+        }))
     }
 
     async fn sign(&self, request: Request<SignReq>) -> ApiResult<SignRes> {
