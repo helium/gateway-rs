@@ -1,4 +1,3 @@
-use crate::Result;
 use std::{
     collections::VecDeque,
     ops::Deref,
@@ -43,28 +42,32 @@ impl<T> MessageCache<T> {
         }
     }
 
-    pub fn store(&mut self, message: T, received: Instant) -> Result {
+    pub fn push_back(&mut self, message: T, received: Instant) {
         self.waiting.push_back(CacheMessage { message, received });
-        if self.waiting_count() > self.max_messages as usize {
+        if self.len() > self.max_messages as usize {
             self.waiting.pop_front();
         }
-        Ok(())
     }
 
-    pub fn pop_waiting(&mut self) -> Option<CacheMessage<T>> {
-        self.waiting.pop_front()
+    pub fn pop_front(&mut self, duration: Duration) -> (usize, Option<CacheMessage<T>>) {
+        let mut dropped = 0;
+        let mut front = None;
+        while let Some(msg) = self.waiting.pop_front() {
+            if msg.hold_time() <= duration {
+                front = Some(msg);
+                break;
+            }
+            // held for too long, count as dropped and move on
+            dropped += 1;
+        }
+        (dropped, front)
     }
 
-    pub fn waiting_count(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.waiting.len()
     }
 
-    /// Removes waiting packets older than the given duration. Returns the number
-    /// of packets that were removed.
-    pub fn gc(&mut self, duration: Duration) -> usize {
-        let before_len = self.waiting.len();
-        self.waiting
-            .retain(|msg| msg.received.elapsed() <= duration);
-        before_len - self.waiting.len()
+    pub fn is_empty(&self) -> bool {
+        self.waiting.is_empty()
     }
 }

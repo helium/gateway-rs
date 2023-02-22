@@ -10,10 +10,7 @@ use crate::{
 use futures::TryFutureExt;
 use slog::{debug, info, o, warn, Logger};
 use std::{sync::Arc, time::Instant};
-use tokio::{
-    sync::mpsc,
-    time::{self, Duration, MissedTickBehavior},
-};
+use tokio::{sync::mpsc, time::Duration};
 
 pub const STORE_GC_INTERVAL: Duration = Duration::from_secs(60);
 pub const STATE_CHANNEL_CONNECT_INTERVAL: Duration = Duration::from_secs(60);
@@ -67,7 +64,7 @@ impl RouterClient {
     ) -> Result<Self> {
         let router = RouterService::new(uri)?;
         let store = MessageCache::new(max_packets);
-        let region_params = region_watcher::current(&region_watch);
+        let region_params = region_watcher::current_value(&region_watch);
         Ok(Self {
             router,
             oui,
@@ -93,9 +90,6 @@ impl RouterClient {
         ));
         info!(logger, "starting");
 
-        let mut store_gc_timer = time::interval(STORE_GC_INTERVAL);
-        store_gc_timer.set_missed_tick_behavior(MissedTickBehavior::Delay);
-
         loop {
             tokio::select! {
                 _ = shutdown.clone() => {
@@ -116,18 +110,12 @@ impl RouterClient {
                 },
                 region_change = self.region_watch.changed() => match region_change {
                     Ok(()) => {
-                        self.region_params = region_watcher::current(&self.region_watch);
+                        self.region_params = region_watcher::current_value(&self.region_watch);
                         info!(logger, "updated region";
                             "region" => self.region_params.to_string());
                     },
                     Err(_) => warn!(logger, "region watch disconnected"),
                 },
-                _ = store_gc_timer.tick() => {
-                    let removed = self.store.gc(STORE_GC_INTERVAL);
-                    if removed > 0 {
-                        info!(logger, "discarded {} queued packets", removed);
-                    }
-                }
             }
         }
     }
@@ -138,7 +126,7 @@ impl RouterClient {
         uplink: Packet,
         received: Instant,
     ) -> Result {
-        self.store.store(uplink, received)?;
+        self.store.push_back(uplink, received);
         self.send_waiting_packets(logger).await
     }
 
@@ -147,7 +135,10 @@ impl RouterClient {
     }
 
     async fn send_waiting_packets(&mut self, logger: &Logger) -> Result {
-        while let Some(packet) = self.store.pop_waiting() {
+        while let (removed, Some(packet)) = self.store.pop_front(STORE_GC_INTERVAL) {
+            if removed > 0 {
+                info!(logger, "discarded {} queued packets", removed);
+            }
             if let Some(message) = self.send_packet(logger, packet).await? {
                 match message.to_downlink() {
                     Ok(Some(packet)) => self.handle_downlink(logger, packet).await,

@@ -60,7 +60,7 @@ impl PacketRouter {
         let service =
             PacketRouterService::new(router_settings.uri.clone(), settings.keypair.clone());
         let store = MessageCache::new(router_settings.queue);
-        let region_params = region_watcher::current(&region_watch);
+        let region_params = region_watcher::current_value(&region_watch);
         Self {
             service,
             region_params,
@@ -79,8 +79,6 @@ impl PacketRouter {
             "uri" => self.service.uri.to_string(),
         ));
         info!(logger, "starting");
-
-        let mut store_gc_timer = time::interval(STORE_GC_INTERVAL);
 
         let reconnect_backoff = Backoff::new(
             RECONNECT_BACKOFF_RETRIES,
@@ -104,14 +102,8 @@ impl PacketRouter {
                     None => warn!(logger, "ignoring closed message channel"),
                 },
                 region_change = self.region_watch.changed() => match region_change {
-                    Ok(()) => self.region_params = region_watcher::current(&self.region_watch),
+                    Ok(()) => self.region_params = region_watcher::current_value(&self.region_watch),
                     Err(_) => warn!(logger, "region watch disconnected")
-                },
-                _ = store_gc_timer.tick() => {
-                    let removed = self.store.gc(STORE_GC_INTERVAL);
-                    if removed > 0 {
-                        info!(logger, "discarded {} queued packets", removed);
-                    }
                 },
                 _ = time::sleep_until(reconnect_sleep) => {
                     reconnect_sleep = self.handle_reconnect(&logger, &reconnect_backoff).await;
@@ -149,10 +141,8 @@ impl PacketRouter {
     }
 
     async fn handle_uplink(&mut self, logger: &Logger, uplink: Packet, received: StdInstant) {
-        match self.store.store(uplink, received) {
-            Ok(_) => self.send_waiting_packets(logger).await,
-            Err(err) => warn!(logger, "ignoring failed uplink {:?}", err),
-        }
+        self.store.push_back(uplink, received);
+        self.send_waiting_packets(logger).await;
     }
 
     async fn handle_downlink(&mut self, logger: &Logger, message: PacketRouterPacketDownV1) {
@@ -163,10 +153,12 @@ impl PacketRouter {
     }
 
     async fn send_waiting_packets(&mut self, logger: &Logger) {
-        while let Some(packet) = self.store.pop_waiting() {
-            match self.send_packet(logger, packet).await {
-                Ok(()) => (),
-                Err(err) => warn!(logger, "failed to send uplink {err:?}"),
+        while let (removed, Some(packet)) = self.store.pop_front(STORE_GC_INTERVAL) {
+            if removed > 0 {
+                info!(logger, "discarded {} queued packets", removed);
+            }
+            if let Err(err) = self.send_packet(logger, packet).await {
+                warn!(logger, "failed to send uplink {err:?}")
             }
         }
     }

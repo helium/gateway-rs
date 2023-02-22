@@ -11,7 +11,7 @@ const REGION_BACKOFF_MAX_WAIT: Duration = Duration::from_secs(3600); // 60 minut
 pub type MessageSender = watch::Sender<RegionParams>;
 pub type MessageReceiver = watch::Receiver<RegionParams>;
 
-pub fn current<T>(receiver: &watch::Receiver<T>) -> T
+pub fn current_value<T>(receiver: &watch::Receiver<T>) -> T
 where
     T: Clone,
 {
@@ -31,7 +31,7 @@ pub struct RegionWatcher {
 
 impl RegionWatcher {
     pub fn new(settings: &Settings) -> Self {
-        let default_params = RegionParams::for_region(settings.region);
+        let default_params = RegionParams::from(settings.region);
         let (watch, _) = watch::channel(default_params);
         Self {
             keypair: settings.keypair.clone(),

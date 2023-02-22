@@ -80,7 +80,7 @@ impl Gateway {
         uplinks: packet_router::MessageSender,
         beacons: beaconer::MessageSender,
     ) -> Result<Self> {
-        let region_params = region_watcher::current(&region_watch);
+        let region_params = region_watcher::current_value(&region_watch);
         let gateway = Gateway {
             messages,
             uplinks,
@@ -113,7 +113,7 @@ impl Gateway {
                     }
                 },
                 region_change = self.region_watch.changed() => match region_change {
-                    Ok(()) => self.region_params = region_watcher::current(&self.region_watch),
+                    Ok(()) => self.region_params = region_watcher::current_value(&self.region_watch),
                     Err(_) => warn!(logger, "region watch disconnected")
                 },
             }

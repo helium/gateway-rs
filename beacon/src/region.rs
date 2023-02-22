@@ -144,15 +144,17 @@ impl TryFrom<GatewayRegionParamsResV1> for RegionParams {
     }
 }
 
-impl RegionParams {
-    pub fn for_region(region: Region) -> Self {
+impl From<Region> for RegionParams {
+    fn from(region: Region) -> Self {
         Self {
             region,
             gain: 0.into(),
             params: vec![],
         }
     }
+}
 
+impl RegionParams {
     pub fn from_bytes(region: Region, gain: u64, data: &[u8]) -> Result<Self> {
         let params = BlockchainRegionParamsV1::decode(data)?.region_params;
         let gain = Decimal::new(gain as i64, 1);

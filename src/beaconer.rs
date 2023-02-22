@@ -77,7 +77,7 @@ impl Beaconer {
         let poc_ingest_uri = settings.poc.ingest_uri.clone();
         let entropy_uri = settings.poc.entropy_uri.clone();
         let keypair = settings.keypair.clone();
-        let region_params = region_watcher::current(&region_watch);
+        let region_params = region_watcher::current_value(&region_watch);
 
         Self {
             keypair,
@@ -122,7 +122,7 @@ impl Beaconer {
                         // time check below before region params are assigned
                         self.next_beacon_time =
                             Self::mk_next_beacon_time(self.interval, self.region_params.params.is_empty());
-                        self.region_params = region_watcher::current(&self.region_watch);
+                        self.region_params = region_watcher::current_value(&self.region_watch);
                         info!(logger, "updated region";
                             "region" => RegionParams::to_string(&self.region_params));
                     },

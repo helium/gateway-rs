@@ -73,7 +73,7 @@ impl Dispatcher {
         let routers = HashMap::with_capacity(5);
         let default_routers = settings.routers.clone();
         let max_packets = settings.router.queue;
-        let region_params = region_watcher::current(&region_watch);
+        let region_params = region_watcher::current_value(&region_watch);
         Self {
             keypair: settings.keypair.clone(),
             messages,
@@ -310,7 +310,7 @@ impl Dispatcher {
     }
 
     async fn handle_region_params_update(&mut self, logger: &Logger) {
-        self.region_params = region_watcher::current(&self.region_watch);
+        self.region_params = region_watcher::current_value(&self.region_watch);
         info!(logger, "updated region";
             "region" => self.region_params.to_string(),
         );
