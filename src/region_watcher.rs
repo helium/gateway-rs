@@ -53,9 +53,10 @@ impl RegionWatcher {
     pub async fn run(&mut self, shutdown: &triggered::Listener, logger: &Logger) -> Result {
         let logger = logger.new(o!(
             "module" => "region_watcher",
-            "default_region" => self.default_region.to_string(),
         ));
-        info!(logger, "starting");
+        info!(logger, "starting";
+            "default_region" => self.default_region.to_string(),
+        );
 
         let backoff = Backoff::new(
             REGION_BACKOFF_RETRIES,
@@ -110,13 +111,17 @@ impl RegionWatcher {
                 Err(err) => {
                     warn!(logger, "config region_params error: {err:?}";
                         "pubkey" => service_uri.pubkey.to_string(),
-                        "uri" => service_uri.uri.to_string());
+                        "uri" => service_uri.uri.to_string(),
+                        "region" => current_region.to_string(),
+                    );
                     Err(err)
                 }
                 other => {
                     info!(logger, "config region_params fetched";
                         "pubkey" => service_uri.pubkey.to_string(),
-                        "uri" => service_uri.uri.to_string());
+                        "uri" => service_uri.uri.to_string(),
+                        "region" => current_region.to_string(),
+                    );
                     other
                 }
         }
@@ -156,13 +161,16 @@ impl RegionWatcher {
                     Err(err) => {
                         warn!(logger, "gateway region_params error: {err:?}";
                             "pubkey" => service_uri.pubkey.to_string(),
-                            "uri" => service_uri.uri.to_string());
+                            "uri" => service_uri.uri.to_string(),
+                            "region" => current_region.to_string()
+                        );
                         Err(err)
                     }
                     other => {
                         info!(logger, "gateway region_params fetched";
                             "pubkey" => service_uri.pubkey.to_string(),
-                            "uri" => service_uri.uri.to_string());
+                            "region" => current_region.to_string()
+                        );
                         other
                     }
                 }
