@@ -117,8 +117,9 @@ impl Beaconer {
                 },
                 region_change = self.region_watch.changed() => match region_change {
                     Ok(()) => {
-                        // Recalculate beacon time based on if this was the first time region
-                        // params have arrived
+                        // Recalculate beacon time based on if this was the
+                        // first time region params have arrived. Do the first
+                        // time check below before region params are assigned
                         self.next_beacon_time =
                             Self::mk_next_beacon_time(self.interval, self.region_params.params.is_empty());
                         self.region_params = region_watcher::current(&self.region_watch);
@@ -205,16 +206,21 @@ impl Beaconer {
     }
 
     async fn handle_beacon_tick(&mut self, logger: &Logger) {
-        let beacon = match self.mk_beacon().await {
-            Ok(beacon) => beacon,
+        match self.mk_beacon().await {
+            Ok(beacon) => {
+                self.send_beacon(beacon, logger).await;
+                // On success just use the normal behavior for selecting a next
+                // beacon time. Can't be the first time since we have region
+                // parameters to construct a beacon
+                self.next_beacon_time = Self::mk_next_beacon_time(self.interval, false);
+            }
             Err(err) => {
                 warn!(logger, "failed to construct beacon: {err:?}");
-                return;
+                // On failure to construct a beacon at all, select a shortened
+                // "first time" next beacon time
+                self.next_beacon_time = Self::mk_next_beacon_time(self.interval, true);
             }
         };
-        self.send_beacon(beacon, logger).await;
-        self.next_beacon_time =
-            Self::mk_next_beacon_time(self.interval, self.region_params.params.is_empty());
     }
 
     async fn handle_received_beacon(&mut self, packet: Packet, logger: &Logger) {
