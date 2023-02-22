@@ -3,7 +3,7 @@
 use crate::{
     error::RegionError,
     gateway::{self, BeaconResp},
-    region_watcher,
+    impl_msg_sign, region_watcher,
     service::{entropy::EntropyService, poc::PocIotService},
     settings::Settings,
     sync, Base64, Keypair, MsgSign, Packet, RegionParams, Result,
@@ -22,6 +22,9 @@ use xxhash_rust::xxh64::xxh64;
 /// to the configured beacon interval. This jitter factor is one time only, and
 /// will only change when this process or task restarts.
 const BEACON_INTERVAL_JITTER_PERCENTAGE: u64 = 10;
+
+impl_msg_sign!(poc_lora::LoraBeaconReportReqV1, signature);
+impl_msg_sign!(poc_lora::LoraWitnessReportReqV1, signature);
 
 /// Message types that can be sent to `Beaconer`'s inbox.
 #[derive(Debug)]
@@ -58,7 +61,7 @@ pub struct Beaconer {
     /// The last beacon that was transitted
     last_beacon: Option<beacon::Beacon>,
     /// Use for channel plan and FR parameters
-    region_params: Option<RegionParams>,
+    region_params: RegionParams,
     poc_ingest_uri: Uri,
     entropy_uri: Uri,
 }
@@ -74,6 +77,7 @@ impl Beaconer {
         let poc_ingest_uri = settings.poc.ingest_uri.clone();
         let entropy_uri = settings.poc.entropy_uri.clone();
         let keypair = settings.keypair.clone();
+        let region_params = region_watcher::current_value(&region_watch);
 
         Self {
             keypair,
@@ -86,7 +90,7 @@ impl Beaconer {
             // will recalculate this time and no arrival of region_params will
             // cause the beacon to not occur
             next_beacon_time: Instant::now() + interval,
-            region_params: None,
+            region_params,
             poc_ingest_uri,
             entropy_uri,
         }
@@ -113,11 +117,12 @@ impl Beaconer {
                 },
                 region_change = self.region_watch.changed() => match region_change {
                     Ok(()) => {
-                        // Recalculate beacon time based on if this was the first time region
-                        // params have arrived
+                        // Recalculate beacon time based on if this was the
+                        // first time region params have arrived. Do the first
+                        // time check below before region params are assigned
                         self.next_beacon_time =
-                            Self::mk_next_beacon_time(self.interval, self.region_params.is_none());
-                        self.region_params = self.region_watch.borrow().clone();
+                            Self::mk_next_beacon_time(self.interval, self.region_params.params.is_empty());
+                        self.region_params = region_watcher::current_value(&self.region_watch);
                         info!(logger, "updated region";
                             "region" => RegionParams::to_string(&self.region_params));
                     },
@@ -130,16 +135,15 @@ impl Beaconer {
     }
 
     pub async fn mk_beacon(&mut self) -> Result<beacon::Beacon> {
-        let region_params = self
-            .region_params
-            .as_ref()
-            .ok_or_else(RegionError::no_region_params)?;
+        if self.region_params.params.is_empty() {
+            return Err(RegionError::no_region_params());
+        }
 
         let mut entropy_service = EntropyService::new(self.entropy_uri.clone());
         let remote_entropy = entropy_service.get_entropy().await?;
         let local_entropy = beacon::Entropy::local()?;
 
-        let beacon = beacon::Beacon::new(remote_entropy, local_entropy, region_params)?;
+        let beacon = beacon::Beacon::new(remote_entropy, local_entropy, &self.region_params)?;
         Ok(beacon)
     }
 
@@ -202,16 +206,21 @@ impl Beaconer {
     }
 
     async fn handle_beacon_tick(&mut self, logger: &Logger) {
-        let beacon = match self.mk_beacon().await {
-            Ok(beacon) => beacon,
+        match self.mk_beacon().await {
+            Ok(beacon) => {
+                self.send_beacon(beacon, logger).await;
+                // On success just use the normal behavior for selecting a next
+                // beacon time. Can't be the first time since we have region
+                // parameters to construct a beacon
+                self.next_beacon_time = Self::mk_next_beacon_time(self.interval, false);
+            }
             Err(err) => {
                 warn!(logger, "failed to construct beacon: {err:?}");
-                return;
+                // On failure to construct a beacon at all, select a shortened
+                // "first time" next beacon time
+                self.next_beacon_time = Self::mk_next_beacon_time(self.interval, true);
             }
         };
-        self.send_beacon(beacon, logger).await;
-        self.next_beacon_time =
-            Self::mk_next_beacon_time(self.interval, self.region_params.is_none());
     }
 
     async fn handle_received_beacon(&mut self, packet: Packet, logger: &Logger) {
@@ -249,7 +258,7 @@ impl Beaconer {
         report: poc_lora::LoraWitnessReportReqV1,
         logger: &Logger,
     ) {
-        let Some(region_params) = &self.region_params else {
+        if self.region_params.params.is_empty() {
             warn!(logger, "no region params for secondary beacon");
             return;
         };
@@ -271,7 +280,7 @@ impl Beaconer {
                         .map(|local_entropy| (remote_entropy, local_entropy))
                 })
                 .and_then(|(remote_entropy, local_entropy)| {
-                    beacon::Beacon::new(remote_entropy, local_entropy, region_params)
+                    beacon::Beacon::new(remote_entropy, local_entropy, &self.region_params)
                 }) {
                 Ok(beacon) => beacon,
                 Err(err) => {

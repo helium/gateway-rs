@@ -1,4 +1,5 @@
 use crate::{
+    impl_msg_sign,
     service::{CONNECT_TIMEOUT, RPC_TIMEOUT},
     KeyedUri, Keypair, MsgSign, Region, RegionParams, Result,
 };
@@ -7,6 +8,8 @@ use std::sync::Arc;
 
 type ConfigClient = services::iot_config::GatewayClient<Channel>;
 
+impl_msg_sign!(GatewayRegionParamsReqV1, signature);
+
 #[derive(Debug, Clone)]
 pub struct ConfigService {
     pub uri: KeyedUri,
@@ -14,15 +17,15 @@ pub struct ConfigService {
 }
 
 impl ConfigService {
-    pub fn new(keyed_uri: &KeyedUri) -> Result<Self> {
+    pub fn new(keyed_uri: &KeyedUri) -> Self {
         let channel = Endpoint::from(keyed_uri.uri.clone())
             .connect_timeout(CONNECT_TIMEOUT)
             .timeout(RPC_TIMEOUT)
             .connect_lazy();
-        Ok(Self {
+        Self {
             uri: keyed_uri.clone(),
             client: ConfigClient::new(channel),
-        })
+        }
     }
 
     pub async fn region_params(

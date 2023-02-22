@@ -4,7 +4,10 @@ pub mod error;
 pub mod gateway;
 pub mod keyed_uri;
 pub mod keypair;
+pub mod message_cache;
 pub mod packet;
+
+pub mod packet_router;
 pub mod region_watcher;
 pub mod router;
 pub mod server;
@@ -21,7 +24,7 @@ pub use keyed_uri::KeyedUri;
 pub use keypair::{Keypair, PublicKey};
 pub use packet::Packet;
 pub use settings::Settings;
-pub use traits::*;
+pub(crate) use traits::*;
 
 use futures::{Future as StdFuture, Stream as StdStream};
 use std::pin::Pin;

@@ -1,6 +1,6 @@
 use crate::{Error, Result};
 use helium_crypto::{PublicKey, Verify};
-use helium_proto::{services::iot_config::GatewayRegionParamsResV1, Message};
+use helium_proto::{services::iot_config::GatewayRegionParamsResV1, GatewayRespV1, Message};
 
 pub trait MsgVerify {
     fn verify(&self, verifier: &PublicKey) -> Result;
@@ -21,3 +21,4 @@ macro_rules! impl_msg_verify {
 }
 
 impl_msg_verify!(GatewayRegionParamsResV1, signature);
+impl_msg_verify!(GatewayRespV1, signature);

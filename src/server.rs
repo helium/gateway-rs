@@ -1,6 +1,6 @@
 use crate::{
     api::LocalServer,
-    beaconer, gateway, region_watcher, router,
+    beaconer, gateway, packet_router, region_watcher,
     settings::{self, Settings},
     Result,
 };
@@ -8,7 +8,7 @@ use slog::{info, Logger};
 
 pub async fn run(shutdown: &triggered::Listener, settings: &Settings, logger: &Logger) -> Result {
     let (gateway_tx, gateway_rx) = gateway::message_channel();
-    let (router_tx, router_rx) = router::message_channel();
+    let (router_tx, router_rx) = packet_router::message_channel();
     let (beacon_tx, beacon_rx) = beaconer::message_channel();
 
     let mut region_watcher = region_watcher::RegionWatcher::new(settings);
@@ -16,8 +16,19 @@ pub async fn run(shutdown: &triggered::Listener, settings: &Settings, logger: &L
 
     let mut beaconer =
         beaconer::Beaconer::new(settings, beacon_rx, region_rx.clone(), gateway_tx.clone());
+
+    #[cfg(not(feature = "validator"))]
+    let mut router = packet_router::PacketRouter::new(
+        settings,
+        router_rx,
+        region_rx.clone(),
+        gateway_tx.clone(),
+    );
+
+    #[cfg(feature = "validator")]
     let mut router =
-        router::Router::new(settings, router_rx, region_rx.clone(), gateway_tx.clone());
+        crate::router::Dispatcher::new(settings, router_rx, region_rx.clone(), gateway_tx.clone());
+
     let mut gateway = gateway::Gateway::new(
         settings,
         gateway_rx,

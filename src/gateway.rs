@@ -1,6 +1,5 @@
 use crate::{
-    beaconer, error::RegionError, region_watcher, router, sync, Packet, RegionParams, Result,
-    Settings,
+    beaconer, packet_router, region_watcher, sync, Packet, RegionParams, Result, Settings,
 };
 use beacon::Beacon;
 use lorawan::PHYPayload;
@@ -64,13 +63,13 @@ impl MessageSender {
 
 pub struct Gateway {
     messages: MessageReceiver,
-    uplinks: router::MessageSender,
+    uplinks: packet_router::MessageSender,
     beacons: beaconer::MessageSender,
     downlink_mac: MacAddress,
     udp_runtime: UdpRuntime,
     listen_address: String,
     region_watch: region_watcher::MessageReceiver,
-    region_params: Option<RegionParams>,
+    region_params: RegionParams,
 }
 
 impl Gateway {
@@ -78,9 +77,10 @@ impl Gateway {
         settings: &Settings,
         messages: MessageReceiver,
         region_watch: region_watcher::MessageReceiver,
-        uplinks: router::MessageSender,
+        uplinks: packet_router::MessageSender,
         beacons: beaconer::MessageSender,
     ) -> Result<Self> {
+        let region_params = region_watcher::current_value(&region_watch);
         let gateway = Gateway {
             messages,
             uplinks,
@@ -89,7 +89,7 @@ impl Gateway {
             listen_address: settings.listen.clone(),
             udp_runtime: UdpRuntime::new(&settings.listen).await.map_err(Box::new)?,
             region_watch,
-            region_params: None,
+            region_params,
         };
         Ok(gateway)
     }
@@ -113,7 +113,7 @@ impl Gateway {
                     }
                 },
                 region_change = self.region_watch.changed() => match region_change {
-                    Ok(()) => self.region_params = self.region_watch.borrow().clone(),
+                    Ok(()) => self.region_params = region_watcher::current_value(&self.region_watch),
                     Err(_) => warn!(logger, "region watch disconnected")
                 },
             }
@@ -172,12 +172,7 @@ impl Gateway {
     }
 
     fn max_tx_power(&mut self) -> Result<u32> {
-        let region_params = self
-            .region_params
-            .as_ref()
-            .ok_or_else(RegionError::no_region_params)?;
-
-        Ok(region_params.max_conducted_power()?)
+        Ok(self.region_params.max_conducted_power()?)
     }
 
     async fn handle_transmit_beacon(
