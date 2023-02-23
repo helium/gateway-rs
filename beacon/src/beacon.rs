@@ -34,6 +34,10 @@ impl Beacon {
     ) -> Result<Self> {
         match remote_entropy.version {
             0 | 1 => {
+                if region_params.params.is_empty() {
+                    return Err(Error::no_region_params());
+                }
+
                 let seed_data = {
                     let mut hasher = Sha256::new();
                     remote_entropy.digest(&mut hasher);
