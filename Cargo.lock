@@ -795,6 +795,7 @@ dependencies = [
  "helium-proto",
  "http",
  "http-serde",
+ "libc",
  "log",
  "lorawan",
  "prost",

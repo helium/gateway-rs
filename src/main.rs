@@ -77,6 +77,11 @@ fn mk_logger(settings: &Settings) -> Logger {
 }
 
 pub fn main() -> Result {
+    #[cfg(unix)]
+    unsafe {
+        ::libc::signal(::libc::SIGPIPE, ::libc::SIG_DFL);
+    }
+
     let cli = Cli::from_args();
     if cli.daemon {
         daemonize::Daemonize::new()

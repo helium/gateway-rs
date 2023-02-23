@@ -66,6 +66,7 @@ rust_decimal = {version = "1", features = ["serde-with-float"]}
 exponential-backoff = {git = "https://github.com/yoshuawuyts/exponential-backoff", branch = "master"}
 semtech-udp = { version = ">=0.10.5", default-features=false, features=["server"] }
 helium-crypto = "0.6"
+libc = "0.2"
 
 [features]
 default = [ "ecc608" ]
