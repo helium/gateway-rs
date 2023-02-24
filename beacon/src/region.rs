@@ -166,12 +166,6 @@ impl RegionParams {
     }
 }
 
-// This is the currently minimimum conducted power supported by the semtech
-// packet forwarder
-lazy_static::lazy_static! {
-    static ref MIN_CONDUCTED_POWER: Decimal = Decimal::new(120, 1);
-}
-
 impl RegionParams {
     pub fn max_eirp(&self) -> Result<Decimal> {
         self.params
@@ -188,13 +182,6 @@ impl RegionParams {
                 .to_u32()
                 .ok_or_else(Error::invalid_conducted_power)
         })
-    }
-
-    pub fn min_conducted_power(&self) -> Result<u32> {
-        (*MIN_CONDUCTED_POWER)
-            .trunc()
-            .to_u32()
-            .ok_or_else(Error::invalid_conducted_power)
     }
 
     /// Selects the best spreading factor for the given packet size.
