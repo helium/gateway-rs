@@ -23,7 +23,7 @@ pub struct Beacon {
 /// from the value inferred by the region parameters. So conducted_power is
 /// excluded from equality, but _should_ be compared in beacon verification to
 /// ensure that the generated beacon's conducted power >= the received beacon's
-/// conducted_power
+/// conducted_power. The Beacon::verfy function performs this check
 impl PartialEq for Beacon {
     fn eq(&self, other: &Self) -> bool {
         self.data.eq(&other.data)
@@ -94,6 +94,13 @@ impl Beacon {
     pub fn beacon_id(&self) -> String {
         use base64::Engine;
         base64::engine::general_purpose::STANDARD.encode(&self.data)
+    }
+
+    /// Verifies a generated beacon with a `reported` beacon. This checks that
+    /// all fields are equal but that the conducted_power of this beacon is
+    /// greater than the reported conducted_power.
+    pub fn verify(&self, reported: &Beacon) -> bool {
+        self.eq(reported) && self.conducted_power >= reported.conducted_power
     }
 }
 
