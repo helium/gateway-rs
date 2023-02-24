@@ -7,7 +7,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 pub const BEACON_PAYLOAD_SIZE: usize = 51;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Eq)]
 pub struct Beacon {
     pub data: Vec<u8>,
 
@@ -16,6 +16,22 @@ pub struct Beacon {
     pub remote_entropy: Entropy,
     pub local_entropy: Entropy,
     pub conducted_power: u32,
+}
+
+/// A beacon is equal to another beacon when all fields except for conducted
+/// power are equal. Conducted power can be adjusted by the packet forwarder
+/// from the value inferred by the region parameters. So conducted_power is
+/// excluded from equality, but _should_ be compared in beacon verification to
+/// ensure that the generated beacon's conducted power >= the received beacon's
+/// conducted_power. The Beacon::verfy function performs this check
+impl PartialEq for Beacon {
+    fn eq(&self, other: &Self) -> bool {
+        self.data.eq(&other.data)
+            && self.frequency.eq(&other.frequency)
+            && self.datarate.eq(&other.datarate)
+            && self.remote_entropy.eq(&other.remote_entropy)
+            && self.local_entropy.eq(&other.local_entropy)
+    }
 }
 
 impl Beacon {
@@ -79,6 +95,13 @@ impl Beacon {
         use base64::Engine;
         base64::engine::general_purpose::STANDARD.encode(&self.data)
     }
+
+    /// Verifies a generated beacon with a `reported` beacon. This checks that
+    /// all fields are equal but that the conducted_power of this beacon is
+    /// greater than the reported conducted_power.
+    pub fn verify(&self, reported: &Beacon) -> bool {
+        self.eq(reported) && self.conducted_power >= reported.conducted_power
+    }
 }
 
 fn rand_payload<R>(rng: &mut R, size: usize) -> Vec<u8>
@@ -103,7 +126,8 @@ impl TryFrom<Beacon> for poc_lora::LoraBeaconReportReqV1 {
             datarate: v.datarate as i32,
             tmst: 0,
             // This is the initial value. The beacon sender updates this value
-            // with the actual conducted power reported by the packet forwarder
+            // with the actual conducted power reported by the packet forwarder.
+            // This is adjusted for in the PartialEq implementation
             tx_power: v.conducted_power as i32,
             // The timestamp of the beacon is the timestamp of creation of the
             // report (in nanos)
