@@ -96,7 +96,7 @@ jobs:
         with:
           fail_on_unmatched_files: true
           files: helium-gateway-*.tar.gz
-          name: Release ${GITHUB_REF#refs/*/}
+          name: ${{github.ref_name}}
 
   docker_buildx:
     # Ensure we don't publish images until we pass clippy.
