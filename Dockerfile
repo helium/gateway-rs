@@ -26,34 +26,19 @@
 # Runs on native host architecture
 # Cross compiles for target architecture
 # ------------------------------------------------------------------------------
-FROM --platform=$BUILDPLATFORM rust:latest AS cargo-build
-RUN apt-get update && \
-    apt-get upgrade -y && \
-    apt-get install -y cmake musl-tools clang llvm protobuf-compiler
+FROM rust:alpine3.17 AS cargo-build
+ARG FEATURES
+RUN apk add --no-cache --update cmake musl-dev clang15-libclang llvm protobuf
+RUN if [[ "$FEATURES" == *"tpm"* ]] ; then apk add tpm2-tss-dev gcc g++ libc-dev ; fi
 
 WORKDIR /tmp/helium_gateway
 COPY . .
 
-ENV CC_aarch64_unknown_linux_musl=clang
-ENV AR_aarch64_unknown_linux_musl=llvm-ar
-ENV CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_RUSTFLAGS="-Clink-self-contained=yes -Clinker=rust-lld"
+ENV CC=gcc CXX=g++ CFLAGS="-U__sun__" \
+    RUSTFLAGS="-C target-feature=-crt-static"
 
-ENV CC_x86_64_unknown_linux_musl=clang
-ENV AR_x86_64_unknown_linux_musl=llvm-ar
-ENV CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_RUSTFLAGS="-Clink-self-contained=yes -Clinker=rust-lld"
-
-ARG TARGETPLATFORM
-RUN \
-case "$TARGETPLATFORM" in \
-    "linux/arm64") echo aarch64-unknown-linux-musl > rust_target.txt ;; \
-    "linux/amd64") echo x86_64-unknown-linux-musl > rust_target.txt ;; \
-    *) exit 1 ;; \
-esac
-
-RUN rustup target add $(cat rust_target.txt)
-
-RUN cargo build --release --target=$(cat rust_target.txt)
-RUN mv target/$(cat rust_target.txt)/release/helium_gateway .
+RUN cargo build --release --no-default-features --features $FEATURES
+RUN mv target/release/helium_gateway .
 
 
 # ------------------------------------------------------------------------------
