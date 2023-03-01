@@ -40,7 +40,14 @@ COPY . .
 
 ENV CC=gcc CXX=g++ CFLAGS="-U__sun__" RUSTFLAGS="-C target-feature=-crt-static"
 
-RUN cargo build --release --no-default-features --features=ecc608,tpm
+# TMP build fail when cross compiling, so we need to use QEMU when
+# building for not-host architectures. But QUEMU builds fail in CI due
+# to OOMing on cargo registry updating. Therefore, we will need to
+# compile with nightly until cargo's sparse registry stabilizes.
+RUN rustup toolchain install nightly
+ENV CARGO_UNSTABLE_SPARSE_REGISTRY=true
+
+RUN cargo +nightly build --release --no-default-features --features=ecc608,tpm
 RUN mv target/release/helium_gateway .
 
 
