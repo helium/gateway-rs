@@ -99,8 +99,11 @@ impl Beacon {
     /// Verifies a generated beacon with a `reported` beacon. This checks that
     /// all fields are equal but that the conducted_power of this beacon is
     /// greater than the reported conducted_power.
+    ///
+    /// The conducted power verification check is disabled while makers upgrade
+    /// their packet forwarders.
     pub fn verify(&self, reported: &Beacon) -> bool {
-        self.eq(reported) && self.conducted_power >= reported.conducted_power
+        self.eq(reported) // && self.conducted_power >= reported.conducted_power
     }
 }
 
