@@ -22,22 +22,26 @@
 
 # ------------------------------------------------------------------------------
 # Cargo Build Stage
-#
-# Runs on native host architecture
-# Cross compiles for target architecture
 # ------------------------------------------------------------------------------
 FROM rust:alpine3.17 AS cargo-build
 ARG FEATURES
-RUN apk add --no-cache --update cmake musl-dev clang15-libclang llvm protobuf
-RUN if [[ "$FEATURES" == *"tpm"* ]] ; then apk add tpm2-tss-dev gcc g++ libc-dev ; fi
+RUN apk add --no-cache --update \
+    clang15-libclang \
+    cmake \
+    g++ \
+    gcc \
+    libc-dev \
+    llvm \
+    musl-dev \
+    protobuf \
+    tpm2-tss-dev
 
 WORKDIR /tmp/helium_gateway
 COPY . .
 
-ENV CC=gcc CXX=g++ CFLAGS="-U__sun__" \
-    RUSTFLAGS="-C target-feature=-crt-static"
+ENV CC=gcc CXX=g++ CFLAGS="-U__sun__" RUSTFLAGS="-C target-feature=-crt-static"
 
-RUN cargo build --release --no-default-features --features $FEATURES
+RUN cargo build --release --no-default-features --features=ecc,tpm
 RUN mv target/release/helium_gateway .
 
 
