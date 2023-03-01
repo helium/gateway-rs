@@ -31,7 +31,6 @@ RUN apk add --no-cache --update \
     g++ \
     gcc \
     libc-dev \
-    llvm \
     musl-dev \
     protobuf \
     tpm2-tss-dev
@@ -41,7 +40,7 @@ COPY . .
 
 ENV CC=gcc CXX=g++ CFLAGS="-U__sun__" RUSTFLAGS="-C target-feature=-crt-static"
 
-RUN cargo build --release --no-default-features --features=ecc,tpm
+RUN cargo build --release --no-default-features --features=ecc608,tpm
 RUN mv target/release/helium_gateway .
 
 
@@ -54,7 +53,15 @@ RUN mv target/release/helium_gateway .
 FROM alpine:3.17.1
 ENV RUST_BACKTRACE=1
 ENV GW_LISTEN="0.0.0.0:1680"
-RUN apk add --no-cache --update curl
+RUN apk add --no-cache --update \
+    curl \
+    libstdc++ \
+    tpm2-tss-esys \
+    tpm2-tss-fapi \
+    tpm2-tss-mu \
+    tpm2-tss-rc \
+    tpm2-tss-tcti-device
+
 COPY --from=cargo-build /tmp/helium_gateway/helium_gateway /usr/local/bin/helium_gateway
 RUN mkdir /etc/helium_gateway
 COPY config/settings.toml /etc/helium_gateway/settings.toml
