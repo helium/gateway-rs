@@ -61,7 +61,6 @@ FROM alpine:3.17.1
 ENV RUST_BACKTRACE=1
 ENV GW_LISTEN="0.0.0.0:1680"
 RUN apk add --no-cache --update \
-    curl \
     libstdc++ \
     tpm2-tss-esys \
     tpm2-tss-fapi \
