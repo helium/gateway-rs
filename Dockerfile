@@ -22,38 +22,33 @@
 
 # ------------------------------------------------------------------------------
 # Cargo Build Stage
-#
-# Runs on native host architecture
-# Cross compiles for target architecture
 # ------------------------------------------------------------------------------
-FROM --platform=$BUILDPLATFORM rust:latest AS cargo-build
-RUN apt-get update && \
-    apt-get upgrade -y && \
-    apt-get install -y cmake musl-tools clang llvm protobuf-compiler
+FROM rust:alpine3.17 AS cargo-build
+ARG FEATURES
+RUN apk add --no-cache --update \
+    clang15-libclang \
+    cmake \
+    g++ \
+    gcc \
+    libc-dev \
+    musl-dev \
+    protobuf \
+    tpm2-tss-dev
 
 WORKDIR /tmp/helium_gateway
 COPY . .
 
-ENV CC_aarch64_unknown_linux_musl=clang
-ENV AR_aarch64_unknown_linux_musl=llvm-ar
-ENV CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_RUSTFLAGS="-Clink-self-contained=yes -Clinker=rust-lld"
+ENV CC=gcc CXX=g++ CFLAGS="-U__sun__" RUSTFLAGS="-C target-feature=-crt-static"
 
-ENV CC_x86_64_unknown_linux_musl=clang
-ENV AR_x86_64_unknown_linux_musl=llvm-ar
-ENV CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_RUSTFLAGS="-Clink-self-contained=yes -Clinker=rust-lld"
+# TMP build fail when cross compiling, so we need to use QEMU when
+# building for not-host architectures. But QUEMU builds fail in CI due
+# to OOMing on cargo registry updating. Therefore, we will need to
+# compile with nightly until cargo's sparse registry stabilizes.
+RUN rustup toolchain install nightly
+ENV CARGO_UNSTABLE_SPARSE_REGISTRY=true
 
-ARG TARGETPLATFORM
-RUN \
-case "$TARGETPLATFORM" in \
-    "linux/arm64") echo aarch64-unknown-linux-musl > rust_target.txt ;; \
-    "linux/amd64") echo x86_64-unknown-linux-musl > rust_target.txt ;; \
-    *) exit 1 ;; \
-esac
-
-RUN rustup target add $(cat rust_target.txt)
-
-RUN cargo build --release --target=$(cat rust_target.txt)
-RUN mv target/$(cat rust_target.txt)/release/helium_gateway .
+RUN cargo +nightly build --release --features=tpm
+RUN mv target/release/helium_gateway .
 
 
 # ------------------------------------------------------------------------------
@@ -65,7 +60,14 @@ RUN mv target/$(cat rust_target.txt)/release/helium_gateway .
 FROM alpine:3.17.1
 ENV RUST_BACKTRACE=1
 ENV GW_LISTEN="0.0.0.0:1680"
-RUN apk add --no-cache --update curl
+RUN apk add --no-cache --update \
+    libstdc++ \
+    tpm2-tss-esys \
+    tpm2-tss-fapi \
+    tpm2-tss-mu \
+    tpm2-tss-rc \
+    tpm2-tss-tcti-device
+
 COPY --from=cargo-build /tmp/helium_gateway/helium_gateway /usr/local/bin/helium_gateway
 RUN mkdir /etc/helium_gateway
 COPY config/settings.toml /etc/helium_gateway/settings.toml
