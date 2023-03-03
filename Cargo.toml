@@ -20,7 +20,7 @@ serde = {version = "1", features = ["rc", "derive"]}
 rust_decimal = {version = "1", features = ["serde-with-float"]}
 helium-proto = { git = "https://github.com/helium/proto", branch="master", features=["services"]}
 rand = "0.8"
-base64 = "0"
+base64 = ">=0.21"
 sha2 = "0"
 thiserror = "1.0"
 prost = "0"

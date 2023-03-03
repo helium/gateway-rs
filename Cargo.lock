@@ -834,7 +834,7 @@ version = "1.0.0-beta.1"
 dependencies = [
  "angry-purple-tiger",
  "async-trait",
- "base64 0.13.1",
+ "base64 0.21.0",
  "beacon",
  "bytes",
  "cfg-if",
