@@ -47,7 +47,6 @@ slog-stdlog = "4"
 thiserror = {workspace = true}
 rand = {workspace = true}
 prost = {workspace = true}
-daemonize = "0.4"
 tonic = "0"
 http = "*"
 log = "0"
