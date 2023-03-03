@@ -17,13 +17,7 @@ pub struct Cli {
     #[arg(short = 'c', default_value = "/etc/helium_gateway/settings.toml")]
     config: PathBuf,
 
-    /// Daemonize the application
-    #[arg(long)]
-    daemon: bool,
-
     /// Monitor stdin and terminate when stdin closes.
-    ///
-    /// This flag is not cmopatible with the daemon flag
     #[arg(long)]
     stdin: bool,
 
@@ -79,12 +73,6 @@ fn mk_logger(settings: &Settings) -> Logger {
 
 pub fn main() -> Result {
     let cli = Cli::parse();
-    if cli.daemon {
-        daemonize::Daemonize::new()
-            .pid_file(format!("/var/run/{}.pid", env!("CARGO_BIN_NAME")))
-            .start()
-            .expect("daemon start");
-    }
 
     let settings = Settings::new(&cli.config)?;
 
@@ -108,7 +96,7 @@ pub fn main() -> Result {
             .build()
             .expect("runtime build");
 
-        // Start the runtime after the daemon fork
+        // Start the runtime
         let res = runtime.block_on(async {
             let (shutdown_trigger, shutdown_listener) = triggered::trigger();
             tokio::spawn(async move {
