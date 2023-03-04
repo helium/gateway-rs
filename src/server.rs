@@ -4,9 +4,10 @@ use crate::{
     settings::{self, Settings},
     Result,
 };
-use slog::{info, Logger};
+use tracing::info;
 
-pub async fn run(shutdown: &triggered::Listener, settings: &Settings, logger: &Logger) -> Result {
+#[tracing::instrument(skip_all)]
+pub async fn run(shutdown: &triggered::Listener, settings: &Settings) -> Result {
     let (gateway_tx, gateway_rx) = gateway::message_channel();
     let (router_tx, router_rx) = packet_router::message_channel();
     let (beacon_tx, beacon_rx) = beaconer::message_channel();
@@ -38,17 +39,17 @@ pub async fn run(shutdown: &triggered::Listener, settings: &Settings, logger: &L
     )
     .await?;
     let api = LocalServer::new(region_rx.clone(), settings)?;
-    info!(logger,
-        "starting server";
-        "version" => settings::version().to_string(),
-        "key" => settings.keypair.public_key().to_string(),
+    info!(
+        version = %settings::version().to_string(),
+        key = %settings.keypair.public_key().to_string(),
+        "starting server",
     );
     tokio::try_join!(
-        region_watcher.run(shutdown, logger),
-        beaconer.run(shutdown, logger),
-        gateway.run(shutdown, logger),
-        router.run(shutdown, logger),
-        api.run(shutdown, logger),
+        region_watcher.run(shutdown),
+        beaconer.run(shutdown),
+        gateway.run(shutdown),
+        router.run(shutdown),
+        api.run(shutdown),
     )
     .map(|_| ())
 }

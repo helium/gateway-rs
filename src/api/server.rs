@@ -10,9 +10,9 @@ use futures::TryFutureExt;
 use helium_crypto::Sign;
 use helium_proto::services::local::{Api, Server};
 use helium_proto::{BlockchainTxnAddGatewayV1, Message};
-use slog::{info, o, Logger};
-use std::sync::Arc;
+use std::{net::SocketAddr, sync::Arc};
 use tonic::{self, transport::Server as TransportServer, Request, Response, Status};
+use tracing::info;
 
 pub type ApiResult<T> = std::result::Result<Response<T>, Status>;
 
@@ -33,10 +33,10 @@ impl LocalServer {
         })
     }
 
-    pub async fn run(self, shutdown: &triggered::Listener, logger: &Logger) -> Result {
-        let addr = listen_addr(self.listen_port).parse().unwrap();
-        let logger = logger.new(o!("module" => "api", "listen" => addr));
-        info!(logger, "starting");
+    pub async fn run(self, shutdown: &triggered::Listener) -> Result {
+        let addr: SocketAddr = listen_addr(self.listen_port).parse().unwrap();
+        tracing::Span::current().record("listen", addr.to_string());
+        info!(listen = %addr, "starting");
         TransportServer::builder()
             .add_service(Server::new(self))
             .serve_with_shutdown(addr, shutdown.clone())

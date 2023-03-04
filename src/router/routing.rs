@@ -1,8 +1,8 @@
 use super::{DevAddrFilter, EuiFilter};
 use crate::{KeyedUri, PublicKey, Result};
 use helium_proto::{routing_information::Data as RoutingData, RoutingInformation};
-use slog::{warn, Logger};
 use std::{convert::TryFrom, sync::Arc};
+use tracing::warn;
 
 #[derive(Clone, Debug)]
 pub struct Routing {
@@ -34,7 +34,7 @@ impl Routing {
         }
     }
 
-    pub fn from_proto(logger: &Logger, r: &helium_proto::Routing) -> Result<Self> {
+    pub fn from_proto(r: &helium_proto::Routing) -> Result<Self> {
         let filters = r.filters.iter().map(EuiFilter::from_bin).collect();
         let subnets = r.subnets.iter().map(DevAddrFilter::from_bin).collect();
         let oui = r.oui;
@@ -49,11 +49,7 @@ impl Routing {
                 uri_str
                     .parse()
                     .map_err(|err| {
-                        warn!(
-                            logger,
-                            "ignoring invalid uri: \"{}\": {:?}", uri_str, err;
-                            "oui" => r.oui
-                        );
+                        warn!(oui = r.oui, %err, "ignoring invalid uri: \"{uri_str}\"");
                     })
                     .and_then(|uri| {
                         PublicKey::try_from(address.pub_key.as_ref())
@@ -61,13 +57,9 @@ impl Routing {
                                 uri,
                                 pubkey: Arc::new(public_key),
                             })
-                            .map_err(|err| {
-                                warn!(
-                                    logger,
-                                    "ignoring public key: {:?}", err;
-                                    "oui" => r.oui
-                                )
-                            })
+                            .map_err(
+                                |err| warn!(oui = r.oui, %err, "failed to construct public key"),
+                            )
                     })
                     .ok()
             })

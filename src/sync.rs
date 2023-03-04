@@ -1,7 +1,7 @@
 use crate::{Error, Result};
 use futures::TryFutureExt;
-use slog::{warn, Logger};
 use tokio::sync::{mpsc, oneshot};
+use tracing::warn;
 
 #[derive(Debug)]
 pub struct MessageSender<T>(pub(crate) mpsc::Sender<T>);
@@ -77,10 +77,10 @@ pub fn response_channel<T>() -> (ResponseSender<T>, ResponseReceiver<T>) {
 }
 
 impl<T: std::fmt::Debug> ResponseSender<T> {
-    pub fn send(self, msg: T, logger: &Logger) {
+    pub fn send(self, msg: T) {
         match self.0.send(msg) {
             Ok(()) => (),
-            Err(err) => warn!(logger, "ignoring channel error: {:?}", err),
+            Err(err) => warn!(?err, "ignoring channel error"),
         }
     }
 }

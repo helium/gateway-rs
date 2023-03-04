@@ -8,9 +8,9 @@ use crate::{
     Base64, KeyedUri, Keypair, Packet, RegionParams, Result,
 };
 use futures::TryFutureExt;
-use slog::{debug, info, o, warn, Logger};
 use std::{sync::Arc, time::Instant};
 use tokio::{sync::mpsc, time::Duration};
+use tracing::{debug, info, warn};
 
 pub const STORE_GC_INTERVAL: Duration = Duration::from_secs(60);
 pub const STATE_CHANNEL_CONNECT_INTERVAL: Duration = Duration::from_secs(60);
@@ -76,74 +76,66 @@ impl RouterClient {
         })
     }
 
+    #[tracing::instrument(skip_all, fields(oui = self.oui))]
     pub async fn run(
         &mut self,
         mut messages: MessageReceiver,
         shutdown: triggered::Listener,
-        logger: &Logger,
     ) -> Result {
-        let logger = logger.new(o!(
-            "module" => "router",
-            "pubkey" => self.router.uri.pubkey.to_string(),
-            "uri" => self.router.uri.uri.to_string(),
-            "oui" => self.oui,
-        ));
-        info!(logger, "starting");
+        info!(
+            uri = %self.router.uri.uri,
+            pubkey = %self.router.uri.pubkey,
+             "starting"
+        );
 
         loop {
             tokio::select! {
                 _ = shutdown.clone() => {
-                    info!(logger, "shutting down");
+                    info!("shutting down");
                     return Ok(())
                 },
                 message = messages.recv() => match message {
                     Some(Message::Uplink{packet, received}) => {
-                        self.handle_uplink(&logger, packet, received)
-                            .unwrap_or_else(|err| warn!(logger, "ignoring failed uplink {:?}", err))
+                        self.handle_uplink(packet, received)
+                            .unwrap_or_else(|err| warn!(%err, "ignoring failed uplink"))
                             .await;
                     },
                     Some(Message::Stop) => {
-                        info!(logger, "stop requested, shutting down");
+                        info!("stop requested, shutting down");
                         return Ok(())
                     },
-                    None => warn!(logger, "ignoring closed uplinks channel"),
+                    None => warn!("ignoring closed uplinks channel"),
                 },
                 region_change = self.region_watch.changed() => match region_change {
                     Ok(()) => {
                         self.region_params = region_watcher::current_value(&self.region_watch);
-                        info!(logger, "updated region";
-                            "region" => self.region_params.to_string());
+                        info!(region = %self.region_params, "region updated");
                     },
-                    Err(_) => warn!(logger, "region watch disconnected"),
+                    Err(_) => warn!("region watch disconnected"),
                 },
             }
         }
     }
 
-    async fn handle_uplink(
-        &mut self,
-        logger: &Logger,
-        uplink: Packet,
-        received: Instant,
-    ) -> Result {
+    async fn handle_uplink(&mut self, uplink: Packet, received: Instant) -> Result {
         self.store.push_back(uplink, received);
-        self.send_waiting_packets(logger).await
+        self.send_waiting_packets().await
     }
 
-    async fn handle_downlink(&mut self, _logger: &Logger, packet: Packet) {
+    async fn handle_downlink(&mut self, packet: Packet) {
         self.downlinks.downlink(packet).await;
     }
 
-    async fn send_waiting_packets(&mut self, logger: &Logger) -> Result {
+    async fn send_waiting_packets(&mut self) -> Result {
         while let (removed, Some(packet)) = self.store.pop_front(STORE_GC_INTERVAL) {
             if removed > 0 {
-                info!(logger, "discarded {} queued packets", removed);
+                info!("discarded {removed} queued packets");
             }
-            if let Some(message) = self.send_packet(logger, packet).await? {
+            if let Some(message) = self.send_packet(packet).await? {
                 match message.to_downlink() {
-                    Ok(Some(packet)) => self.handle_downlink(logger, packet).await,
+                    Ok(Some(packet)) => self.handle_downlink(packet).await,
                     Ok(None) => (),
-                    Err(err) => warn!(logger, "ignoring router response: {err:?}"),
+                    Err(err) => warn!(%err, "ignoring router response"),
                 }
             }
         }
@@ -152,11 +144,9 @@ impl RouterClient {
 
     async fn send_packet(
         &mut self,
-        logger: &Logger,
         packet: CacheMessage<Packet>,
     ) -> Result<Option<StateChannelMessage>> {
-        debug!(logger, "sending packet";
-            "packet_hash" => packet.hash().to_b64());
+        debug!(packet_hash = packet.hash().to_b64(), "sending packet");
         let hold_time = packet.hold_time().as_millis() as u64;
         StateChannelMessage::packet(
             packet.into_inner(),
