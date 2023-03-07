@@ -12,9 +12,9 @@ use futures::TryFutureExt;
 use helium_proto::{services::poc_lora, Message as ProtoMessage};
 use http::Uri;
 use rand::{rngs::OsRng, Rng};
-use slog::{self, info, warn, Logger};
 use std::sync::Arc;
 use tokio::time::{self, Duration, Instant};
+use tracing::{info, warn};
 use xxhash_rust::xxh64::xxh64;
 
 /// To prevent a thundering herd of hotspots all beaconing at the same time, we
@@ -96,23 +96,22 @@ impl Beaconer {
         }
     }
 
-    pub async fn run(&mut self, shutdown: &triggered::Listener, logger: &Logger) -> Result {
-        let logger = logger.new(slog::o!("module" => "beacon"));
-        info!(logger, "starting";  "beacon_interval" => self.interval.as_secs());
+    pub async fn run(&mut self, shutdown: &triggered::Listener) -> Result {
+        info!(beacon_interval = self.interval.as_secs(), "starting");
 
         loop {
             tokio::select! {
                 _ = shutdown.clone() => {
-                    info!(logger, "shutting down");
+                    info!("shutting down");
                     return Ok(())
                 },
                 _ = time::sleep_until(self.next_beacon_time) => {
-                    self.handle_beacon_tick(&logger).await
+                    self.handle_beacon_tick().await
                 },
                 message = self.messages.recv() => match message {
-                    Some(message) => self.handle_message(message, &logger).await,
+                    Some(message) => self.handle_message(message).await,
                     None => {
-                        warn!(logger, "ignoring closed message channel");
+                        warn!("ignoring closed message channel");
                     }
                 },
                 region_change = self.region_watch.changed() => match region_change {
@@ -123,10 +122,9 @@ impl Beaconer {
                         self.next_beacon_time =
                             Self::mk_next_beacon_time(self.interval, self.region_params.params.is_empty());
                         self.region_params = region_watcher::current_value(&self.region_watch);
-                        info!(logger, "updated region";
-                            "region" => RegionParams::to_string(&self.region_params));
+                        info!(region = RegionParams::to_string(&self.region_params), "region updated");
                     },
-                    Err(_) => warn!(logger, "region watch disconnected"),
+                    Err(_) => warn!("region watch disconnected"),
                 }
 
 
@@ -150,14 +148,14 @@ impl Beaconer {
     /// Sends a gateway-to-gateway packet.
     ///
     /// See [`gateway::MessageSender::transmit_beacon`]
-    pub async fn send_beacon(&mut self, beacon: beacon::Beacon, logger: &Logger) {
+    pub async fn send_beacon(&mut self, beacon: beacon::Beacon) {
         let beacon_id = beacon.beacon_id();
-        info!(logger, "transmitting beacon"; "beacon" => &beacon_id);
+        info!(beacon_id, "transmitting beacon");
 
         let (powe, tmst) = match self.transmit.transmit_beacon(beacon.clone()).await {
             Ok(BeaconResp { powe, tmst }) => (powe, tmst),
             Err(err) => {
-                warn!(logger, "failed to transmit beacon {err:?}");
+                warn!(%err, "transmit beacon");
                 return;
             }
         };
@@ -167,20 +165,20 @@ impl Beaconer {
         let report = match self.mk_beacon_report(beacon, powe, tmst).await {
             Ok(report) => report,
             Err(err) => {
-                warn!(logger, "failed to construct beacon report {err:?}"; "beacon" => &beacon_id);
+                warn!(beacon_id, %err, "poc beacon report");
                 return;
             }
         };
         let _ = PocIotService::new(self.poc_ingest_uri.clone())
             .submit_beacon(report)
-            .inspect_err(|err| info!(logger, "failed to submit poc beacon report: {err:?}"; "beacon" => &beacon_id))
-            .inspect_ok(|_| info!(logger, "poc beacon report submitted"; "beacon" => &beacon_id))
+            .inspect_err(|err| info!(beacon_id, %err, "submit poc beacon report",))
+            .inspect_ok(|_| info!(beacon_id, "poc beacon report submitted",))
             .await;
     }
 
-    async fn handle_message(&mut self, message: Message, logger: &Logger) {
+    async fn handle_message(&mut self, message: Message) {
         match message {
-            Message::ReceivedBeacon(packet) => self.handle_received_beacon(packet, logger).await,
+            Message::ReceivedBeacon(packet) => self.handle_received_beacon(packet).await,
         }
     }
 
@@ -205,17 +203,17 @@ impl Beaconer {
         Ok(report)
     }
 
-    async fn handle_beacon_tick(&mut self, logger: &Logger) {
+    async fn handle_beacon_tick(&mut self) {
         match self.mk_beacon().await {
             Ok(beacon) => {
-                self.send_beacon(beacon, logger).await;
+                self.send_beacon(beacon).await;
                 // On success just use the normal behavior for selecting a next
                 // beacon time. Can't be the first time since we have region
                 // parameters to construct a beacon
                 self.next_beacon_time = Self::mk_next_beacon_time(self.interval, false);
             }
             Err(err) => {
-                warn!(logger, "failed to construct beacon: {err:?}");
+                warn!(%err, "construct beacon");
                 // On failure to construct a beacon at all, select a shortened
                 // "first time" next beacon time
                 self.next_beacon_time = Self::mk_next_beacon_time(self.interval, true);
@@ -223,12 +221,12 @@ impl Beaconer {
         };
     }
 
-    async fn handle_received_beacon(&mut self, packet: Packet, logger: &Logger) {
-        info!(logger, "received possible PoC payload: {packet:?}");
+    async fn handle_received_beacon(&mut self, packet: Packet) {
+        info!("received possible PoC payload: {packet:?}");
 
         if let Some(last_beacon) = &self.last_beacon {
             if packet.payload == last_beacon.data {
-                info!(logger, "ignoring last self beacon witness");
+                info!("ignoring last self beacon witness");
                 return;
             }
         }
@@ -236,30 +234,37 @@ impl Beaconer {
         let report = match self.mk_witness_report(packet).await {
             Ok(report) => report,
             Err(err) => {
-                warn!(logger, "ignoring invalid witness report: {err:?}");
+                warn!(%err, "ignoring invalid witness report");
                 return;
             }
         };
 
         let _ = PocIotService::new(self.poc_ingest_uri.clone())
             .submit_witness(report.clone())
-            .inspect_err(|err| info!(logger, "failed to submit poc witness report: {err:?}"; "beacon" => report.data.to_b64()))
-            .inspect_ok(|_| info!(logger, "poc witness report submitted"; "beacon" => report.data.to_b64()))
+            .inspect_err(|err| {
+                info!(
+                    beacon = report.data.to_b64(),
+                    %err,
+                    "submit poc witness report"
+                )
+            })
+            .inspect_ok(|_| {
+                info!(
+                    beacon = report.data.to_b64(),
+                    "poc witness report submitted"
+                )
+            })
             .await;
 
         // Disable secondary beacons until TTL is implemented
         if false {
-            self.handle_secondary_beacon(report, logger).await
+            self.handle_secondary_beacon(report).await
         }
     }
 
-    async fn handle_secondary_beacon(
-        &mut self,
-        report: poc_lora::LoraWitnessReportReqV1,
-        logger: &Logger,
-    ) {
+    async fn handle_secondary_beacon(&mut self, report: poc_lora::LoraWitnessReportReqV1) {
         if self.region_params.params.is_empty() {
-            warn!(logger, "no region params for secondary beacon");
+            warn!("no region params for secondary beacon");
             return;
         };
 
@@ -284,12 +289,12 @@ impl Beaconer {
                 }) {
                 Ok(beacon) => beacon,
                 Err(err) => {
-                    warn!(logger, "secondary beacon construction error: {err:?}");
+                    warn!(%err, "secondary beacon construction");
                     return;
                 }
             };
 
-            self.send_beacon(beacon, logger).await
+            self.send_beacon(beacon).await
         }
     }
 

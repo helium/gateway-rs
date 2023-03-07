@@ -1,8 +1,8 @@
 use crate::{settings::Settings, KeyedUri, Keypair, Region, RegionParams, Result};
 use exponential_backoff::Backoff;
-use slog::{info, o, warn, Logger};
 use std::{sync::Arc, time::Duration};
 use tokio::{sync::watch, time};
+use tracing::{info, warn};
 
 const REGION_BACKOFF_RETRIES: u32 = 10;
 const REGION_BACKOFF_MIN_WAIT: Duration = Duration::from_secs(5);
@@ -50,12 +50,10 @@ impl RegionWatcher {
         self.watch.subscribe()
     }
 
-    pub async fn run(&mut self, shutdown: &triggered::Listener, logger: &Logger) -> Result {
-        let logger = logger.new(o!(
-            "module" => "region_watcher",
-        ));
-        info!(logger, "starting";
-            "default_region" => self.default_region.to_string(),
+    pub async fn run(&mut self, shutdown: &triggered::Listener) -> Result {
+        info!(
+            default_region = %self.default_region,
+            "starting",
         );
 
         let backoff = Backoff::new(
@@ -71,10 +69,10 @@ impl RegionWatcher {
 
             tokio::select! {
                 _ = shutdown.clone() => {
-                    info!(logger, "shutting down");
+                    info!("shutting down");
                     return Ok(())
                 },
-                _ = time::sleep(sleep) => match self.check_region(shutdown, &logger).await {
+                _ = time::sleep(sleep) => match self.check_region(shutdown).await {
                     // A successful fetch will set request_retry to RETRIES + 1
                     // which means a first error can reset it back to 1 to start
                     // backing of up to RETRIES
@@ -99,7 +97,6 @@ impl RegionWatcher {
     pub async fn check_region(
         &mut self,
         shutdown: &triggered::Listener,
-        logger: &Logger,
     ) -> Result<Option<RegionParams>> {
         let mut service = crate::service::config::ConfigService::new(&self.config_uri);
         let current_region = self.watch.borrow().region;
@@ -109,18 +106,21 @@ impl RegionWatcher {
             _ = shutdown.clone() => Ok(None),
             response = service.region_params(current_region, self.keypair.clone()) => match response.map(Some) {
                 Err(err) => {
-                    warn!(logger, "config region_params error: {err:?}";
-                        "pubkey" => service_uri.pubkey.to_string(),
-                        "uri" => service_uri.uri.to_string(),
-                        "region" => current_region.to_string(),
+                    warn!(
+                        pubkey = %service_uri.pubkey,
+                        uri = %service_uri.uri,
+                        region = %current_region,
+                        %err,
+                        "failed to get region_params"
                     );
                     Err(err)
                 }
                 other => {
-                    info!(logger, "config region_params fetched";
-                        "pubkey" => service_uri.pubkey.to_string(),
-                        "uri" => service_uri.uri.to_string(),
-                        "region" => current_region.to_string(),
+                    info!(
+                        pubkey = %service_uri.pubkey,
+                        uri = %service_uri.uri,
+                        region = %current_region,
+                        "fetched config region_params",
                     );
                     other
                 }
@@ -132,7 +132,6 @@ impl RegionWatcher {
     pub async fn check_region(
         &mut self,
         shutdown: &triggered::Listener,
-        logger: &Logger,
     ) -> Result<Option<RegionParams>> {
         use crate::Error;
         use futures::TryFutureExt;
@@ -146,9 +145,12 @@ impl RegionWatcher {
         let mut service = seed_gateway
             .random_new(5, shutdown.clone())
             .inspect_err(|err| {
-                warn!(logger, "gateway selection error: {err:?}";
-                        "pubkey" => seed_gateway_uri.pubkey.to_string(),
-                        "uri" => seed_gateway_uri.uri.to_string())
+                warn!(
+                    pubkey = %seed_gateway_uri.pubkey,
+                    uri = %seed_gateway_uri.uri,
+                    %err,
+                    "gateway selection",
+                )
             })
             .await?
             .ok_or_else(Error::no_service)?;
@@ -159,17 +161,20 @@ impl RegionWatcher {
             response = service.region_params(&current_region, self.keypair.clone()) =>
                 match response.map(Some) {
                     Err(err) => {
-                        warn!(logger, "gateway region_params error: {err:?}";
-                            "pubkey" => service_uri.pubkey.to_string(),
-                            "uri" => service_uri.uri.to_string(),
-                            "region" => current_region.to_string()
+                        warn!(
+                            pubkey = %service_uri.pubkey,
+                            uri = %service_uri.uri,
+                            region = %current_region,
+                            %err,
+                            "gateway region_params",
                         );
                         Err(err)
                     }
                     other => {
-                        info!(logger, "gateway region_params fetched";
-                            "pubkey" => service_uri.pubkey.to_string(),
-                            "region" => current_region.to_string()
+                        info!(
+                            pubkey = %service_uri.pubkey,
+                            region = %current_region,
+                            "gateway region_params fetched",
                         );
                         other
                     }

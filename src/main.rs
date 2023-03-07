@@ -1,12 +1,9 @@
 use clap::Parser;
-use gateway_rs::{
-    cmd,
-    error::Result,
-    settings::{LogMethod, Settings},
-};
-use slog::{self, debug, error, o, Drain, Logger};
-use std::{io, path::PathBuf};
+use gateway_rs::{cmd, error::Result, settings::Settings};
+use std::path::PathBuf;
 use tokio::{io::AsyncReadExt, signal, time::Duration};
+use tracing::{debug, error, Level};
+use tracing_subscriber::prelude::*;
 
 #[derive(Debug, Parser)]
 #[command(version = env!("CARGO_PKG_VERSION"))]
@@ -33,42 +30,23 @@ pub enum Cmd {
     Add(Box<cmd::add::Cmd>),
 }
 
-/// An empty timestamp function for when timestamp should not be included in
-/// the output. This is commonly used with logd on OpenWRT which adds its own
-/// timestamp information after capturing stdout.
-fn timestamp_none(_io: &mut dyn io::Write) -> io::Result<()> {
-    Ok(())
-}
+fn setup_tracing(settings: &Settings) -> tracing_appender::non_blocking::WorkerGuard {
+    let (non_blocking, guard) = tracing_appender::non_blocking(std::io::stdout());
+    let filter = tracing_subscriber::filter::Targets::new()
+        .with_target(env!("CARGO_BIN_NAME"), settings.log.level)
+        .with_target("gateway_rs", settings.log.level)
+        .with_default(Level::INFO);
 
-fn mk_logger(settings: &Settings) -> Logger {
-    let async_drain = match settings.log.method {
-        LogMethod::Syslog => {
-            let drain = slog_syslog::unix_3164(slog_syslog::Facility::LOG_USER)
-                .expect("syslog drain")
-                .fuse();
-            slog_async::Async::new(drain)
-                .build()
-                .filter_level(settings.log.level.into())
-                .fuse()
-        }
-        LogMethod::Stdio => {
-            let decorator = slog_term::PlainDecorator::new(io::stdout());
-            let timestamp = if settings.log.timestamp {
-                slog_term::timestamp_local
-            } else {
-                timestamp_none
-            };
-            let drain = slog_term::FullFormat::new(decorator)
-                .use_custom_timestamp(timestamp)
-                .build()
-                .fuse();
-            slog_async::Async::new(drain)
-                .build()
-                .filter_level(settings.log.level.into())
-                .fuse()
-        }
-    };
-    slog::Logger::root(async_drain, o!())
+    let stdout_log = tracing_subscriber::fmt::layer()
+        .compact()
+        .with_timer(settings.log.time_formatter())
+        .with_writer(non_blocking);
+
+    tracing_subscriber::registry()
+        .with(stdout_log)
+        .with(filter)
+        .init();
+    guard
 }
 
 pub fn main() -> Result {
@@ -84,12 +62,7 @@ pub fn main() -> Result {
     // logger, simply calling `exit()` early prevents any error
     // logging from reaching its destination.
     let retcode = {
-        let logger = mk_logger(&settings);
-        // This guard protects the global logger and needs live until
-        // the end of this block, despite being used directly.
-        let _scope_guard = slog_scope::set_global_logger(logger);
-        let run_logger = slog_scope::logger().new(o!());
-        slog_stdlog::init().expect("log init");
+        let _guard = setup_tracing(&settings);
 
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -110,13 +83,13 @@ pub fn main() -> Result {
                 }
                 shutdown_trigger.trigger()
             });
-            run(cli, settings, &shutdown_listener, run_logger.clone()).await
+            run(cli, settings, &shutdown_listener).await
         });
         runtime.shutdown_timeout(Duration::from_secs(0));
 
         match res {
             Err(e) => {
-                error!(&run_logger, "{e}");
+                error!("{e}");
                 1
             }
             _ => 0,
@@ -126,17 +99,12 @@ pub fn main() -> Result {
     std::process::exit(retcode);
 }
 
-pub async fn run(
-    cli: Cli,
-    settings: Settings,
-    shutdown_listener: &triggered::Listener,
-    logger: Logger,
-) -> Result {
-    debug!(logger, "starting"; "settings" => &cli.config.to_str());
+pub async fn run(cli: Cli, settings: Settings, shutdown_listener: &triggered::Listener) -> Result {
+    debug!(settings = %cli.config.display(), "starting");
     match cli.cmd {
         Cmd::Key(cmd) => cmd.run(settings).await,
         Cmd::Info(cmd) => cmd.run(settings).await,
         Cmd::Add(cmd) => cmd.run(settings).await,
-        Cmd::Server(cmd) => cmd.run(shutdown_listener, settings, &logger).await,
+        Cmd::Server(cmd) => cmd.run(shutdown_listener, settings).await,
     }
 }

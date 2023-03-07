@@ -7,9 +7,9 @@ use crate::{
 };
 use exponential_backoff::Backoff;
 use helium_proto::services::router::{PacketRouterPacketDownV1, PacketRouterPacketUpV1};
-use slog::{debug, info, o, warn, Logger};
 use std::{sync::Arc, time::Instant as StdInstant};
 use tokio::time::{self, Duration, Instant};
+use tracing::{debug, info, warn};
 
 const STORE_GC_INTERVAL: Duration = Duration::from_secs(60);
 
@@ -73,12 +73,9 @@ impl PacketRouter {
         }
     }
 
-    pub async fn run(&mut self, shutdown: &triggered::Listener, logger: &Logger) -> Result {
-        let logger = logger.new(o!(
-            "module" => "router",
-            "uri" => self.service.uri.to_string(),
-        ));
-        info!(logger, "starting");
+    #[tracing::instrument(skip_all)]
+    pub async fn run(&mut self, shutdown: &triggered::Listener) -> Result {
+        info!(uri = %self.service.uri, "starting");
 
         let reconnect_backoff = Backoff::new(
             RECONNECT_BACKOFF_RETRIES,
@@ -93,40 +90,40 @@ impl PacketRouter {
         loop {
             tokio::select! {
                 _ = shutdown.clone() => {
-                    info!(logger, "shutting down");
+                    info!("shutting down");
                     return Ok(())
                 },
                 message = self.messages.recv() => match message {
                     Some(Message::Uplink{packet, received}) =>
-                        self.handle_uplink(&logger, packet, received).await,
-                    None => warn!(logger, "ignoring closed message channel"),
+                        self.handle_uplink(packet, received).await,
+                    None => warn!("ignoring closed message channel"),
                 },
                 region_change = self.region_watch.changed() => match region_change {
                     Ok(()) => self.region_params = region_watcher::current_value(&self.region_watch),
-                    Err(_) => warn!(logger, "region watch disconnected")
+                    Err(_) => warn!("region watch disconnected")
                 },
                 _ = time::sleep_until(reconnect_sleep) => {
-                    reconnect_sleep = self.handle_reconnect(&logger, &reconnect_backoff).await;
+                    reconnect_sleep = self.handle_reconnect(&reconnect_backoff).await;
                 },
                 downlink = self.service.recv() => match downlink {
-                    Ok(Some(message)) => self.handle_downlink(&logger, message).await,
-                    Ok(None) => warn!(logger, "router disconnected"),
-                    Err(err) => warn!(logger, "router error {:?}", err),
+                    Ok(Some(message)) => self.handle_downlink(message).await,
+                    Ok(None) => warn!("router disconnected"),
+                    Err(err) => warn!("router error {:?}", err),
                 }
             }
         }
     }
 
-    async fn handle_reconnect(&mut self, logger: &Logger, reconnect_backoff: &Backoff) -> Instant {
-        info!(logger, "reconnecting");
+    async fn handle_reconnect(&mut self, reconnect_backoff: &Backoff) -> Instant {
+        info!("reconnecting");
         match self.service.reconnect().await {
             Ok(_) => {
-                info!(logger, "reconnected");
+                info!("reconnected");
                 self.reconnect_retry = RECONNECT_BACKOFF_RETRIES;
-                self.send_waiting_packets(logger).await
+                self.send_waiting_packets().await
             }
             Err(err) => {
-                warn!(logger, "could not reconnect {err:?}");
+                warn!(%err, "failed to reconnect");
                 if self.reconnect_retry == RECONNECT_BACKOFF_RETRIES {
                     self.reconnect_retry = 0;
                 } else {
@@ -140,25 +137,25 @@ impl PacketRouter {
                 .unwrap_or(RECONNECT_BACKOFF_MAX_WAIT)
     }
 
-    async fn handle_uplink(&mut self, logger: &Logger, uplink: Packet, received: StdInstant) {
+    async fn handle_uplink(&mut self, uplink: Packet, received: StdInstant) {
         self.store.push_back(uplink, received);
-        self.send_waiting_packets(logger).await;
+        self.send_waiting_packets().await;
     }
 
-    async fn handle_downlink(&mut self, logger: &Logger, message: PacketRouterPacketDownV1) {
+    async fn handle_downlink(&mut self, message: PacketRouterPacketDownV1) {
         match Packet::try_from(message) {
             Ok(packet) => self.transmit.downlink(packet).await,
-            Err(err) => warn!(logger, "could not convert packet to downlink {:?}", err),
+            Err(err) => warn!(%err, "could not convert packet to downlink"),
         };
     }
 
-    async fn send_waiting_packets(&mut self, logger: &Logger) {
+    async fn send_waiting_packets(&mut self) {
         while let (removed, Some(packet)) = self.store.pop_front(STORE_GC_INTERVAL) {
             if removed > 0 {
-                info!(logger, "discarded {} queued packets", removed);
+                info!("discarded {removed} queued packets");
             }
-            if let Err(err) = self.send_packet(logger, packet).await {
-                warn!(logger, "failed to send uplink {err:?}")
+            if let Err(err) = self.send_packet(packet).await {
+                warn!(%err, "failed to send uplink")
             }
         }
     }
@@ -171,9 +168,8 @@ impl PacketRouter {
         Ok(uplink)
     }
 
-    async fn send_packet(&mut self, logger: &Logger, packet: CacheMessage<Packet>) -> Result {
-        debug!(logger, "sending packet";
-            "packet_hash" => packet.hash().to_b64());
+    async fn send_packet(&mut self, packet: CacheMessage<Packet>) -> Result {
+        debug!(packet_hash = packet.hash().to_b64(), "sending packet");
 
         let uplink = self.mk_uplink(packet).await?;
         self.service.send(uplink).await

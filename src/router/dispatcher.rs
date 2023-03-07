@@ -9,8 +9,6 @@ use futures::{
     task::{Context, Poll},
     TryFutureExt,
 };
-use slog::{debug, info, o, warn, Logger};
-use slog_scope;
 use std::{
     collections::HashMap,
     pin::Pin,
@@ -19,6 +17,7 @@ use std::{
 };
 use tokio::{task::JoinHandle, time};
 use tokio_stream::{self, StreamExt};
+use tracing::{debug, info, warn};
 
 pub type Message = packet_router::Message;
 pub type MessageReceiver = packet_router::MessageReceiver;
@@ -89,16 +88,16 @@ impl Dispatcher {
         }
     }
 
-    pub async fn run(&mut self, shutdown: &triggered::Listener, logger: &Logger) -> Result {
-        let logger = logger.new(o!("module" => "dispatcher"));
-        info!(logger, "starting"; 
-            "region" => self.region_params.to_string());
+    pub async fn run(&mut self, shutdown: &triggered::Listener) -> Result {
+        info!("starting");
 
         if let Some(default_routers) = &self.default_routers {
             for default_router in default_routers {
-                info!(logger, "default router";
-                    "pubkey" => default_router.pubkey.to_string(),
-                    "uri" => default_router.uri.to_string());
+                info!(
+                    pubkey = %default_router.pubkey,
+                    uri = %default_router.uri,
+                    "default router"
+                );
             }
         }
 
@@ -114,25 +113,27 @@ impl Dispatcher {
             }
             // Select seed
             let seed_gateway = GatewayService::select_seed(&self.seed_gateways)?;
-            info!(logger, "seed gateway";
-                "pubkey" => seed_gateway.uri.pubkey.to_string(),
-                "uri" => seed_gateway.uri.uri.to_string());
+            info!(
+                pubkey = %seed_gateway.uri.pubkey,
+                uri = %seed_gateway.uri.uri,
+                "seed gateway"
+            );
 
             tokio::select! {
                 _ = shutdown.clone() => {
-                    info!(logger, "shutting down");
+                    info!("shutting down");
                     return Ok(())
                 },
                 region_change = self.region_watch.changed() => match region_change {
-                    Ok(()) => self.handle_region_params_update(&logger).await,
-                    Err(_) => warn!(logger, "region watch disconnected"),
+                    Ok(()) => self.handle_region_params_update().await,
+                    Err(_) => warn!("region watch disconnected"),
                 },
                 // Try to select a random validator from the seed and fetch the needed streams
-                gateway = Self::select_gateway(seed_gateway, shutdown, &logger)
-                    .and_then(|service | Self::setup_routing_stream(service, self.routing_height, &logger))
+                gateway = Self::select_gateway(seed_gateway, shutdown)
+                    .and_then(|service | Self::setup_routing_stream(service, self.routing_height))
                      => match gateway {
                         Ok(Some((service, gateway_streams))) => {
-                            self.run_with_gateway(service, gateway_streams,  shutdown.clone(), &logger)
+                            self.run_with_gateway(service, gateway_streams,  shutdown.clone())
                                 .await?;
                             },
                         Ok(None) =>
@@ -141,7 +142,7 @@ impl Dispatcher {
                     }
             }
 
-            self.prepare_gateway_change(&gateway_backoff, shutdown.clone(), &logger)
+            self.prepare_gateway_change(&gateway_backoff, shutdown.clone())
                 .await;
         }
     }
@@ -149,14 +150,16 @@ impl Dispatcher {
     async fn select_gateway(
         mut seed_gateway: GatewayService,
         shutdown: &triggered::Listener,
-        logger: &Logger,
     ) -> Result<Option<GatewayService>> {
         match seed_gateway.random_new(5, shutdown.clone()).await {
             Ok(result) => Ok(result),
             Err(err) => {
-                warn!(logger, "gateway selection error: {err:?}";
-                    "pubkey" => seed_gateway.uri.pubkey.to_string(),
-                    "uri" => seed_gateway.uri.uri.to_string());
+                warn!(
+                    pubkey = %seed_gateway.uri.pubkey,
+                    uri = %seed_gateway.uri.uri,
+                    %err,
+                    "failed to select gateway"
+                );
                 Err(err)
             }
         }
@@ -165,7 +168,6 @@ impl Dispatcher {
     async fn setup_routing_stream(
         gateway: Option<GatewayService>,
         routing_height: u64,
-        logger: &Logger,
     ) -> Result<Option<(GatewayService, RoutingStream)>> {
         if gateway.is_none() {
             return Ok(None);
@@ -174,9 +176,12 @@ impl Dispatcher {
         match gateway.routing(routing_height).await {
             Ok(routing) => Ok(Some((gateway, routing))),
             Err(err) => {
-                warn!(logger, "gateway stream setup error: {err:?} "; 
-                    "pubkey" => gateway.uri.pubkey.to_string(),
-                    "uri" => gateway.uri.uri.to_string());
+                warn!(
+                    pubkey = %gateway.uri.pubkey,
+                    uri = %gateway.uri.uri,
+                    %err,
+                    "failed to set up gateway routing stream"
+                );
                 Err(err)
             }
         }
@@ -187,58 +192,59 @@ impl Dispatcher {
         mut gateway: GatewayService,
         mut routing: RoutingStream,
         shutdown: triggered::Listener,
-        logger: &Logger,
     ) -> Result {
-        info!(logger, "using gateway";
-            "pubkey" => gateway.uri.pubkey.to_string(),
-            "uri" => gateway.uri.uri.to_string());
-
+        info!(
+            pubkey = %gateway.uri.pubkey,
+            uri = %gateway.uri.uri,
+            "using gateway"
+        );
         // Initialize liveness check for gateway
         let mut gateway_check = time::interval(GATEWAY_CHECK_INTERVAL);
         loop {
             tokio::select! {
                 _ = shutdown.clone() => {
-                    info!(logger, "shutting down");
+                    info!("shutting down");
                     return Ok(())
                 },
                 region_change = self.region_watch.changed() => match region_change {
-                    Ok(()) => self.handle_region_params_update(logger).await,
-                    Err(_) => warn!(logger, "region watch disconnected"),
+                    Ok(()) => self.handle_region_params_update().await,
+                    Err(_) => warn!("region watch disconnected"),
                 },
                 gateway_msg = routing.next() => match gateway_msg {
-                    Some(Ok(gateway_message)) => self.handle_routing_update(&gateway_message, &shutdown, logger).await,
+                    Some(Ok(gateway_message)) => self.handle_routing_update(&gateway_message, &shutdown).await,
                     Some(Err(err)) =>  {
-                        warn!(logger, "gateway routing stream error: {err:?}");
+                        warn!(%err, "gateway routing stream failure");
                         return Ok(())
                     },
                     None => {
-                        warn!(logger, "gateway streams closed");
+                        warn!("gateway streams closed");
                         return Ok(());
                 }
                 },
-                _ = gateway_check.tick() => match self.check_gateway(&mut gateway, logger).await {
+                _ = gateway_check.tick() => match self.check_gateway(&mut gateway).await {
                     Ok(()) => {
                         self.gateway_retry = 0
                     },
                     Err(err) => {
-                        warn!(logger, "gateway check error: {err}");
+                        warn!("gateway check error: {err}");
                         return Ok(())
                     }
                 },
                 message = self.messages.recv() => match message {
                     Some(Message::Uplink{packet, received}) =>
-                        self.handle_uplink(logger, packet, received).await,
-                    None => warn!(logger, "ignoring closed message channel"),
+                        self.handle_uplink(packet, received).await,
+                    None => warn!("ignoring closed message channel"),
                 },
             }
         }
     }
 
-    async fn check_gateway(&mut self, gateway: &mut GatewayService, logger: &Logger) -> Result {
+    async fn check_gateway(&mut self, gateway: &mut GatewayService) -> Result {
         let (_, block_age) = gateway.height().await?;
-        info!(logger, "checking gateway"; 
-            "pubkey" => gateway.uri.pubkey.to_string(),
-            "block_age" => block_age);
+        info!(
+            pubkey = %gateway.uri.pubkey,
+            block_age = block_age,
+            "checking gateway");
         if block_age > GATEWAY_MAX_BLOCK_AGE.as_secs() {
             return Err(Error::gateway_service_check(
                 block_age,
@@ -248,12 +254,7 @@ impl Dispatcher {
         Ok(())
     }
 
-    async fn prepare_gateway_change(
-        &mut self,
-        backoff: &Backoff,
-        shutdown: triggered::Listener,
-        logger: &Logger,
-    ) {
+    async fn prepare_gateway_change(&mut self, backoff: &Backoff, shutdown: triggered::Listener) {
         // Check if shutdown trigger already happened
         if shutdown.is_triggered() {
             return;
@@ -270,29 +271,29 @@ impl Dispatcher {
 
         // Select over either shutdown or sleep, and handle messages that don't
         // require a gateway
-        info!(logger, "selecting new gateway in {}s", sleep.as_secs());
+        info!("selecting new gateway in {}s", sleep.as_secs());
         tokio::select! {
                 _ = shutdown => {},
                 _ = time::sleep(sleep) => {},
                 region_change = self.region_watch.changed() => match region_change {
-                    Ok(()) => self.handle_region_params_update(logger).await,
-                    Err(_) => warn!(logger, "region watch disconnected"),
+                    Ok(()) => self.handle_region_params_update().await,
+                    Err(_) => warn!("region watch disconnected"),
                 },
                 message = self.messages.recv() => match message {
                     Some(Message::Uplink{packet, received}) =>
-                        self.handle_uplink(logger, packet, received).await,
-                    None => warn!(logger, "ignoring closed message channel"),
+                        self.handle_uplink(packet, received).await,
+                    None => warn!("ignoring closed message channel"),
                 },
         }
     }
 
-    async fn handle_uplink(&self, logger: &Logger, packet: Packet, received: Instant) {
+    async fn handle_uplink(&self, packet: Packet, received: Instant) {
         let mut handled = false;
         for router_entry in self.routers.values() {
             if router_entry.routing.matches_routing_info(packet.routing()) {
                 match router_entry.dispatch.uplink(packet.clone(), received).await {
                     Ok(()) => (),
-                    Err(err) => warn!(logger, "ignoring router dispatch error: {err:?}"),
+                    Err(err) => warn!(%err, "ignoring router dispatch error"),
                 }
                 handled = true;
             }
@@ -301,7 +302,7 @@ impl Dispatcher {
             if let Some(default_routers) = &self.default_routers {
                 for (router_key, router_entry) in &self.routers {
                     if default_routers.contains(&router_key.uri) {
-                        debug!(logger, "sending to default router");
+                        debug!("sending to default router");
                         let _ = router_entry.dispatch.uplink(packet.clone(), received).await;
                     }
                 }
@@ -309,47 +310,44 @@ impl Dispatcher {
         }
     }
 
-    async fn handle_region_params_update(&mut self, logger: &Logger) {
+    async fn handle_region_params_update(&mut self) {
         self.region_params = region_watcher::current_value(&self.region_watch);
-        info!(logger, "updated region";
-            "region" => self.region_params.to_string(),
-        );
+        info!(regioon = %self.region_params, "region updated");
     }
 
     async fn handle_routing_update<R: service::gateway::Response>(
         &mut self,
         response: &R,
         shutdown: &triggered::Listener,
-        logger: &Logger,
     ) {
         let update_height = response.height();
         let current_height = self.routing_height;
         if update_height <= self.routing_height {
             warn!(
-                logger,
-                "routing returned invalid height {update_height} while at {current_height}",
+                routing_height = current_height,
+                "routing returned invalid height {update_height}",
             );
             return;
         }
         let routing_protos = match response.routings() {
             Ok(v) => v,
             Err(err) => {
-                warn!(logger, "error decoding routing {err:?}");
+                warn!(%err, "failed to decode routing");
                 return;
             }
         };
         let mut proto_stream = tokio_stream::iter(routing_protos.iter());
         while let Some(proto) = proto_stream.next().await {
-            match Routing::from_proto(logger, proto) {
-                Ok(routing) => {
-                    self.handle_oui_routing_update(&routing, shutdown, logger)
-                        .await
-                }
-                Err(err) => warn!(logger, "failed to parse routing: {err:?}"),
+            match Routing::from_proto(proto) {
+                Ok(routing) => self.handle_oui_routing_update(&routing, shutdown).await,
+                Err(err) => warn!(%err, "failed to parse routing"),
             }
         }
         self.routing_height = update_height;
-        info!(logger, "updated routing to height {:?}", update_height)
+        info!(
+            routing_height = self.routing_height,
+            "routing height updated"
+        );
     }
 
     #[allow(clippy::map_entry)]
@@ -357,7 +355,6 @@ impl Dispatcher {
         &mut self,
         routing: &Routing,
         shutdown: &triggered::Listener,
-        logger: &Logger,
     ) {
         let mut uris = tokio_stream::iter(routing.uris.iter());
         while let Some(uri) = uris.next().await {
@@ -377,7 +374,7 @@ impl Dispatcher {
                         self.routers.insert(key, router_entry);
                     }
                     Err(err) => {
-                        warn!(logger, "faild to construct router: {err:?}");
+                        warn!(%err, "faild to construct router");
                     }
                 },
             }
@@ -388,9 +385,10 @@ impl Dispatcher {
             if key.oui == routing.oui && !entry.routing.contains_uri(&key.uri) {
                 // Router will be removed from the map. The router is expected
                 // to stop itself when it receives the stop message
-                info!(logger, "removing router";
-                    "oui" => key.oui,
-                    "uri" => key.uri.uri.to_string()
+                info!(
+                    oui = key.oui,
+                    uri = %key.uri.uri,
+                    "removing router"
                 );
                 removables.push(entry.dispatch.clone());
                 return false;
@@ -408,9 +406,6 @@ impl Dispatcher {
         routing: Routing,
         uri: KeyedUri,
     ) -> Result<RouterEntry> {
-        // We start the router scope at the root logger to avoid picking up the
-        // previously set KV pairs (which causes dupes)
-        let logger = slog_scope::logger();
         let (client_tx, client_rx) = router::client::message_channel(10);
         let mut client = RouterClient::new(
             routing.oui,
@@ -421,8 +416,7 @@ impl Dispatcher {
             self.max_packets,
         )
         .await?;
-        let join_handle =
-            tokio::spawn(async move { client.run(client_rx, shutdown, &logger).await });
+        let join_handle = tokio::spawn(async move { client.run(client_rx, shutdown).await });
         Ok(RouterEntry {
             routing,
             dispatch: client_tx,

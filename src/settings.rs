@@ -1,7 +1,6 @@
 use crate::{api::GatewayStakingMode, KeyedUri, Keypair, PublicKey, Region, Result};
 use config::{Config, Environment, File};
 use http::uri::Uri;
-pub use log_method::LogMethod;
 use serde::Deserialize;
 use std::{fmt, path::Path, str::FromStr, sync::Arc};
 
@@ -52,11 +51,32 @@ pub struct LogSettings {
     /// Log level to show (default info)
     pub level: log_level::Level,
 
-    ///  Which log method to use (stdio or syslog, default stdio)
-    pub method: log_method::LogMethod,
-
     /// Whehter to show timestamps in the stdio output stream (default false)
     pub timestamp: bool,
+}
+
+impl LogSettings {
+    pub fn time_formatter(&self) -> impl tracing_subscriber::fmt::time::FormatTime {
+        TimeFormatter {
+            timestamp: self.timestamp,
+            time: tracing_subscriber::fmt::time(),
+        }
+    }
+}
+
+struct TimeFormatter {
+    timestamp: bool,
+    time: tracing_subscriber::fmt::time::SystemTime,
+}
+
+impl tracing_subscriber::fmt::time::FormatTime for TimeFormatter {
+    fn format_time(&self, w: &mut tracing_subscriber::fmt::format::Writer<'_>) -> fmt::Result {
+        if self.timestamp {
+            self.time.format_time(w)
+        } else {
+            Ok(())
+        }
+    }
 }
 
 /// Settings for proof-of-coverage (PoC).
@@ -175,17 +195,17 @@ pub mod log_level {
     use std::fmt;
 
     #[derive(Debug, Clone, Copy)]
-    pub struct Level(slog::Level);
+    pub struct Level(tracing::Level);
 
-    impl AsRef<slog::Level> for Level {
-        fn as_ref(&self) -> &slog::Level {
-            &self.0
+    impl std::fmt::Display for Level {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            self.0.fmt(f)
         }
     }
 
-    impl From<Level> for slog::Level {
-        fn from(v: Level) -> Self {
-            v.0
+    impl From<Level> for tracing_subscriber::filter::LevelFilter {
+        fn from(value: Level) -> Self {
+            Self::from(value.0)
         }
     }
 
@@ -213,53 +233,6 @@ pub mod log_level {
             }
 
             deserializer.deserialize_str(LevelVisitor)
-        }
-    }
-}
-
-pub mod log_method {
-    use serde::de::{self, Deserialize, Deserializer, Visitor};
-    use std::fmt;
-
-    /// The method to use for logging.
-    #[derive(Debug)]
-    pub enum LogMethod {
-        /// Display logging information on stdout
-        Stdio,
-        /// Send logging information to syslog
-        Syslog,
-    }
-
-    impl<'de> Deserialize<'de> for LogMethod {
-        fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-        where
-            D: Deserializer<'de>,
-        {
-            struct LogMethodVisitor;
-
-            impl<'de> Visitor<'de> for LogMethodVisitor {
-                type Value = LogMethod;
-                fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                    formatter.write_str("log method")
-                }
-                fn visit_str<E>(self, value: &str) -> std::result::Result<LogMethod, E>
-                where
-                    E: de::Error,
-                {
-                    let method = match value.to_lowercase().as_str() {
-                        "stdio" => LogMethod::Stdio,
-                        "syslog" => LogMethod::Syslog,
-                        unsupported => {
-                            return Err(de::Error::custom(format!(
-                                "unsupported log method: \"{unsupported}\""
-                            )))
-                        }
-                    };
-                    Ok(method)
-                }
-            }
-
-            deserializer.deserialize_str(LogMethodVisitor)
         }
     }
 }
