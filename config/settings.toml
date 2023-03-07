@@ -24,8 +24,6 @@ api = 4467
 region = "US915"
 
 [log]
-# The logging method to use. Supported values are "stdio" or syslog"
-method = "stdio"
 # The logging level to assume on startup
 level = "info"
 # Whether the logged output should include timestamps

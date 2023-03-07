@@ -241,9 +241,9 @@ impl Dispatcher {
 
     async fn check_gateway(&mut self, gateway: &mut GatewayService) -> Result {
         let (_, block_age) = gateway.height().await?;
-        info!( 
+        info!(
             pubkey = %gateway.uri.pubkey,
-            block_age = block_age, 
+            block_age = block_age,
             "checking gateway");
         if block_age > GATEWAY_MAX_BLOCK_AGE.as_secs() {
             return Err(Error::gateway_service_check(
@@ -254,11 +254,7 @@ impl Dispatcher {
         Ok(())
     }
 
-    async fn prepare_gateway_change(
-        &mut self,
-        backoff: &Backoff,
-        shutdown: triggered::Listener,
-    ) {
+    async fn prepare_gateway_change(&mut self, backoff: &Backoff, shutdown: triggered::Listener) {
         // Check if shutdown trigger already happened
         if shutdown.is_triggered() {
             return;
@@ -343,15 +339,15 @@ impl Dispatcher {
         let mut proto_stream = tokio_stream::iter(routing_protos.iter());
         while let Some(proto) = proto_stream.next().await {
             match Routing::from_proto(proto) {
-                Ok(routing) => {
-                    self.handle_oui_routing_update(&routing, shutdown)
-                        .await
-                }
+                Ok(routing) => self.handle_oui_routing_update(&routing, shutdown).await,
                 Err(err) => warn!(%err, "failed to parse routing"),
             }
         }
         self.routing_height = update_height;
-        info!(routing_height = self.routing_height, "routing height updated");
+        info!(
+            routing_height = self.routing_height,
+            "routing height updated"
+        );
     }
 
     #[allow(clippy::map_entry)]
@@ -392,7 +388,7 @@ impl Dispatcher {
                 info!(
                     oui = key.oui,
                     uri = %key.uri.uri,
-                    "removing router"                    
+                    "removing router"
                 );
                 removables.push(entry.dispatch.clone());
                 return false;
@@ -420,8 +416,7 @@ impl Dispatcher {
             self.max_packets,
         )
         .await?;
-        let join_handle =
-            tokio::spawn(async move { client.run(client_rx, shutdown).await });
+        let join_handle = tokio::spawn(async move { client.run(client_rx, shutdown).await });
         Ok(RouterEntry {
             routing,
             dispatch: client_tx,
