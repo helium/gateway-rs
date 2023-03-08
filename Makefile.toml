@@ -1,13 +1,13 @@
 [env]
 CROSS_TARGET = "${CARGO_MAKE_PROFILE}"
-FEATURES = "ecc608,validator"
+FEATURES = "ecc608"
 BUILD_COMMAND = "cross"
 TAR = { source = "${CARGO_MAKE_RUST_TARGET_OS}", default_value = "linux", mapping = {"macos" = "gtar", "linux" = "tar" } }
 
 [env.x86_64-tpm-debian-gnu]
 CROSS_TARGET = "x86_64-unknown-linux-gnu"
 CROSS_BUILD_DOCKERFILE = "./.github/cross-docker/Dockerfile-cross-debian-11"
-FEATURES = "tpm,validator"
+FEATURES = "tpm"
 
 [tasks.build]
 description = "Runs the cross/cargo rust compiler."

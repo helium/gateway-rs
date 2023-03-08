@@ -1,7 +1,7 @@
 use crate::{
     impl_msg_sign,
     service::{CONNECT_TIMEOUT, RPC_TIMEOUT},
-    KeyedUri, Keypair, MsgSign, Region, RegionParams, Result,
+    KeyedUri, Keypair, MsgSign, MsgVerify, Region, RegionParams, Result,
 };
 use helium_proto::services::{self, iot_config::GatewayRegionParamsReqV1, Channel, Endpoint};
 use std::sync::Arc;
@@ -41,8 +41,7 @@ impl ConfigService {
         req.signature = req.sign(keypair).await?;
 
         let resp = self.client.region_params(req).await?.into_inner();
-        // TODO: re-enable when config service public prod key is established
-        // resp.verify(&self.uri.pubkey)?;
+        resp.verify(&self.uri.pubkey)?;
         Ok(RegionParams::try_from(resp)?)
     }
 }

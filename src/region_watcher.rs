@@ -20,13 +20,10 @@ where
 
 pub struct RegionWatcher {
     keypair: Arc<Keypair>,
-    #[cfg(not(feature = "validator"))]
     config_uri: KeyedUri,
     default_region: Region,
     request_retry: u32,
     watch: MessageSender,
-    #[cfg(feature = "validator")]
-    seed_gateways: Vec<KeyedUri>,
 }
 
 impl RegionWatcher {
@@ -35,14 +32,11 @@ impl RegionWatcher {
         let (watch, _) = watch::channel(default_params);
         Self {
             keypair: settings.keypair.clone(),
-            #[cfg(not(feature = "validator"))]
             config_uri: settings.config.clone(),
             // Start retry at 1 to get some jitter in the first request time
             request_retry: 1,
             default_region: settings.region,
             watch,
-            #[cfg(feature = "validator")]
-            seed_gateways: settings.gateways.clone(),
         }
     }
 
@@ -93,7 +87,6 @@ impl RegionWatcher {
         }
     }
 
-    #[cfg(not(feature = "validator"))]
     pub async fn check_region(
         &mut self,
         shutdown: &triggered::Listener,
@@ -125,60 +118,6 @@ impl RegionWatcher {
                     other
                 }
         }
-        }
-    }
-
-    #[cfg(feature = "validator")]
-    pub async fn check_region(
-        &mut self,
-        shutdown: &triggered::Listener,
-    ) -> Result<Option<RegionParams>> {
-        use crate::Error;
-        use futures::TryFutureExt;
-
-        let current_region = self.watch.borrow().region;
-
-        //  Select a seed and then a random validator service from that seed
-        let mut seed_gateway =
-            crate::service::gateway::GatewayService::select_seed(&self.seed_gateways)?;
-        let seed_gateway_uri = seed_gateway.uri.clone();
-        let mut service = seed_gateway
-            .random_new(5, shutdown.clone())
-            .inspect_err(|err| {
-                warn!(
-                    pubkey = %seed_gateway_uri.pubkey,
-                    uri = %seed_gateway_uri.uri,
-                    %err,
-                    "gateway selection",
-                )
-            })
-            .await?
-            .ok_or_else(Error::no_service)?;
-
-        let service_uri = service.uri.clone();
-        tokio::select! {
-            _ = shutdown.clone() => Ok(None),
-            response = service.region_params(&current_region, self.keypair.clone()) =>
-                match response.map(Some) {
-                    Err(err) => {
-                        warn!(
-                            pubkey = %service_uri.pubkey,
-                            uri = %service_uri.uri,
-                            region = %current_region,
-                            %err,
-                            "gateway region_params",
-                        );
-                        Err(err)
-                    }
-                    other => {
-                        info!(
-                            pubkey = %service_uri.pubkey,
-                            region = %current_region,
-                            "gateway region_params fetched",
-                        );
-                        other
-                    }
-                }
         }
     }
 }

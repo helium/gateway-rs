@@ -37,12 +37,6 @@ pub struct Settings {
     pub router: RouterSettings,
     /// Proof-of-coverage (PoC) settings.
     pub poc: PocSettings,
-    /// The routers to deliver packets to when no routers are found while
-    /// processing a packet.
-    pub routers: Option<Vec<KeyedUri>>,
-    /// The validator(s) to query for chain related state. Defaults to a Helium
-    /// validator.
-    pub gateways: Vec<KeyedUri>,
 }
 
 /// Settings for log method and level to be used by the running service.
