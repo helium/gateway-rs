@@ -38,7 +38,7 @@ ingest_uri = "http://mainnet-pociot.helium.io:9080"
 # The config service is used to fetch and monitor region parameters and other
 # configuration items
 [config]
-pubkey = "115PmCR6fpFihdjw626JXYdUEdzwjh66yoWzWkMvB9CRGEx1U6G"
+pubkey = "137oJzq1qZpSbzHawaysTGGsRCYTXG1MiTMQNxYSsQJp4YMDdN8"
 uri = "http://mainnet-config.helium.io:6080/"
 
 # The router uri is where lorawan packets are delivered to the helium packet
