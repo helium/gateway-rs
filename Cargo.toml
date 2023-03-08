@@ -67,7 +67,6 @@ helium-crypto = "0.6"
 default = [ "ecc608" ]
 ecc608 = [ "helium-crypto/ecc608" ]
 tpm = ["helium-crypto/tpm"]
-validator = []
 
 [profile.release]
 opt-level = "z"

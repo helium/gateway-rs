@@ -9,7 +9,6 @@ pub mod packet;
 
 pub mod packet_router;
 pub mod region_watcher;
-pub mod router;
 pub mod server;
 pub mod service;
 pub mod settings;
