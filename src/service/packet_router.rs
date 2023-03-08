@@ -52,11 +52,18 @@ struct PacketRouterConduit {
 
 pub const CONDUIT_CAPACITY: usize = 50;
 
+/// The time between TCP keepalive messages to keep the connection to the packet
+/// router open. Some load balancer disconnect after a number of seconds. AWS
+/// NLBs are hardcoded to 350s so we pick a slightly shorter timeframe to send
+/// keepalives
+pub const TCP_KEEP_ALIVE_DURATION: std::time::Duration = std::time::Duration::from_secs(300);
+
 impl PacketRouterConduit {
     async fn new(uri: Uri) -> Result<Self> {
         let endpoint = Endpoint::from(uri)
             .timeout(RPC_TIMEOUT)
             .connect_timeout(CONNECT_TIMEOUT)
+            .tcp_keepalive(Some(TCP_KEEP_ALIVE_DURATION))
             .connect_lazy();
         let mut client = PacketClient::new(endpoint);
         let (tx, client_rx) = mpsc::channel(CONDUIT_CAPACITY);
