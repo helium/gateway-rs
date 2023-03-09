@@ -796,7 +796,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_urlencoded",
- "sha2 0.9.9",
+ "sha2 0.10.6",
  "signature 2.0.0",
  "syslog-tracing",
  "thiserror",
@@ -1762,9 +1762,9 @@ dependencies = [
 
 [[package]]
 name = "semtech-udp"
-version = "0.10.5"
+version = "0.10.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "10d8ebf29329f43c1addb39d372a17afe294e0d92122f9c74a5034d98545b689"
+checksum = "1299e0ba9282df04758454bd94609af91293d23de08f58706fb92bce453a1de9"
 dependencies = [
  "arrayref",
  "base64 0.21.0",
