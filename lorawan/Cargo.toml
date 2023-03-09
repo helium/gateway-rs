@@ -10,4 +10,4 @@ byteorder = {workspace = true}
 bitfield = "0.13"
 
 [dev-dependencies]
-base64 = "0"
+base64 = ">=0.21"

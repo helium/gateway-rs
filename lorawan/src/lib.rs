@@ -4,7 +4,6 @@ use std::{convert::From, fmt, io, mem::size_of, result};
 
 pub mod error;
 pub use error::LoraWanError;
-pub mod subnet;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Direction {
@@ -524,7 +523,10 @@ mod test {
 
     #[test]
     fn test_read_write_roundtrip() {
-        let data_a = base64::decode("IL1ciMu7b3ZOP5Q1cBA7isI=").unwrap();
+        use base64::Engine;
+        let data_a = base64::engine::general_purpose::STANDARD
+            .decode("IL1ciMu7b3ZOP5Q1cBA7isI=")
+            .unwrap();
         let payload_a = PHYPayload::read(Direction::Uplink, &mut &data_a[..]).unwrap();
         let mut data_b = Vec::with_capacity(data_a.len());
         payload_a.write(&mut data_b).unwrap();
