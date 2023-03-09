@@ -4,6 +4,13 @@ on:
     branches: [main]
     tags: ["v*"]
 
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_NET_RETRY: 10
+  RUST_BACKTRACE: short
+  RUSTFLAGS: "-D warnings"
+  RUSTUP_MAX_RETRIES: 10
+
 name: ci
 
 jobs:
@@ -11,32 +18,33 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy, rustfmt
-
-      - name: Install protoc
-        run: sudo apt-get install -y protobuf-compiler
-
-      - name: cancel previous runs
+      - name: Setup | Cancel Previous Runs
         uses: styfle/cancel-workflow-action@0.11.0
         with:
           access_token: ${{ github.token }}
 
-      - name: install dependencies
-        run: sudo apt-get install -y libtss2-dev
+      - name: Setup | Checkout
+        uses: actions/checkout@v3
 
-      - name: check formatting
+      - name: Setup | Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Setup | Tools
+        run: sudo apt-get install -y protobuf-compiler libtss2-dev
+
+      - name: Setup | Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build | Hygiene
         run: |
           cargo fmt  -- --check
-
-      - name: clippy
-        run: |
           cargo clippy --all-features -- -D clippy::all
 
-      - name: Run tests
-        run: cargo test
+      - name: Build | Test
+        run: |
+          cargo test
 
   build:
     runs-on: ubuntu-22.04
@@ -52,11 +60,24 @@ jobs:
           - x86_64-tpm-debian-gnu
 
     steps:
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: davidB/rust-cargo-make@v1
-      - uses: actions/checkout@v3
+      - name: Setup | Cancel Previous Runs
+        uses: styfle/cancel-workflow-action@0.11.0
+        with:
+          access_token: ${{ github.token }}
 
-      - name: install cross
+      - name: Setup | Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup | Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup | Tools
+        uses: davidB/rust-cargo-make@v1
+
+      - name: Setup | Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Setup | Cross
         uses: jaxxstorm/action-install-gh-release@v1.9.0
         env:
           ## Allow cross install into PATH
@@ -65,13 +86,13 @@ jobs:
         with:
           repo: rust-embedded/cross
 
-      - name: build target
+      - name: Build | Compile
         run: cargo make --profile ${{ matrix.target }} build
 
-      - name: package target
+      - name: Buld | Package
         run: cargo make --profile ${{ matrix.target }} pkg
 
-      - name: cache artifact
+      - name: Build | Artifacts
         uses: actions/upload-artifact@v3
         with:
           name: helium-gateway-${{ matrix.target }}
@@ -84,51 +105,63 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      - name: fetch cached binaries
+      - name: Setup | Cancel Previous Runs
+        uses: styfle/cancel-workflow-action@0.11.0
+        with:
+          access_token: ${{ github.token }}
+
+      - name: Setup | Artifacts
         uses: actions/download-artifact@v3
         with:
           path: helium-gateway-*.tar.gz
 
-      - name: create release
+      - name: Release | Artifacts
         uses: softprops/action-gh-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           fail_on_unmatched_files: true
-          files: helium-gateway-*.tar.gz
+          files: |
+            **/helium-gateway-*.tar.gz
           name: ${{github.ref_name}}
 
   docker_buildx:
     # Ensure we don't publish images until we pass clippy.
-    needs: [build]
+    needs: [hygiene]
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v3
+      - name: Setup | Cancel Previous Runs
+        uses: styfle/cancel-workflow-action@0.11.0
+        with:
+          access_token: ${{ github.token }}
+
+      - name: Setup | Checkout
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
-      - name: Setup Docker buildx
+      - name: Setup | Docker
         uses: docker/setup-buildx-action@v2
         with:
           platforms: linux/amd64,linux/arm64
 
-      - name: Login to Quay.io
+      - name: Setup | Quay.io
         uses: docker/login-action@v2
         with:
           registry: quay.io
           username: ${{ secrets.QUAY_MINER_USER }}
           password: ${{ secrets.QUAY_MINER_UPLOAD_TOKEN }}
 
-      - name: Derive appropriate image-tag
+      - name: Setup | Image Tag
         if: github.event_name == 'pull_request'
         run: echo "image_tag=PR${{ github.event.pull_request.number }}-$(git rev-parse --short ${{ github.event.pull_request.head.sha }})" >> $GITHUB_ENV
 
-      - name: Derive appropriate image-tag
+      - name: Setup | Image Tag
         if: github.event_name != 'pull_request'
         run: echo "image_tag=$(git describe)" >> $GITHUB_ENV
 
       # We publish all builds to the test-images repo.
-      - name: Publish image to test-images repo
+      - name: Build | Test Image
         run: |
           docker buildx build \
           --platform linux/arm64,linux/amd64 \
@@ -137,7 +170,7 @@ jobs:
           .
 
       # Publish to miner quay-repo on release only.
-      - name: Publish release image to miner repo
+      - name: Build | Release Image
         if: startsWith(github.ref, 'refs/tags')
         run: |
           docker buildx build \
