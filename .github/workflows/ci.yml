@@ -4,6 +4,13 @@ on:
     branches: [main]
     tags: ["v*"]
 
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_NET_RETRY: 10
+  RUST_BACKTRACE: short
+  RUSTFLAGS: "-D warnings"
+  RUSTUP_MAX_RETRIES: 10
+
 name: ci
 
 jobs:
@@ -11,6 +18,11 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
+      - name: Setup | Cancel Previous Runs
+        uses: styfle/cancel-workflow-action@0.11.0
+        with:
+          access_token: ${{ github.token }}
+
       - name: Setup | Checkout
         uses: actions/checkout@v3
 
@@ -48,6 +60,11 @@ jobs:
           - x86_64-tpm-debian-gnu
 
     steps:
+      - name: Setup | Cancel Previous Runs
+        uses: styfle/cancel-workflow-action@0.11.0
+        with:
+          access_token: ${{ github.token }}
+
       - name: Setup | Checkout
         uses: actions/checkout@v3
 
@@ -88,6 +105,11 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
+      - name: Setup | Cancel Previous Runs
+        uses: styfle/cancel-workflow-action@0.11.0
+        with:
+          access_token: ${{ github.token }}
+
       - name: Setup | Artifacts
         uses: actions/download-artifact@v3
         with:
@@ -105,9 +127,14 @@ jobs:
 
   docker_buildx:
     # Ensure we don't publish images until we pass clippy.
-    needs: [build]
+    needs: [hygiene]
     runs-on: ubuntu-22.04
     steps:
+      - name: Setup | Cancel Previous Runs
+        uses: styfle/cancel-workflow-action@0.11.0
+        with:
+          access_token: ${{ github.token }}
+
       - name: Setup | Checkout
         uses: actions/checkout@v3
         with:
