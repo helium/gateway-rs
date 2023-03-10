@@ -3,7 +3,7 @@ use crate::{
     message_cache::{CacheMessage, MessageCache},
     region_watcher,
     service::packet_router::PacketRouterService,
-    sync, Base64, Keypair, MsgSign, Packet, RegionParams, Result, Settings,
+    sync, Base64, Keypair, MsgSign, PacketUp, RegionParams, Result, Settings,
 };
 use exponential_backoff::Backoff;
 use helium_proto::services::router::{PacketRouterPacketDownV1, PacketRouterPacketUpV1};
@@ -20,7 +20,7 @@ const RECONNECT_BACKOFF_MAX_WAIT: Duration = Duration::from_secs(1800); // 30 mi
 #[derive(Debug)]
 pub enum Message {
     Uplink {
-        packet: Packet,
+        packet: PacketUp,
         received: StdInstant,
     },
 }
@@ -33,7 +33,7 @@ pub fn message_channel() -> (MessageSender, MessageReceiver) {
 }
 
 impl MessageSender {
-    pub async fn uplink(&self, packet: Packet, received: StdInstant) {
+    pub async fn uplink(&self, packet: PacketUp, received: StdInstant) {
         self.send(Message::Uplink { packet, received }).await
     }
 }
@@ -46,7 +46,7 @@ pub struct PacketRouter {
     reconnect_retry: u32,
     region_params: RegionParams,
     keypair: Arc<Keypair>,
-    store: MessageCache<Packet>,
+    store: MessageCache<PacketUp>,
 }
 
 impl PacketRouter {
@@ -137,16 +137,13 @@ impl PacketRouter {
                 .unwrap_or(RECONNECT_BACKOFF_MAX_WAIT)
     }
 
-    async fn handle_uplink(&mut self, uplink: Packet, received: StdInstant) {
+    async fn handle_uplink(&mut self, uplink: PacketUp, received: StdInstant) {
         self.store.push_back(uplink, received);
         self.send_waiting_packets().await;
     }
 
     async fn handle_downlink(&mut self, message: PacketRouterPacketDownV1) {
-        match Packet::try_from(message) {
-            Ok(packet) => self.transmit.downlink(packet).await,
-            Err(err) => warn!(%err, "could not convert packet to downlink"),
-        };
+        self.transmit.downlink(message.into()).await;
     }
 
     async fn send_waiting_packets(&mut self) {
@@ -160,15 +157,18 @@ impl PacketRouter {
         }
     }
 
-    pub async fn mk_uplink(&self, packet: CacheMessage<Packet>) -> Result<PacketRouterPacketUpV1> {
-        let mut uplink: PacketRouterPacketUpV1 = packet.into_inner().try_into()?;
+    pub async fn mk_uplink(
+        &self,
+        packet: CacheMessage<PacketUp>,
+    ) -> Result<PacketRouterPacketUpV1> {
+        let mut uplink: PacketRouterPacketUpV1 = packet.into_inner().into();
         uplink.region = self.region_params.region.into();
         uplink.gateway = self.keypair.public_key().into();
         uplink.signature = uplink.sign(self.keypair.clone()).await?;
         Ok(uplink)
     }
 
-    async fn send_packet(&mut self, packet: CacheMessage<Packet>) -> Result {
+    async fn send_packet(&mut self, packet: CacheMessage<PacketUp>) -> Result {
         debug!(packet_hash = packet.hash().to_b64(), "sending packet");
 
         let uplink = self.mk_uplink(packet).await?;

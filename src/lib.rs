@@ -21,7 +21,7 @@ pub use beacon::{Region, RegionParams};
 pub use error::{Error, Result};
 pub use keyed_uri::KeyedUri;
 pub use keypair::{Keypair, PublicKey};
-pub use packet::Packet;
+pub use packet::{PacketDown, PacketUp};
 pub use settings::Settings;
 pub(crate) use traits::*;
 

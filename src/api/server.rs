@@ -1,6 +1,5 @@
 use super::{
-    listen_addr, AddGatewayReq, AddGatewayRes, PubkeyReq, PubkeyRes, RegionReq, RegionRes, SignReq,
-    SignRes,
+    listen_addr, AddGatewayReq, AddGatewayRes, PubkeyReq, PubkeyRes, RegionReq, RegionRes,
 };
 use crate::{
     region_watcher, settings::StakingMode, Error, Keypair, PublicKey, Result, Settings,
@@ -60,16 +59,6 @@ impl Api for LocalServer {
         Ok(Response::new(RegionRes {
             region: region_params.region.into(),
         }))
-    }
-
-    async fn sign(&self, request: Request<SignReq>) -> ApiResult<SignRes> {
-        let data = request.into_inner().data;
-        let signature = self
-            .keypair
-            .sign(&data)
-            .map_err(|_err| Status::internal("Failed signing data"))?;
-        let reply = SignRes { signature };
-        Ok(Response::new(reply))
     }
 
     async fn add_gateway(&self, request: Request<AddGatewayReq>) -> ApiResult<AddGatewayRes> {
