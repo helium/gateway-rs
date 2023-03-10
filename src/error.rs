@@ -65,8 +65,8 @@ pub enum DecodeError {
     NoDataRate,
     #[error("packet is not a beacon")]
     NotBeacon,
-    #[error("invalid beacon datarate: {0}")]
-    InvalidBeaconDataRate(String),
+    #[error("invalid datarate: {0}")]
+    InvalidDataRate(String),
 }
 
 #[derive(Error, Debug)]
@@ -150,8 +150,8 @@ impl DecodeError {
         Error::Decode(DecodeError::NoDataRate)
     }
 
-    pub fn invalid_beacon_data_rate(datarate: String) -> Error {
-        Error::Decode(DecodeError::InvalidBeaconDataRate(datarate))
+    pub fn invalid_data_rate(datarate: String) -> Error {
+        Error::Decode(DecodeError::InvalidDataRate(datarate))
     }
 
     pub fn not_beacon() -> Error {

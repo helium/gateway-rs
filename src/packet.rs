@@ -1,12 +1,7 @@
 use crate::{error::DecodeError, Error, Result};
-use helium_proto::{
-    packet::PacketType,
-    routing_information::Data as RoutingData,
-    services::{
-        poc_lora,
-        router::{PacketRouterPacketDownV1, PacketRouterPacketUpV1},
-    },
-    DataRate as ProtoDataRate, Eui, RoutingInformation,
+use helium_proto::services::{
+    poc_lora,
+    router::{PacketRouterPacketDownV1, PacketRouterPacketUpV1},
 };
 use lorawan::{Direction, PHYPayloadFrame, MHDR};
 use semtech_udp::{
@@ -19,7 +14,6 @@ use std::{
     convert::TryFrom,
     fmt,
     ops::Deref,
-    str::FromStr,
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -78,42 +72,13 @@ impl TryFrom<push_data::RxPk> for PacketUp {
             rssi,
             timestamp: *rxpk.get_timestamp() as u64,
             payload: rxpk.get_data().to_vec(),
-            // TODO: f32 conversion needed?
-            frequency: to_hz(*rxpk.get_frequency() as f32) as u32,
-            // TODO: Avoid string conversion
-            datarate: ProtoDataRate::from_str(&rxpk.get_datarate().to_string())? as i32,
+            frequency: to_hz(*rxpk.get_frequency()) as u32,
+            datarate: datarate::to_proto(rxpk.get_datarate())? as i32,
             snr: rxpk.get_snr(),
             region: 0,
             hold_time: 0,
             gateway: vec![],
             signature: vec![],
-        };
-        Ok(Self(packet))
-    }
-}
-
-impl TryFrom<PacketRouterPacketDownV1> for Packet {
-    type Error = Error;
-
-    fn try_from(pr_down: PacketRouterPacketDownV1) -> Result<Self> {
-        let window = pr_down.rx1.ok_or_else(DecodeError::no_rx1_window)?;
-        let datarate = helium_proto::DataRate::from_i32(window.datarate)
-            .ok_or_else(DecodeError::no_data_rate)?;
-        let packet = helium_proto::Packet {
-            oui: 0,
-            r#type: PacketType::Lorawan.into(),
-            payload: pr_down.payload,
-            timestamp: window.timestamp,
-            signal_strength: 0.0,
-            frequency: window.frequency as f32 / 1_000_000.0,
-            datarate: datarate.to_string(),
-            snr: 0.0,
-            routing: None,
-            rx2_window: pr_down.rx2.map(|window| helium_proto::Window {
-                timestamp: window.timestamp,
-                frequency: window.frequency as f32 / 1_000_000.0,
-                datarate: window.datarate.to_string(),
-            }),
         };
         Ok(Self(packet))
     }
@@ -141,12 +106,6 @@ impl TryFrom<PacketUp> for poc_lora::LoraWitnessReportReqV1 {
             signature: vec![],
         };
         Ok(report)
-    }
-}
-
-impl From<helium_proto::Packet> for Packet {
-    fn from(v: helium_proto::Packet) -> Self {
-        Self(v)
     }
 }
 
@@ -180,7 +139,7 @@ impl PacketUp {
 
 impl PacketDown {
     pub fn to_rx1_pull_resp(&self, tx_power: u32) -> Result<pull_resp::TxPk> {
-        let rx1 = self.0.rx1.ok_or_else(DecodeError::no_rx1_window)?;
+        let rx1 = self.0.rx1.as_ref().ok_or_else(DecodeError::no_rx1_window)?;
         let time = if rx1.immediate {
             Time::immediate()
         } else {
@@ -188,22 +147,22 @@ impl PacketDown {
         };
         self.inner_to_pull_resp(
             time,
-            rx1.frequency as f32 / 1_000_000f32,
-            rx1.datarate().to_string().parse()?,
+            rx1.frequency,
+            datarate::from_proto(rx1.datarate())?,
             tx_power,
         )
     }
 
     pub fn to_rx2_pull_resp(&self, tx_power: u32) -> Result<Option<pull_resp::TxPk>> {
-        let rx2 = match &self.0.rx2 {
+        let rx2 = match self.0.rx2.as_ref() {
             Some(window) => window,
             None => return Ok(None),
         };
 
         self.inner_to_pull_resp(
             Time::by_tmst(rx2.timestamp as u32),
-            rx2.frequency as f32 / 1_000_000f32,
-            rx2.datarate().to_string().parse()?,
+            rx2.frequency,
+            datarate::from_proto(rx2.datarate())?,
             tx_power,
         )
         .map(Some)
@@ -212,7 +171,7 @@ impl PacketDown {
     fn inner_to_pull_resp(
         &self,
         time: Time,
-        frequency: f32,
+        frequency_hz: u32,
         datarate: DataRate,
         tx_power: u32,
     ) -> Result<pull_resp::TxPk> {
@@ -224,7 +183,7 @@ impl PacketDown {
             datr: datarate,
             // for normal lorawan packets we're not selecting different frequencies
             // like we are for PoC
-            freq: frequency as f64,
+            freq: to_mhz(frequency_hz),
             data: PhyData::new(self.0.payload.clone()),
             powe: tx_power as u64,
             rfch: 0,
@@ -235,98 +194,60 @@ impl PacketDown {
     }
 }
 
-impl Packet {
-    pub fn routing(&self) -> &Option<RoutingInformation> {
-        &self.0.routing
+fn to_hz<M: Into<f64>>(mhz: M) -> u64 {
+    (mhz.into() * 1_000_000f64).trunc() as u64
+}
+
+fn to_mhz<H: Into<f64>>(hz: H) -> f64 {
+    hz.into() / 1_000_000.0
+}
+
+mod datarate {
+    use super::{DecodeError, Result};
+    use helium_proto::DataRate as ProtoRate;
+    use semtech_udp::{Bandwidth, DataRate, SpreadingFactor};
+
+    pub fn from_proto(rate: ProtoRate) -> Result<DataRate> {
+        let (spreading_factor, bandwidth) = match rate {
+            ProtoRate::Sf12bw250 => (SpreadingFactor::SF12, Bandwidth::BW250),
+            ProtoRate::Sf11bw250 => (SpreadingFactor::SF11, Bandwidth::BW250),
+            ProtoRate::Sf10bw250 => (SpreadingFactor::SF10, Bandwidth::BW250),
+            ProtoRate::Sf9bw250 => (SpreadingFactor::SF9, Bandwidth::BW250),
+            ProtoRate::Sf8bw250 => (SpreadingFactor::SF8, Bandwidth::BW250),
+            ProtoRate::Sf7bw250 => (SpreadingFactor::SF7, Bandwidth::BW250),
+            ProtoRate::Sf12bw500 => (SpreadingFactor::SF12, Bandwidth::BW500),
+            ProtoRate::Sf11bw500 => (SpreadingFactor::SF11, Bandwidth::BW500),
+            ProtoRate::Sf10bw500 => (SpreadingFactor::SF10, Bandwidth::BW500),
+            ProtoRate::Sf9bw500 => (SpreadingFactor::SF9, Bandwidth::BW500),
+            ProtoRate::Sf8bw500 => (SpreadingFactor::SF8, Bandwidth::BW500),
+            ProtoRate::Sf7bw500 => (SpreadingFactor::SF7, Bandwidth::BW500),
+            other => return Err(DecodeError::invalid_data_rate(other.to_string())),
+        };
+        Ok(DataRate::new(spreading_factor, bandwidth))
     }
 
-    pub fn to_packet(self) -> helium_proto::Packet {
-        self.0
-    }
-
-    pub fn payload(&self) -> &[u8] {
-        &self.0.payload
-    }
-
-    pub fn routing_information(frame: &PHYPayloadFrame) -> Result<Option<RoutingInformation>> {
-        let routing_data = match frame {
-            PHYPayloadFrame::JoinRequest(request) => Some(RoutingData::Eui(Eui {
-                deveui: request.dev_eui,
-                appeui: request.app_eui,
-            })),
-            PHYPayloadFrame::MACPayload(mac_payload) => {
-                Some(RoutingData::Devaddr(mac_payload.dev_addr()))
+    pub fn to_proto(rate: DataRate) -> Result<ProtoRate> {
+        let rate = match (rate.spreading_factor(), rate.bandwidth()) {
+            (SpreadingFactor::SF12, Bandwidth::BW250) => ProtoRate::Sf12bw250,
+            (SpreadingFactor::SF11, Bandwidth::BW250) => ProtoRate::Sf11bw250,
+            (SpreadingFactor::SF10, Bandwidth::BW250) => ProtoRate::Sf10bw250,
+            (SpreadingFactor::SF9, Bandwidth::BW250) => ProtoRate::Sf9bw250,
+            (SpreadingFactor::SF8, Bandwidth::BW250) => ProtoRate::Sf8bw250,
+            (SpreadingFactor::SF7, Bandwidth::BW250) => ProtoRate::Sf7bw250,
+            (SpreadingFactor::SF12, Bandwidth::BW500) => ProtoRate::Sf12bw500,
+            (SpreadingFactor::SF11, Bandwidth::BW500) => ProtoRate::Sf11bw500,
+            (SpreadingFactor::SF10, Bandwidth::BW500) => ProtoRate::Sf10bw500,
+            (SpreadingFactor::SF9, Bandwidth::BW500) => ProtoRate::Sf9bw500,
+            (SpreadingFactor::SF8, Bandwidth::BW500) => ProtoRate::Sf8bw500,
+            (SpreadingFactor::SF7, Bandwidth::BW500) => ProtoRate::Sf7bw500,
+            (spreading_factor, bandwidth) => {
+                let bandwidth = bandwidth.to_hz() / 1000; // in khz
+                let spreading_factor = spreading_factor.to_u8();
+                return Err(DecodeError::invalid_data_rate(format!(
+                    "SF{spreading_factor}BW{bandwidth}"
+                )));
             }
-            _ => return Ok(None),
         };
-        Ok(routing_data.map(|r| RoutingInformation { data: Some(r) }))
+        Ok(rate)
     }
-
-    pub fn to_rx1_pull_resp(&self, tx_power: u32) -> Result<pull_resp::TxPk> {
-        self.inner_to_pull_resp(
-            self.0.timestamp,
-            self.0.frequency,
-            self.0.datarate.parse()?,
-            tx_power,
-        )
-    }
-
-    pub fn to_rx2_pull_resp(&self, tx_power: u32) -> Result<Option<pull_resp::TxPk>> {
-        let rx2 = match &self.0.rx2_window {
-            Some(window) => window,
-            None => return Ok(None),
-        };
-
-        self.inner_to_pull_resp(
-            rx2.timestamp,
-            rx2.frequency,
-            rx2.datarate.parse()?,
-            tx_power,
-        )
-        .map(Some)
-    }
-
-    fn inner_to_pull_resp(
-        &self,
-        timestamp: u64,
-        frequency: f32,
-        datarate: DataRate,
-        tx_power: u32,
-    ) -> Result<pull_resp::TxPk> {
-        Ok(pull_resp::TxPk {
-            time: Time::by_tmst(timestamp as u32),
-            ipol: true,
-            modu: Modulation::LORA,
-            codr: CodingRate::_4_5,
-            datr: datarate,
-            // for normal lorawan packets we're not selecting different frequencies
-            // like we are for PoC
-            freq: frequency as f64,
-            data: PhyData::new(self.0.payload.clone()),
-            powe: tx_power as u64,
-            rfch: 0,
-            fdev: None,
-            prea: None,
-            ncrc: None,
-        })
-    }
-
-    pub fn hash(&self) -> Vec<u8> {
-        Sha256::digest(&self.0.payload).to_vec()
-    }
-
-    pub fn dc_payload(&self) -> u64 {
-        const DC_PAYLOAD_SIZE: usize = 24;
-        let payload_size = self.payload().len();
-        if payload_size <= DC_PAYLOAD_SIZE {
-            1
-        } else {
-            // integer div/ceil from: https://stackoverflow.com/a/2745086
-            ((payload_size + DC_PAYLOAD_SIZE - 1) / DC_PAYLOAD_SIZE) as u64
-        }
-    }
-}
-
-fn to_hz(mhz: f32) -> u64 {
-    (mhz * 1_000_000f32).trunc() as u64
 }

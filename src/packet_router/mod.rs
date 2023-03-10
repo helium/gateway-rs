@@ -143,7 +143,7 @@ impl PacketRouter {
     }
 
     async fn handle_downlink(&mut self, message: PacketRouterPacketDownV1) {
-        self.transmit.downlink(message.into());
+        self.transmit.downlink(message.into()).await;
     }
 
     async fn send_waiting_packets(&mut self) {
