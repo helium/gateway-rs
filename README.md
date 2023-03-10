@@ -301,7 +301,6 @@ follows whilst passing any of the other commands such as `server` or `add`
 
 ```
 ./helium_gateway -c /location/of/config/file server
-
 ```
 
 Lastly you can check the version, read the help information or daemonize the
