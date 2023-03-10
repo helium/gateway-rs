@@ -194,15 +194,15 @@ impl PacketDown {
     }
 }
 
-fn to_hz<M: Into<f64>>(mhz: M) -> u64 {
+pub(crate) fn to_hz<M: Into<f64>>(mhz: M) -> u64 {
     (mhz.into() * 1_000_000f64).trunc() as u64
 }
 
-fn to_mhz<H: Into<f64>>(hz: H) -> f64 {
+pub(crate) fn to_mhz<H: Into<f64>>(hz: H) -> f64 {
     hz.into() / 1_000_000.0
 }
 
-mod datarate {
+pub(crate) mod datarate {
     use super::{DecodeError, Result};
     use helium_proto::DataRate as ProtoRate;
     use semtech_udp::{Bandwidth, DataRate, SpreadingFactor};

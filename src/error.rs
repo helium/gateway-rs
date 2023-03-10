@@ -53,16 +53,12 @@ pub enum DecodeError {
     Prost(#[from] prost::DecodeError),
     #[error("lorawan decode")]
     LoraWan(#[from] lorawan::LoraWanError),
-    #[error("semtech decode")]
-    Semtech(#[from] semtech_udp::data_rate::ParseError),
     #[error("packet crc")]
     InvalidCrc,
     #[error("unexpected transaction in envelope")]
     InvalidEnvelope,
     #[error("no rx1 window in downlink packet")]
     NoRx1Window,
-    #[error("no datarate found in packet")]
-    NoDataRate,
     #[error("packet is not a beacon")]
     NotBeacon,
     #[error("invalid datarate: {0}")]
@@ -123,7 +119,6 @@ from_err!(DecodeError, serde_json::Error);
 from_err!(DecodeError, net::AddrParseError);
 from_err!(DecodeError, prost::DecodeError);
 from_err!(DecodeError, lorawan::LoraWanError);
-from_err!(DecodeError, semtech_udp::data_rate::ParseError);
 
 impl DecodeError {
     pub fn invalid_envelope() -> Error {
@@ -144,10 +139,6 @@ impl DecodeError {
 
     pub fn no_rx1_window() -> Error {
         Error::Decode(DecodeError::NoRx1Window)
-    }
-
-    pub fn no_data_rate() -> Error {
-        Error::Decode(DecodeError::NoDataRate)
     }
 
     pub fn invalid_data_rate(datarate: String) -> Error {

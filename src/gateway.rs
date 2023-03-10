@@ -1,6 +1,6 @@
 use crate::{
-    beaconer, packet_router, region_watcher, sync, PacketDown, PacketUp, RegionParams, Result,
-    Settings,
+    beaconer, packet, packet_router, region_watcher, sync, PacketDown, PacketUp, RegionParams,
+    Result, Settings,
 };
 use beacon::Beacon;
 use lorawan::PHYPayload;
@@ -300,9 +300,8 @@ impl Gateway {
 }
 
 pub fn beacon_to_pull_resp(beacon: &Beacon, tx_power: u64) -> Result<pull_resp::TxPk> {
-    let datr = beacon.datarate.to_string().parse()?;
-    // convert hz to mhz
-    let freq = beacon.frequency as f64 / 1e6;
+    let datr = packet::datarate::from_proto(beacon.datarate)?;
+    let freq = packet::to_mhz(beacon.frequency as f64);
     let data: Vec<u8> = PHYPayload::proprietary(beacon.data.as_slice()).try_into()?;
 
     Ok(pull_resp::TxPk {
