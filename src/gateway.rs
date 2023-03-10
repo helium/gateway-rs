@@ -180,7 +180,7 @@ impl Gateway {
         let tx_power = match self.max_tx_power() {
             Ok(tx_power) => tx_power,
             Err(err) => {
-                warn!("ignoring transmit: {err}");
+                warn!(%err, "beacon transmit");
                 responder.send(Err(err));
                 return;
             }
@@ -251,7 +251,7 @@ impl Gateway {
         let tx_power = match self.max_tx_power() {
             Ok(tx_power) => tx_power,
             Err(err) => {
-                warn!("ignoring transmit: {err}");
+                warn!(%err, "downlink transmit");
                 return;
             }
         };

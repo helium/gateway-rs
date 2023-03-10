@@ -228,25 +228,26 @@ pub(crate) mod datarate {
 
     pub fn to_proto(rate: DataRate) -> Result<ProtoRate> {
         let rate = match (rate.spreading_factor(), rate.bandwidth()) {
+            (SpreadingFactor::SF12, Bandwidth::BW125) => ProtoRate::Sf12bw125,
+            (SpreadingFactor::SF11, Bandwidth::BW125) => ProtoRate::Sf11bw125,
+            (SpreadingFactor::SF10, Bandwidth::BW125) => ProtoRate::Sf10bw125,
+            (SpreadingFactor::SF9, Bandwidth::BW125) => ProtoRate::Sf9bw125,
+            (SpreadingFactor::SF8, Bandwidth::BW125) => ProtoRate::Sf8bw125,
+            (SpreadingFactor::SF7, Bandwidth::BW125) => ProtoRate::Sf7bw125,
+
             (SpreadingFactor::SF12, Bandwidth::BW250) => ProtoRate::Sf12bw250,
             (SpreadingFactor::SF11, Bandwidth::BW250) => ProtoRate::Sf11bw250,
             (SpreadingFactor::SF10, Bandwidth::BW250) => ProtoRate::Sf10bw250,
             (SpreadingFactor::SF9, Bandwidth::BW250) => ProtoRate::Sf9bw250,
             (SpreadingFactor::SF8, Bandwidth::BW250) => ProtoRate::Sf8bw250,
             (SpreadingFactor::SF7, Bandwidth::BW250) => ProtoRate::Sf7bw250,
+
             (SpreadingFactor::SF12, Bandwidth::BW500) => ProtoRate::Sf12bw500,
             (SpreadingFactor::SF11, Bandwidth::BW500) => ProtoRate::Sf11bw500,
             (SpreadingFactor::SF10, Bandwidth::BW500) => ProtoRate::Sf10bw500,
             (SpreadingFactor::SF9, Bandwidth::BW500) => ProtoRate::Sf9bw500,
             (SpreadingFactor::SF8, Bandwidth::BW500) => ProtoRate::Sf8bw500,
             (SpreadingFactor::SF7, Bandwidth::BW500) => ProtoRate::Sf7bw500,
-            (spreading_factor, bandwidth) => {
-                let bandwidth = bandwidth.to_hz() / 1000; // in khz
-                let spreading_factor = spreading_factor.to_u8();
-                return Err(DecodeError::invalid_data_rate(format!(
-                    "SF{spreading_factor}BW{bandwidth}"
-                )));
-            }
         };
         Ok(rate)
     }
