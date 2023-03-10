@@ -5,29 +5,29 @@ pub type Result<T = ()> = std::result::Result<T, Error>;
 
 #[derive(Error, Debug)]
 pub enum Error {
-    #[error("config error")]
+    #[error("config error: {0}")]
     Config(#[from] config::ConfigError),
-    #[error("custom error")]
+    #[error("custom error: {0}")]
     Custom(String),
-    #[error("io error")]
+    #[error("io error: {0}")]
     IO(#[from] std::io::Error),
-    #[error("crypto error")]
+    #[error("crypto error: {0}")]
     CryptoError(#[from] helium_crypto::Error),
-    #[error("encode error")]
+    #[error("encode error: {0}")]
     Encode(#[from] EncodeError),
-    #[error("decode error")]
+    #[error("decode error: {0}")]
     Decode(#[from] DecodeError),
     #[error("service error: {0}")]
     Service(#[from] ServiceError),
-    #[error("semtech udp error")]
+    #[error("semtech udp error: {0}")]
     Semtech(#[from] Box<semtech_udp::server_runtime::Error>),
-    #[error("beacon error")]
+    #[error("beacon error: {0}")]
     Beacon(#[from] beacon::Error),
     #[error("gateway error: {0}")]
     Gateway(#[from] crate::gateway::GatewayError),
-    #[error("region error")]
+    #[error("region error: {0}")]
     Region(#[from] RegionError),
-    #[error("system time")]
+    #[error("system time: {0}")]
     SystemTime(#[from] std::time::SystemTimeError),
 }
 
@@ -39,19 +39,19 @@ pub enum EncodeError {
 
 #[derive(Error, Debug)]
 pub enum DecodeError {
-    #[error("uri decode")]
+    #[error("uri decode: {0}")]
     Uri(#[from] http::uri::InvalidUri),
     #[error("keypair uri: {0}")]
     KeypairUri(String),
-    #[error("json decode")]
+    #[error("json decode: {0}")]
     Json(#[from] serde_json::Error),
-    #[error("base64 decode")]
+    #[error("base64 decode: {0}")]
     Base64(#[from] base64::DecodeError),
-    #[error("network address decode")]
+    #[error("network address decode: {0}")]
     Addr(#[from] net::AddrParseError),
-    #[error("protobuf decode")]
+    #[error("protobuf decode {0}")]
     Prost(#[from] prost::DecodeError),
-    #[error("lorawan decode")]
+    #[error("lorawan decode: {0}")]
     LoraWan(#[from] lorawan::LoraWanError),
     #[error("packet crc")]
     InvalidCrc,
@@ -67,9 +67,9 @@ pub enum DecodeError {
 
 #[derive(Error, Debug)]
 pub enum ServiceError {
-    #[error("service {0:?}")]
+    #[error("service {0}")]
     Service(#[from] helium_proto::services::Error),
-    #[error("rpc {0:?}")]
+    #[error("rpc {0}")]
     Rpc(#[from] tonic::Status),
     #[error("stream closed")]
     Stream,
