@@ -1,5 +1,6 @@
 use crate::{
-    beaconer, packet_router, region_watcher, sync, Packet, RegionParams, Result, Settings,
+    beaconer, packet_router, region_watcher, sync, PacketDown, PacketUp, RegionParams, Result,
+    Settings,
 };
 use beacon::Beacon;
 use lorawan::PHYPayload;
@@ -26,7 +27,7 @@ pub struct BeaconResp {
 
 #[derive(Debug)]
 pub enum Message {
-    Downlink(Packet),
+    Downlink(PacketDown),
     TransmitBeacon(Beacon, sync::ResponseSender<Result<BeaconResp>>),
 }
 
@@ -46,7 +47,7 @@ pub fn message_channel() -> (MessageSender, MessageReceiver) {
 }
 
 impl MessageSender {
-    pub async fn downlink(&self, packet: Packet) {
+    pub async fn downlink(&self, packet: PacketDown) {
         self.send(Message::Downlink(packet)).await
     }
 
@@ -134,7 +135,7 @@ impl Gateway {
             Event::ClientDisconnected((mac, addr)) => {
                 info!(%mac, %addr, "disconnected packet forwarder")
             }
-            Event::PacketReceived(rxpk, _gateway_mac) => match Packet::try_from(rxpk) {
+            Event::PacketReceived(rxpk, _gateway_mac) => match PacketUp::try_from(rxpk) {
                 Ok(packet) if packet.is_potential_beacon() => {
                     self.beacons.received_beacon(packet).await
                 }
@@ -153,7 +154,7 @@ impl Gateway {
         Ok(())
     }
 
-    async fn handle_uplink(&mut self, packet: Packet, received: Instant) {
+    async fn handle_uplink(&mut self, packet: PacketUp, received: Instant) {
         info!(downlink_mac = %self.downlink_mac, uplink = %packet, "received uplink");
         self.uplinks.uplink(packet, received).await;
     }
@@ -246,7 +247,7 @@ impl Gateway {
         });
     }
 
-    async fn handle_downlink(&mut self, downlink: Packet) {
+    async fn handle_downlink(&mut self, downlink: PacketDown) {
         let tx_power = match self.max_tx_power() {
             Ok(tx_power) => tx_power,
             Err(err) => {

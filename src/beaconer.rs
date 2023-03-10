@@ -6,7 +6,7 @@ use crate::{
     impl_msg_sign, region_watcher,
     service::{entropy::EntropyService, poc::PocIotService},
     settings::Settings,
-    sync, Base64, Keypair, MsgSign, Packet, RegionParams, Result,
+    sync, Base64, Keypair, MsgSign, PacketUp, RegionParams, Result,
 };
 use futures::TryFutureExt;
 use helium_proto::{services::poc_lora, Message as ProtoMessage};
@@ -29,7 +29,7 @@ impl_msg_sign!(poc_lora::LoraWitnessReportReqV1, signature);
 /// Message types that can be sent to `Beaconer`'s inbox.
 #[derive(Debug)]
 pub enum Message {
-    ReceivedBeacon(Packet),
+    ReceivedBeacon(PacketUp),
 }
 
 pub type MessageSender = sync::MessageSender<Message>;
@@ -40,7 +40,7 @@ pub fn message_channel() -> (MessageSender, MessageReceiver) {
 }
 
 impl MessageSender {
-    pub async fn received_beacon(&self, packet: Packet) {
+    pub async fn received_beacon(&self, packet: PacketUp) {
         self.send(Message::ReceivedBeacon(packet)).await
     }
 }
@@ -196,7 +196,10 @@ impl Beaconer {
         Ok(report)
     }
 
-    async fn mk_witness_report(&self, packet: Packet) -> Result<poc_lora::LoraWitnessReportReqV1> {
+    async fn mk_witness_report(
+        &self,
+        packet: PacketUp,
+    ) -> Result<poc_lora::LoraWitnessReportReqV1> {
         let mut report = poc_lora::LoraWitnessReportReqV1::try_from(packet)?;
         report.pub_key = self.keypair.public_key().to_vec();
         report.signature = report.sign(self.keypair.clone()).await?;
@@ -221,11 +224,11 @@ impl Beaconer {
         };
     }
 
-    async fn handle_received_beacon(&mut self, packet: Packet) {
+    async fn handle_received_beacon(&mut self, packet: PacketUp) {
         info!("received possible PoC payload: {packet:?}");
 
         if let Some(last_beacon) = &self.last_beacon {
-            if packet.payload == last_beacon.data {
+            if packet.payload() == last_beacon.data {
                 info!("ignoring last self beacon witness");
                 return;
             }
