@@ -267,7 +267,7 @@ Using the Helium Gateway application is pretty simple, and the vast majority of
 the information you will need to use it can be gleaned by using the `--help`
 flag which provides the following output:
 
-````
+```
 Helium Light Gateway
 
 USAGE:
@@ -286,7 +286,8 @@ SUBCOMMANDS:
     help      Prints this message or the help of the given subcommand(s)
     info      Info command. Retrieve all or a subset of information from the running service
     key       Commands on gateway keys
-    server    Run the gateway service```
+    server    Run the gateway service
+```
 
 As you can see, apart from the `help` command, there are four core subcommands
 that you can pass: `add`, `key`, `server`. The descriptions of what these
@@ -298,10 +299,8 @@ the application where your configuration file is located and can be used as
 follows whilst passing any of the other commands such as `server` or `add`
 (default is `/etc/helium_gateway/settings.toml`):
 
-````
-
+```
 ./helium_gateway -c /location/of/config/file server
-
 ```
 
 Lastly you can check the version, read the help information or daemonize the
@@ -316,7 +315,6 @@ process can be found [on the docs article for Data Only
 Hotspots](https://docs.helium.com/mine-hnt/data-only-hotspots/#add-hotspot).
 
 ```
-
 Construct an add gateway transaction for this gateway
 
 USAGE:
@@ -330,17 +328,14 @@ OPTIONS:
 --mode <mode> The staking mode for adding the light gateway [default: dataonly]
 --owner <owner> The target owner account of this gateway
 --payer <payer> The account that will pay account for this addition
-
 ```
 
 So for example, to construct a dataonly add gateway transaction you would enter
 the following command at the terminal:
 
 ```
-
 ./helium_gateway add --owner WALLET_ADDRESS --payer WALLET_ADDRESS
-
-````
+```
 
 You need to substitute WALLET_ADDRESS for the wallet address you will use for
 the owner of the hotspot and the payer of the transaction fees
@@ -360,7 +355,7 @@ The output of this command is a JSON object which looks like the following:
   "staking fee": 1000000,
   "txn": "CrkBCiEBrlImpYLbJ0z0hw5b4g9isRyPrgbXs9X+RrJ4pJJc9MkSIQA7yIy7F+9oPYCTmDz+v782GMJ4AC+jM+VfjvUgAHflWSJGMEQCIGfugfLkXv23vJcfwPYjLlMyzYhKp+Rg8B2YKwnsDHaUAiASkdxUO4fdS33D7vyid8Tulizo9SLEL1lduyvda9YVRCohAa5SJqWC2ydM9IcOW+IPYrEcj64G17PV/kayeKSSXPTJOMCEPUDo+wM="
 }
-````
+```
 
 You can also pass a `--mode` flag followed by the hotspot type (`dataonly |
 light | full`) as shown below:
