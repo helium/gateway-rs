@@ -209,19 +209,36 @@ pub(crate) mod datarate {
 
     pub fn from_proto(rate: ProtoRate) -> Result<DataRate> {
         let (spreading_factor, bandwidth) = match rate {
+            ProtoRate::Sf12bw125 => (SpreadingFactor::SF12, Bandwidth::BW125),
+            ProtoRate::Sf11bw125 => (SpreadingFactor::SF11, Bandwidth::BW125),
+            ProtoRate::Sf10bw125 => (SpreadingFactor::SF10, Bandwidth::BW125),
+            ProtoRate::Sf9bw125 => (SpreadingFactor::SF9, Bandwidth::BW125),
+            ProtoRate::Sf8bw125 => (SpreadingFactor::SF8, Bandwidth::BW125),
+            ProtoRate::Sf7bw125 => (SpreadingFactor::SF7, Bandwidth::BW125),
+
             ProtoRate::Sf12bw250 => (SpreadingFactor::SF12, Bandwidth::BW250),
             ProtoRate::Sf11bw250 => (SpreadingFactor::SF11, Bandwidth::BW250),
             ProtoRate::Sf10bw250 => (SpreadingFactor::SF10, Bandwidth::BW250),
             ProtoRate::Sf9bw250 => (SpreadingFactor::SF9, Bandwidth::BW250),
             ProtoRate::Sf8bw250 => (SpreadingFactor::SF8, Bandwidth::BW250),
             ProtoRate::Sf7bw250 => (SpreadingFactor::SF7, Bandwidth::BW250),
+
             ProtoRate::Sf12bw500 => (SpreadingFactor::SF12, Bandwidth::BW500),
             ProtoRate::Sf11bw500 => (SpreadingFactor::SF11, Bandwidth::BW500),
             ProtoRate::Sf10bw500 => (SpreadingFactor::SF10, Bandwidth::BW500),
             ProtoRate::Sf9bw500 => (SpreadingFactor::SF9, Bandwidth::BW500),
             ProtoRate::Sf8bw500 => (SpreadingFactor::SF8, Bandwidth::BW500),
             ProtoRate::Sf7bw500 => (SpreadingFactor::SF7, Bandwidth::BW500),
-            other => return Err(DecodeError::invalid_data_rate(other.to_string())),
+
+            ProtoRate::Lrfhss2bw137
+            | ProtoRate::Lrfhss1bw336
+            | ProtoRate::Lrfhss1bw137
+            | ProtoRate::Lrfhss2bw336
+            | ProtoRate::Lrfhss1bw1523
+            | ProtoRate::Lrfhss2bw1523
+            | ProtoRate::Fsk50 => {
+                return Err(DecodeError::invalid_data_rate("unsupported".to_string()))
+            }
         };
         Ok(DataRate::new(spreading_factor, bandwidth))
     }
