@@ -25,7 +25,7 @@ In turn, the Helium Gateway application does two things:
                                                                  +-----------+
 ```
 
-**NOTE**: A Helium Gateway based hotspots is eligible for data rewards **only**.
+**NOTE**: A Helium Gateway based hotspot is eligible for data rewards **only**.
 Proof of coverage rewards are only possible for approved maker hotspots.
 
 ### Releases
