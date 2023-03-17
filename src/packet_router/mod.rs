@@ -7,6 +7,7 @@ use crate::{
 };
 use exponential_backoff::Backoff;
 use helium_proto::services::router::{PacketRouterPacketDownV1, PacketRouterPacketUpV1};
+use serde::Serialize;
 use std::{sync::Arc, time::Instant as StdInstant};
 use tokio::time::{self, Duration, Instant};
 use tracing::{debug, info, warn};
@@ -23,6 +24,14 @@ pub enum Message {
         packet: PacketUp,
         received: StdInstant,
     },
+    Status(sync::ResponseSender<RouterStatus>),
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RouterStatus {
+    #[serde(with = "http_serde::uri")]
+    pub uri: http::Uri,
+    pub connected: bool,
 }
 
 pub type MessageSender = sync::MessageSender<Message>;
@@ -35,6 +44,10 @@ pub fn message_channel() -> (MessageSender, MessageReceiver) {
 impl MessageSender {
     pub async fn uplink(&self, packet: PacketUp, received: StdInstant) {
         self.send(Message::Uplink { packet, received }).await
+    }
+
+    pub async fn status(&self) -> Result<RouterStatus> {
+        self.request(Message::Status).await
     }
 }
 
@@ -96,6 +109,13 @@ impl PacketRouter {
                 message = self.messages.recv() => match message {
                     Some(Message::Uplink{packet, received}) =>
                         self.handle_uplink(packet, received).await,
+                    Some(Message::Status(tx_resp)) => {
+                        let status = RouterStatus {
+                            uri: self.service.uri.clone(),
+                            connected: self.service.is_connected(),
+                        };
+                        tx_resp.send(status)
+                    }
                     None => warn!("ignoring closed message channel"),
                 },
                 region_change = self.region_watch.changed() => match region_change {

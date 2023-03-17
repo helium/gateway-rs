@@ -1,6 +1,7 @@
 use crate::{
     api::LocalClient,
     cmd::*,
+    packet_router::RouterStatus,
     settings::{self, Settings},
     Region, Result,
 };
@@ -18,6 +19,7 @@ pub enum InfoKey {
     Onboarding,
     Name,
     Region,
+    Router,
 }
 
 /// Info command. Retrieve all or a subset of information from the running
@@ -48,6 +50,7 @@ impl fmt::Display for InfoKey {
             Self::Onboarding => "onboarding",
             Self::Name => "name",
             Self::Region => "region",
+            Self::Router => "router",
         };
         f.write_str(s)
     }
@@ -56,6 +59,7 @@ struct InfoCache {
     port: u16,
     public_keys: Option<(PublicKey, PublicKey)>,
     region: Option<Region>,
+    router: Option<RouterStatus>,
 }
 
 impl InfoCache {
@@ -64,6 +68,7 @@ impl InfoCache {
             port,
             public_keys: None,
             region: None,
+            router: None,
         }
     }
 
@@ -96,6 +101,16 @@ impl InfoCache {
         self.region = Some(region);
         Ok(region)
     }
+
+    pub async fn router(&mut self) -> Result<RouterStatus> {
+        if let Some(router) = &self.router {
+            return Ok(router.clone());
+        }
+        let mut client = LocalClient::new(self.port).await?;
+        let router = client.router().await?;
+        self.router = Some(router.clone());
+        Ok(router)
+    }
 }
 
 impl InfoKey {
@@ -118,6 +133,9 @@ impl InfoKey {
             }
             Self::Region => {
                 json!(cache.region().await?.to_string())
+            }
+            Self::Router => {
+                json!(cache.router().await?)
             }
         };
         Ok(v)

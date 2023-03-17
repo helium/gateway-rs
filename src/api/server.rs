@@ -1,9 +1,10 @@
 use super::{
     listen_addr, AddGatewayReq, AddGatewayRes, PubkeyReq, PubkeyRes, RegionReq, RegionRes,
+    RouterReq, RouterRes,
 };
 use crate::{
-    region_watcher, settings::StakingMode, Error, Keypair, PublicKey, Result, Settings,
-    TxnEnvelope, TxnFee, TxnFeeConfig,
+    packet_router, region_watcher, settings::StakingMode, Error, Keypair, PublicKey, Result,
+    Settings, TxnEnvelope, TxnFee, TxnFeeConfig,
 };
 use futures::TryFutureExt;
 use helium_crypto::Sign;
@@ -17,18 +18,24 @@ pub type ApiResult<T> = std::result::Result<Response<T>, Status>;
 
 pub struct LocalServer {
     region_watch: region_watcher::MessageReceiver,
+    packet_router: packet_router::MessageSender,
     keypair: Arc<Keypair>,
     onboarding_key: PublicKey,
     listen_port: u16,
 }
 
 impl LocalServer {
-    pub fn new(region_watch: region_watcher::MessageReceiver, settings: &Settings) -> Result<Self> {
+    pub fn new(
+        region_watch: region_watcher::MessageReceiver,
+        packet_router: packet_router::MessageSender,
+        settings: &Settings,
+    ) -> Result<Self> {
         Ok(Self {
             keypair: settings.keypair.clone(),
             onboarding_key: settings.onboarding_key(),
             listen_port: settings.api,
             region_watch,
+            packet_router,
         })
     }
 
@@ -58,6 +65,18 @@ impl Api for LocalServer {
         let region_params = self.region_watch.borrow();
         Ok(Response::new(RegionRes {
             region: region_params.region.into(),
+        }))
+    }
+
+    async fn router(&self, _request: Request<RouterReq>) -> ApiResult<RouterRes> {
+        let router_status = self
+            .packet_router
+            .status()
+            .map_err(|_err| Status::internal("Failed to get router status"))
+            .await?;
+        Ok(Response::new(RouterRes {
+            uri: router_status.uri.to_string(),
+            connected: router_status.connected,
         }))
     }
 

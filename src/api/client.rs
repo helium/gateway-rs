@@ -1,5 +1,8 @@
-use super::{connect_uri, AddGatewayReq, GatewayStakingMode, PubkeyReq, RegionReq};
-use crate::{error::Error, settings::StakingMode, PublicKey, Region, Result, TxnEnvelope};
+use super::{connect_uri, AddGatewayReq, GatewayStakingMode, PubkeyReq, RegionReq, RouterReq};
+use crate::{
+    error::Error, packet_router::RouterStatus, settings::StakingMode, PublicKey, Region, Result,
+    TxnEnvelope,
+};
 use helium_proto::{services::local::Client, BlockchainTxnAddGatewayV1};
 use std::convert::TryFrom;
 use tonic::transport::{Channel, Endpoint};
@@ -29,6 +32,11 @@ impl LocalClient {
     pub async fn region(&mut self) -> Result<Region> {
         let response = self.client.region(RegionReq {}).await?;
         Ok(Region::from_i32(response.into_inner().region)?)
+    }
+
+    pub async fn router(&mut self) -> Result<RouterStatus> {
+        let response = self.client.router(RouterReq {}).await?;
+        response.into_inner().try_into()
     }
 
     pub async fn add_gateway(

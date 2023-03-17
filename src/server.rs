@@ -29,11 +29,11 @@ pub async fn run(shutdown: &triggered::Listener, settings: &Settings) -> Result 
         settings,
         gateway_rx,
         region_rx.clone(),
-        router_tx,
+        router_tx.clone(),
         beacon_tx,
     )
     .await?;
-    let api = LocalServer::new(region_rx.clone(), settings)?;
+    let api = LocalServer::new(region_rx.clone(), router_tx.clone(), settings)?;
     info!(
         version = %settings::version().to_string(),
         key = %settings.keypair.public_key().to_string(),
