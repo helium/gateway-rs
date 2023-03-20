@@ -166,4 +166,8 @@ impl PacketRouterService {
         self.disconnect();
         self.connect().await
     }
+
+    pub fn is_connected(&self) -> bool {
+        self.conduit.is_some()
+    }
 }
