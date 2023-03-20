@@ -7,4 +7,3 @@ pub mod config;
 pub mod entropy;
 pub mod packet_router;
 pub mod poc;
-pub mod router;
