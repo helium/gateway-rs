@@ -167,6 +167,7 @@ jobs:
         run: |
           docker buildx build \
           --platform linux/arm64,linux/amd64 \
+          --label VERSION="${{ env.image_tag }}" \
           --tag quay.io/team-helium/test-images:gateway-"${{ env.image_tag }}" \
           --push \
           .
@@ -177,6 +178,7 @@ jobs:
         run: |
           docker buildx build \
           --platform linux/arm64,linux/amd64 \
+          --label VERSION="${GITHUB_REF#refs/*/}" \
           --tag quay.io/team-helium/miner:gateway-"${GITHUB_REF#refs/*/}" \
           --tag quay.io/team-helium/miner:gateway-latest \
           --push \
