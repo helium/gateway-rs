@@ -1,6 +1,7 @@
 use crate::{
     gateway,
     message_cache::{CacheMessage, MessageCache},
+    metrics::{UPLINK_DELIVERED, UPLINK_DISCARDED, UPLINK_FAILED, UPLINK_QUEUED},
     region_watcher,
     service::packet_router::PacketRouterService,
     sync, Base64, Keypair, MsgSign, PacketUp, RegionParams, Result, Settings,
@@ -159,6 +160,7 @@ impl PacketRouter {
 
     async fn handle_uplink(&mut self, uplink: PacketUp, received: StdInstant) {
         self.store.push_back(uplink, received);
+        metrics::increment_counter!(UPLINK_QUEUED);
         self.send_waiting_packets().await;
     }
 
@@ -170,9 +172,14 @@ impl PacketRouter {
         while let (removed, Some(packet)) = self.store.pop_front(STORE_GC_INTERVAL) {
             if removed > 0 {
                 info!("discarded {removed} queued packets");
+                metrics::counter!(UPLINK_DISCARDED, removed as u64);
             }
-            if let Err(err) = self.send_packet(packet).await {
-                warn!(%err, "failed to send uplink")
+            match self.send_packet(packet).await {
+                Ok(_) => metrics::increment_counter!(UPLINK_DELIVERED),
+                Err(err) => {
+                    warn!(%err, "failed to send uplink");
+                    metrics::increment_counter!(UPLINK_FAILED);
+                }
             }
         }
     }

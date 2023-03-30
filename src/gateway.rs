@@ -1,6 +1,11 @@
 use crate::{
-    beaconer, packet, packet_router, region_watcher, sync, PacketDown, PacketUp, RegionParams,
-    Result, Settings,
+    beaconer,
+    metrics::{
+        BEACON_FAILED, BEACON_TRANSMITTED, BEACON_TRANSMITTED_ADJUSTED, DOWNLINK_FAILED,
+        DOWNLINK_TRANSMITTED, DOWNLINK_TRANSMITTED_ADJUSTED,
+    },
+    packet, packet_router, region_watcher, sync, PacketDown, PacketUp, RegionParams, Result,
+    Settings,
 };
 use beacon::Beacon;
 use lorawan::PHYPayload;
@@ -181,6 +186,7 @@ impl Gateway {
             Ok(tx_power) => tx_power,
             Err(err) => {
                 warn!(%err, "beacon transmit");
+                metrics::increment_counter!(BEACON_FAILED);
                 responder.send(Err(err));
                 return;
             }
@@ -190,6 +196,7 @@ impl Gateway {
             Ok(packet) => packet,
             Err(err) => {
                 warn!(%err, "failed to construct beacon pull resp");
+                metrics::increment_counter!(BEACON_FAILED);
                 responder.send(Err(err));
                 return;
             }
@@ -207,6 +214,7 @@ impl Gateway {
                         ?tmst,
                         "beacon transmitted"
                     );
+                    metrics::increment_counter!(BEACON_TRANSMITTED);
                     responder.send(Ok(BeaconResp {
                         powe: tx_power as i32,
                         tmst: tmst.unwrap_or(0),
@@ -221,6 +229,7 @@ impl Gateway {
                         match power_used {
                             None => {
                                 warn!("packet transmitted with adjusted power, but packet forwarder does not indicate power used.");
+                                metrics::increment_counter!(BEACON_TRANSMITTED_ADJUSTED);
                                 responder.send(Err(GatewayError::NoBeaconTxPower.into()));
                             }
                             Some(actual_power) => {
@@ -230,6 +239,7 @@ impl Gateway {
                                     ?tmst,
                                     "beacon transmitted with adjusted power output",
                                 );
+                                metrics::increment_counter!(BEACON_TRANSMITTED_ADJUSTED);
                                 responder.send(Ok(BeaconResp {
                                     powe: actual_power,
                                     tmst: tmst.unwrap_or(0),
@@ -239,6 +249,7 @@ impl Gateway {
                         tmst
                     } else {
                         warn!(beacon_id, %err, "failed to transmit beacon");
+                        metrics::increment_counter!(BEACON_FAILED);
                         responder.send(Err(GatewayError::BeaconTxFailure.into()));
                         None
                     }
@@ -252,6 +263,7 @@ impl Gateway {
             Ok(tx_power) => tx_power,
             Err(err) => {
                 warn!(%err, "downlink transmit");
+                metrics::increment_counter!(DOWNLINK_FAILED);
                 return;
             }
         };
@@ -280,19 +292,27 @@ impl Gateway {
                             match downlink_rx2.dispatch(Some(DOWNLINK_TIMEOUT)).await {
                                 Err(SemtechError::Ack(TxAckErr::AdjustedTransmitPower(_, _))) => {
                                     warn!("rx2 downlink sent with adjusted transmit power");
+                                    metrics::increment_counter!(DOWNLINK_TRANSMITTED_ADJUSTED, "window" => "rx2")
                                 }
-                                Err(err) => warn!(%err, "ignoring rx2 downlink error"),
-                                _ => (),
+                                Err(err) => {
+                                    warn!(%err, "ignoring rx2 downlink error");
+                                    metrics::increment_counter!(DOWNLINK_FAILED, "window" => "rx2");
+                                }
+                                Ok(_) => {
+                                    metrics::increment_counter!(DOWNLINK_TRANSMITTED, "window" => "rx2")
+                                }
                             }
                         }
                     }
                     Err(SemtechError::Ack(TxAckErr::AdjustedTransmitPower(_, _))) => {
                         warn!("rx1 downlink sent with adjusted transmit power");
+                        metrics::increment_counter!(DOWNLINK_TRANSMITTED_ADJUSTED, "window" => "rx1")
                     }
                     Err(err) => {
                         warn!(%err, "ignoring rx1 downlink error");
+                        metrics::increment_counter!(DOWNLINK_FAILED, "window" => "rx1");
                     }
-                    Ok(_) => (),
+                    Ok(_) => metrics::increment_counter!(DOWNLINK_TRANSMITTED, "window" => "rx1"),
                 }
             }
         });
