@@ -58,9 +58,6 @@ pub struct TxnFeeConfig {
     // the staking fee in DC for adding a gateway
     #[serde(default = "TxnFeeConfig::default_full_staking_fee")]
     staking_fee_txn_add_gateway_v1: u64,
-    // the staking fee in DC for adding a light gateway
-    #[serde(default = "TxnFeeConfig::default_light_staking_fee")]
-    staking_fee_txn_add_light_gateway_v1: u64,
     // the staking fee in DC for adding a data only gateway
     #[serde(default = "TxnFeeConfig::default_dataonly_staking_fee")]
     staking_fee_txn_add_dataonly_gateway_v1: u64,
@@ -72,7 +69,6 @@ impl Default for TxnFeeConfig {
             txn_fees: true,
             txn_fee_multiplier: TXN_FEE_MULTIPLIER,
             staking_fee_txn_add_gateway_v1: Self::default_full_staking_fee(),
-            staking_fee_txn_add_light_gateway_v1: Self::default_light_staking_fee(),
             staking_fee_txn_add_dataonly_gateway_v1: Self::default_dataonly_staking_fee(),
         }
     }
@@ -87,15 +83,10 @@ impl TxnFeeConfig {
         1000000
     }
 
-    fn default_light_staking_fee() -> u64 {
-        4000000
-    }
-
     pub fn get_staking_fee(&self, staking_mode: &StakingMode) -> u64 {
         match staking_mode {
             StakingMode::Full => self.staking_fee_txn_add_gateway_v1,
             StakingMode::DataOnly => self.staking_fee_txn_add_dataonly_gateway_v1,
-            StakingMode::Light => self.staking_fee_txn_add_light_gateway_v1,
         }
     }
 

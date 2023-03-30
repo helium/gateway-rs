@@ -26,7 +26,7 @@ thiserror = "1.0"
 prost = "0"
 
 [dependencies]
-clap = {version = "4", features = ["derive"]}
+clap = {version = "4", default-features=false, features = ["derive", "help", "std", "error-context"]}
 semver = "0"
 config = {version="0", default-features=false, features=["toml"]}
 serde = {workspace = true}
