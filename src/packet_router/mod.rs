@@ -117,22 +117,25 @@ impl PacketRouter {
                 downlink = self.service.recv() => match downlink {
                     Ok(Some(message)) => self.handle_downlink(message).await,
                     Ok(None) => warn!("router disconnected"),
-                    Err(err) => warn!("router error {:?}", err),
+                    Err(err) => {
+                        warn!("router error {:?}", err);
+                        reconnect_sleep = self.handle_reconnect(&reconnect_backoff).await;
+                    },
                 }
             }
         }
     }
 
     async fn handle_reconnect(&mut self, reconnect_backoff: &Backoff) -> Instant {
-        info!("reconnecting");
+        info!("connecting");
         match self.service.reconnect().await {
             Ok(_) => {
-                info!("reconnected");
+                info!("connected");
                 self.reconnect_retry = RECONNECT_BACKOFF_RETRIES;
                 self.send_waiting_packets().await
             }
             Err(err) => {
-                warn!(%err, "failed to reconnect");
+                warn!(%err, "failed to connect");
                 if self.reconnect_retry == RECONNECT_BACKOFF_RETRIES {
                     self.reconnect_retry = 0;
                 } else {
@@ -140,15 +143,18 @@ impl PacketRouter {
                 }
             }
         }
-        Instant::now()
-            + reconnect_backoff
-                .next(self.reconnect_retry)
-                .unwrap_or(RECONNECT_BACKOFF_MAX_WAIT)
+        let backoff = reconnect_backoff
+            .next(self.reconnect_retry)
+            .unwrap_or(RECONNECT_BACKOFF_MAX_WAIT);
+        info!(?backoff, "next reconnect");
+        Instant::now() + backoff
     }
 
     async fn handle_uplink(&mut self, uplink: PacketUp, received: StdInstant) {
         self.store.push_back(uplink, received);
-        self.send_waiting_packets().await;
+        if self.service.is_connected() {
+            self.send_waiting_packets().await;
+        }
     }
 
     async fn handle_downlink(&mut self, message: PacketRouterPacketDownV1) {
