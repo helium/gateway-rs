@@ -59,7 +59,7 @@ RUN mv target/release/helium_gateway .
 # ------------------------------------------------------------------------------
 FROM alpine:3.17.1
 ENV RUST_BACKTRACE=1
-ENV GW_LISTEN="0.0.0.0:1680"
+ENV GW_LISTEN="127.0.0.1:1680"
 RUN apk add --no-cache --update \
     libstdc++ \
     tpm2-tss-esys \
