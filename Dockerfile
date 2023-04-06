@@ -11,10 +11,6 @@
 #
 #     docker buildx build --platform linux/arm64,linux/amd64 .
 #
-# Adding support for additional architectures requires editing the
-# `case "$TARGETPLATFORM" in` in the build stage (and likely quite a
-# bit of googling).
-#
 # 1: https://www.docker.com/blog/how-to-rapidly-build-multi-architecture-images-with-buildx
 # 2: https://docs.docker.com/build/install-buildx
 # ==============================================================================
