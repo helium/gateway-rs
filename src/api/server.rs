@@ -1,6 +1,5 @@
 use super::{
-    listen_addr, AddGatewayReq, AddGatewayRes, PubkeyReq, PubkeyRes, RegionReq, RegionRes,
-    RouterReq, RouterRes,
+    AddGatewayReq, AddGatewayRes, PubkeyReq, PubkeyRes, RegionReq, RegionRes, RouterReq, RouterRes,
 };
 use crate::{
     packet_router, region_watcher, settings::StakingMode, Error, Keypair, PublicKey, Result,
@@ -21,7 +20,7 @@ pub struct LocalServer {
     packet_router: packet_router::MessageSender,
     keypair: Arc<Keypair>,
     onboarding_key: PublicKey,
-    listen_port: u16,
+    listen_addr: SocketAddr,
 }
 
 impl LocalServer {
@@ -33,19 +32,19 @@ impl LocalServer {
         Ok(Self {
             keypair: settings.keypair.clone(),
             onboarding_key: settings.onboarding_key(),
-            listen_port: settings.api,
+            listen_addr: (&settings.api).try_into()?,
             region_watch,
             packet_router,
         })
     }
 
     pub async fn run(self, shutdown: &triggered::Listener) -> Result {
-        let addr: SocketAddr = listen_addr(self.listen_port).parse().unwrap();
-        tracing::Span::current().record("listen", addr.to_string());
-        info!(listen = %addr, "starting");
+        let listen_addr = self.listen_addr;
+        tracing::Span::current().record("listen", &listen_addr.to_string());
+        info!(listen = %listen_addr, "starting");
         TransportServer::builder()
             .add_service(Server::new(self))
-            .serve_with_shutdown(addr, shutdown.clone())
+            .serve_with_shutdown(listen_addr, shutdown.clone())
             .map_err(Error::from)
             .await
     }

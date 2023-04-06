@@ -23,7 +23,7 @@ pub struct Cmd {
 
 impl Cmd {
     pub async fn run(&self, settings: Settings) -> Result {
-        let mut client = LocalClient::new(settings.api).await?;
+        let mut client = LocalClient::new(&settings.api).await?;
 
         let txn = client
             .add_gateway(&self.owner, &self.payer, &self.mode)

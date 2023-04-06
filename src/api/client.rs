@@ -1,7 +1,9 @@
-use super::{connect_uri, AddGatewayReq, GatewayStakingMode, PubkeyReq, RegionReq, RouterReq};
+use super::{AddGatewayReq, GatewayStakingMode, PubkeyReq, RegionReq, RouterReq};
 use crate::{
-    error::Error, packet_router::RouterStatus, settings::StakingMode, PublicKey, Region, Result,
-    TxnEnvelope,
+    error::Error,
+    packet_router::RouterStatus,
+    settings::{ListenAddress, StakingMode},
+    PublicKey, Region, Result, TxnEnvelope,
 };
 use helium_proto::{services::local::Client, BlockchainTxnAddGatewayV1};
 use std::convert::TryFrom;
@@ -12,9 +14,9 @@ pub struct LocalClient {
 }
 
 impl LocalClient {
-    pub async fn new(port: u16) -> Result<Self> {
-        let uri = connect_uri(port);
-        let endpoint = Endpoint::from_shared(uri).unwrap();
+    pub async fn new(address: &ListenAddress) -> Result<Self> {
+        let uri = http::Uri::try_from(address)?;
+        let endpoint = Endpoint::from_shared(uri.to_string()).unwrap();
         let client = Client::connect(endpoint)
             .await
             .map_err(Error::local_client_connect)?;
