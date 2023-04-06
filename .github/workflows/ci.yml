@@ -164,6 +164,10 @@ jobs:
 
       # We publish all builds to the test-images repo.
       - name: Build | Test Image
+        env:
+          # The attestation manifests cause build errors for some makers.
+          # See https://github.com/helium/gateway-rs/issues/409
+          BUILDX_NO_DEFAULT_ATTESTATIONS: 1
         run: |
           docker buildx build \
           --platform linux/arm64,linux/amd64 \
@@ -174,6 +178,10 @@ jobs:
 
       # Publish to miner quay-repo on release only.
       - name: Build | Release Image
+        env:
+          # The attestation manifests cause build errors for some makers.
+          # See https://github.com/helium/gateway-rs/issues/409
+          BUILDX_NO_DEFAULT_ATTESTATIONS: 1
         if: startsWith(github.ref, 'refs/tags')
         run: |
           docker buildx build \
