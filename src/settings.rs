@@ -150,7 +150,6 @@ fn default_poc_interval() -> u64 {
 #[repr(u8)]
 pub enum StakingMode {
     DataOnly = 0,
-    Light = 1,
     Full = 2,
 }
 
@@ -159,7 +158,9 @@ impl From<GatewayStakingMode> for StakingMode {
         match v {
             GatewayStakingMode::Dataonly => StakingMode::DataOnly,
             GatewayStakingMode::Full => StakingMode::Full,
-            GatewayStakingMode::Light => StakingMode::Light,
+            // Light gateways were never implemented but were defined in staking
+            // modes. They're equivalent to full hotspots
+            GatewayStakingMode::Light => StakingMode::Full,
         }
     }
 }
@@ -169,7 +170,6 @@ impl From<&StakingMode> for GatewayStakingMode {
         match v {
             StakingMode::DataOnly => GatewayStakingMode::Dataonly,
             StakingMode::Full => GatewayStakingMode::Full,
-            StakingMode::Light => GatewayStakingMode::Light,
         }
     }
 }
