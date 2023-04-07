@@ -56,16 +56,16 @@ impl fmt::Display for InfoKey {
     }
 }
 struct InfoCache {
-    port: u16,
+    address: settings::ListenAddress,
     public_keys: Option<(PublicKey, PublicKey)>,
     region: Option<Option<Region>>,
     router: Option<RouterStatus>,
 }
 
 impl InfoCache {
-    fn new(port: u16) -> Self {
+    fn new(address: settings::ListenAddress) -> Self {
         Self {
-            port,
+            address,
             public_keys: None,
             region: None,
             router: None,
@@ -76,7 +76,7 @@ impl InfoCache {
         if let Some(public_keys) = &self.public_keys {
             return Ok(public_keys.clone());
         }
-        let mut client = LocalClient::new(self.port).await?;
+        let mut client = LocalClient::new(&self.address).await?;
         let public_keys = client.pubkey().await?;
         self.public_keys = Some(public_keys.clone());
         Ok(public_keys)
@@ -96,7 +96,7 @@ impl InfoCache {
         if let Some(maybe_region) = self.region {
             return Ok(maybe_region);
         }
-        let mut client = LocalClient::new(self.port).await?;
+        let mut client = LocalClient::new(&self.address).await?;
         let region = client.region().await?;
         let maybe_region = if region.is_unknown() {
             None
@@ -111,7 +111,7 @@ impl InfoCache {
         if let Some(router) = &self.router {
             return Ok(router.clone());
         }
-        let mut client = LocalClient::new(self.port).await?;
+        let mut client = LocalClient::new(&self.address).await?;
         let router = client.router().await?;
         self.router = Some(router.clone());
         Ok(router)

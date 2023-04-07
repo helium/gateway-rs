@@ -18,7 +18,7 @@ pub struct Settings {
     /// The listening network port for the grpc / jsonrpc API.
     /// Default 4467
     #[serde(default = "default_api")]
-    pub api: u16,
+    pub api: ListenAddress,
     /// The location of the keypair binary file for the gateway. If the keyfile
     /// is not found there a new one is generated and saved in that location.
     pub keypair: Arc<Keypair>,
@@ -139,8 +139,8 @@ fn default_listen() -> String {
     "127.0.0.1:1680".to_string()
 }
 
-fn default_api() -> u16 {
-    4467
+fn default_api() -> ListenAddress {
+    ListenAddress::Address("127.0.0.1:4467".to_string())
 }
 
 fn default_poc_interval() -> u64 {
@@ -186,6 +186,75 @@ impl fmt::Display for StakingMode {
             .fmt(f)
     }
 }
+
+#[derive(Debug, Deserialize, Clone, PartialEq, Eq)]
+#[serde(untagged)]
+pub enum ListenAddress {
+    Port(u16),
+    Address(String),
+}
+
+impl TryFrom<&ListenAddress> for std::net::SocketAddr {
+    type Error = crate::Error;
+    fn try_from(value: &ListenAddress) -> std::result::Result<Self, Self::Error> {
+        match value {
+            ListenAddress::Address(str) => Ok(str.parse()?),
+            ListenAddress::Port(v) => Ok(format!("127.0.0.1:{v}").parse()?),
+        }
+    }
+}
+
+impl TryFrom<&ListenAddress> for http::Uri {
+    type Error = crate::Error;
+    fn try_from(value: &ListenAddress) -> std::result::Result<Self, Self::Error> {
+        match value {
+            ListenAddress::Address(str) => Ok(Uri::from_str(&format!("http://{str}"))?),
+            ListenAddress::Port(v) => Ok(Uri::from_str(&format!("http://127.0.0.1:{v}"))?),
+        }
+    }
+}
+
+// pub mod api {
+//     use serde::de;
+
+//     pub fn deserialize<'de, D>(deserializer: D) -> std::result::Result<String, D::Error>
+//     where
+//         D: de::Deserializer<'de>,
+//     {
+//         struct _Visitor;
+
+//         impl<'de> de::Visitor<'de> for _Visitor {
+//             type Value = String;
+//             fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+//                 formatter.write_str("api listen port or address")
+//             }
+
+//             fn visit_i32<E>(self, v: i32) -> Result<Self::Value, E>
+//             where
+//                 E: de::Error,
+//             {
+//                 Ok(format!("127.0.0.1:{v}"))
+//             }
+
+//             fn visit_u16<E>(self, v: u16) -> Result<Self::Value, E>
+//             where
+//                 E: de::Error,
+//             {
+//                 Ok(format!("127.0.0.1:{v}"))
+//             }
+
+//             fn visit_str<E>(self, value: &str) -> std::result::Result<Self::Value, E>
+//             where
+//                 E: de::Error,
+//             {
+//                 Ok(value.to_string())
+//             }
+//         }
+
+//         eprintln!("visiting");
+//         deserializer.deserialize_any(_Visitor)
+//     }
+// }
 
 pub mod log_level {
     use serde::de::{self, Deserialize, Deserializer, Visitor};
