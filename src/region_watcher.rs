@@ -46,7 +46,7 @@ impl RegionWatcher {
 
     pub async fn run(&mut self, shutdown: &triggered::Listener) -> Result {
         info!(
-            %self.default_region,
+            default_region = %self.default_region,
             "starting",
         );
 

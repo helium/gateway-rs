@@ -83,10 +83,10 @@ helium-gateway pre-installed, manual installation requires you to:
    the `syslog` service on your device to accept the logs.
 
 6. Configure the region if required. The default region of the gateway is set to
-   `UKNOWN`, and fetched from the asserted location of the gateway. Setting the
-   regioon to a known region or caching the last fetched region and using the
-   `GW_REGION` environment variable on startup will allow the gateway to use the
-   correct region for uplinks immediately, while the region parameters are
+   `UKNOWN`, and fetched based on the asserted location of the gateway. Setting
+   the region to a known region or caching the last fetched region and using
+   the `GW_REGION` environment variable on startup will allow the gateway to use
+   the correct region for uplinks immediately, while the region parameters are
    retrieved.
 
    The supported region values are listed in the [region protobuf definition](https://github.com/helium/proto/blob/master/src/region.proto)
