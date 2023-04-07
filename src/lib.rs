@@ -7,6 +7,7 @@ pub mod keypair;
 pub mod message_cache;
 pub mod packet;
 
+pub mod metrics;
 pub mod packet_router;
 pub mod region_watcher;
 pub mod server;

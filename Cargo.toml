@@ -57,6 +57,7 @@ beacon = { package = "beacon", path = "beacon" }
 exponential-backoff = {git = "https://github.com/yoshuawuyts/exponential-backoff", branch = "master"}
 semtech-udp = { version = ">=0.10.7", default-features=false, features=["server"] }
 helium-crypto = "0.6"
+metrics = {version = "0", default-features = false}
 
 [features]
 default = [ "ecc608" ]
