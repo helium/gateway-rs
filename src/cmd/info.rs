@@ -98,7 +98,11 @@ impl InfoCache {
         }
         let mut client = LocalClient::new(self.port).await?;
         let region = client.region().await?;
-        self.region = Some(region);
+        self.region = if region.is_unknown() {
+            None
+        } else {
+            Some(region)
+        };
         Ok(region)
     }
 
