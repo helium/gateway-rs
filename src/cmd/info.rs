@@ -1,12 +1,10 @@
 use crate::{
     api::LocalClient,
     cmd::*,
-    packet_router::RouterStatus,
     settings::{self, Settings},
-    Region, Result,
+    Result,
 };
 use angry_purple_tiger::AnimalName;
-use helium_crypto::PublicKey;
 
 use serde_json::json;
 use std::collections::HashMap;
@@ -33,10 +31,10 @@ pub struct Cmd {
 
 impl Cmd {
     pub async fn run(&self, settings: Settings) -> Result {
-        let mut info_cache = InfoCache::new(settings.api);
+        let mut client = LocalClient::new(&settings.api).await?;
         let mut info: HashMap<String, serde_json::Value> = HashMap::new();
         for key in &self.keys {
-            info.insert(key.to_string(), key.to_status(&mut info_cache).await?);
+            info.insert(key.to_string(), key.to_status(&mut client).await?);
         }
         print_json(&info)
     }
@@ -55,93 +53,42 @@ impl fmt::Display for InfoKey {
         f.write_str(s)
     }
 }
-struct InfoCache {
-    address: settings::ListenAddress,
-    public_keys: Option<(PublicKey, PublicKey)>,
-    region: Option<Option<Region>>,
-    router: Option<RouterStatus>,
-}
-
-impl InfoCache {
-    fn new(address: settings::ListenAddress) -> Self {
-        Self {
-            address,
-            public_keys: None,
-            region: None,
-            router: None,
-        }
-    }
-
-    async fn _public_keys(&mut self) -> Result<(PublicKey, PublicKey)> {
-        if let Some(public_keys) = &self.public_keys {
-            return Ok(public_keys.clone());
-        }
-        let mut client = LocalClient::new(&self.address).await?;
-        let public_keys = client.pubkey().await?;
-        self.public_keys = Some(public_keys.clone());
-        Ok(public_keys)
-    }
-
-    async fn public_key(&mut self) -> Result<PublicKey> {
-        let (public_key, _) = self._public_keys().await?;
-        Ok(public_key)
-    }
-
-    async fn onboarding_key(&mut self) -> Result<PublicKey> {
-        let (_, onboarding_key) = self._public_keys().await?;
-        Ok(onboarding_key)
-    }
-
-    async fn region(&mut self) -> Result<Option<Region>> {
-        if let Some(maybe_region) = self.region {
-            return Ok(maybe_region);
-        }
-        let mut client = LocalClient::new(&self.address).await?;
-        let region = client.region().await?;
-        let maybe_region = if region.is_unknown() {
-            None
-        } else {
-            Some(region)
-        };
-        self.region = Some(maybe_region);
-        Ok(maybe_region)
-    }
-
-    pub async fn router(&mut self) -> Result<RouterStatus> {
-        if let Some(router) = &self.router {
-            return Ok(router.clone());
-        }
-        let mut client = LocalClient::new(&self.address).await?;
-        let router = client.router().await?;
-        self.router = Some(router.clone());
-        Ok(router)
-    }
-}
 
 impl InfoKey {
-    async fn to_status(self, cache: &mut InfoCache) -> Result<serde_json::Value> {
+    async fn to_status(self, client: &mut LocalClient) -> Result<serde_json::Value> {
+        let (public_key, _) = client.pubkey().await?;
         let v = match self {
             Self::Fw => {
                 let version = settings::version();
                 json!(format!("{version}"))
             }
             Self::Key => {
-                json!(cache.public_key().await?.to_string())
+                json!(public_key)
             }
             Self::Onboarding => {
-                json!(cache.onboarding_key().await?.to_string())
+                let (_, onboarding_key) = client.pubkey().await?;
+                json!(onboarding_key)
             }
             Self::Name => {
-                let public_key = cache.public_key().await?.to_string();
-                let name = public_key.parse::<AnimalName>().unwrap().to_string();
+                let name = public_key
+                    .to_string()
+                    .parse::<AnimalName>()
+                    .unwrap()
+                    .to_string();
                 json!(name)
             }
             Self::Region => {
-                let region = cache.region().await?;
-                json!(region.map(|region| region.to_string()))
+                let region = client.region().await?;
+                let maybe_region = if region.is_unknown() {
+                    None
+                } else {
+                    Some(region)
+                };
+                json!(maybe_region.map(|region| region.to_string()))
             }
             Self::Router => {
-                json!(cache.router().await?)
+                let router = client.router().await?;
+                json!(router)
             }
         };
         Ok(v)
