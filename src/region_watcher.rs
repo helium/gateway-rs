@@ -102,20 +102,22 @@ impl RegionWatcher {
                     warn!(
                         pubkey = %service_uri.pubkey,
                         uri = %service_uri.uri,
-                        region = %current_region,
+                        default_region = %current_region,
                         %err,
                         "failed to get region_params"
                     );
                     Err(err)
                 }
-                other => {
+                Ok(other) => {
+                    let region = other.as_ref().map(|params| params.region).unwrap_or_default();
                     info!(
                         pubkey = %service_uri.pubkey,
                         uri = %service_uri.uri,
-                        region = %current_region,
+                        default_region = %current_region,
+                        %region,
                         "fetched config region_params",
                     );
-                    other
+                    Ok(other)
                 }
         }
         }

@@ -58,7 +58,7 @@ impl fmt::Display for InfoKey {
 struct InfoCache {
     port: u16,
     public_keys: Option<(PublicKey, PublicKey)>,
-    region: Option<Region>,
+    region: Option<Option<Region>>,
     router: Option<RouterStatus>,
 }
 
@@ -92,14 +92,19 @@ impl InfoCache {
         Ok(onboarding_key)
     }
 
-    async fn region(&mut self) -> Result<Region> {
-        if let Some(region) = self.region {
-            return Ok(region);
+    async fn region(&mut self) -> Result<Option<Region>> {
+        if let Some(maybe_region) = self.region {
+            return Ok(maybe_region);
         }
         let mut client = LocalClient::new(self.port).await?;
         let region = client.region().await?;
-        self.region = Some(region);
-        Ok(region)
+        let maybe_region = if region.is_unknown() {
+            None
+        } else {
+            Some(region)
+        };
+        self.region = Some(maybe_region);
+        Ok(maybe_region)
     }
 
     pub async fn router(&mut self) -> Result<RouterStatus> {
@@ -132,7 +137,8 @@ impl InfoKey {
                 json!(name)
             }
             Self::Region => {
-                json!(cache.region().await?.to_string())
+                let region = cache.region().await?;
+                json!(region.map(|region| region.to_string()))
             }
             Self::Router => {
                 json!(cache.router().await?)

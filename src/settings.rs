@@ -27,7 +27,10 @@ pub struct Settings {
     /// location.
     pub onboarding: Option<String>,
     /// The lorawan region to use. This value should line up with the configured
-    /// region of the semtech packet forwarder. Defaults to "US915"
+    /// region of the semtech packet forwarder. Defaults to the "UNKNOWN" region
+    /// which will delay poc and packet activity for a short duration until the
+    /// asserted location/region is fetched.
+    #[serde(default)]
     pub region: Region,
     /// Log settings
     pub log: LogSettings,

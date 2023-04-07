@@ -21,7 +21,7 @@ pub enum Error {
     Service(#[from] ServiceError),
     #[error("semtech udp error: {0}")]
     Semtech(#[from] Box<semtech_udp::server_runtime::Error>),
-    #[error("beacon error: {0}")]
+    #[error("{0}")]
     Beacon(#[from] beacon::Error),
     #[error("gateway error: {0}")]
     Gateway(#[from] crate::gateway::GatewayError),

@@ -1,4 +1,4 @@
-use crate::{error::DecodeError, Error, Result};
+use crate::{error::DecodeError, Error, Region, Result};
 use helium_proto::services::{
     poc_lora,
     router::{PacketRouterPacketDownV1, PacketRouterPacketUpV1},
@@ -57,33 +57,6 @@ impl fmt::Display for PacketUp {
     }
 }
 
-impl TryFrom<push_data::RxPk> for PacketUp {
-    type Error = Error;
-
-    fn try_from(rxpk: push_data::RxPk) -> Result<Self> {
-        if rxpk.get_crc_status() != &CRC::OK {
-            return Err(DecodeError::invalid_crc());
-        }
-        let rssi = rxpk
-            .get_signal_rssi()
-            .unwrap_or_else(|| rxpk.get_channel_rssi());
-
-        let packet = PacketRouterPacketUpV1 {
-            rssi,
-            timestamp: *rxpk.get_timestamp() as u64,
-            payload: rxpk.get_data().to_vec(),
-            frequency: to_hz(*rxpk.get_frequency()) as u32,
-            datarate: datarate::to_proto(rxpk.get_datarate())? as i32,
-            snr: rxpk.get_snr(),
-            region: 0,
-            hold_time: 0,
-            gateway: vec![],
-            signature: vec![],
-        };
-        Ok(Self(packet))
-    }
-}
-
 impl TryFrom<PacketUp> for poc_lora::LoraWitnessReportReqV1 {
     type Error = Error;
     fn try_from(value: PacketUp) -> Result<Self> {
@@ -110,6 +83,29 @@ impl TryFrom<PacketUp> for poc_lora::LoraWitnessReportReqV1 {
 }
 
 impl PacketUp {
+    pub fn from_rxpk(rxpk: push_data::RxPk, region: Region) -> Result<Self> {
+        if rxpk.get_crc_status() != &CRC::OK {
+            return Err(DecodeError::invalid_crc());
+        }
+        let rssi = rxpk
+            .get_signal_rssi()
+            .unwrap_or_else(|| rxpk.get_channel_rssi());
+
+        let packet = PacketRouterPacketUpV1 {
+            rssi,
+            timestamp: *rxpk.get_timestamp() as u64,
+            payload: rxpk.get_data().to_vec(),
+            frequency: to_hz(*rxpk.get_frequency()) as u32,
+            datarate: datarate::to_proto(rxpk.get_datarate())? as i32,
+            snr: rxpk.get_snr(),
+            region: region.into(),
+            hold_time: 0,
+            gateway: vec![],
+            signature: vec![],
+        };
+        Ok(Self(packet))
+    }
+
     pub fn is_potential_beacon(&self) -> bool {
         Self::parse_header(self.payload())
             .map(|header| header.mtype() == lorawan::MType::Proprietary)

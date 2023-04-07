@@ -1,7 +1,6 @@
 //! This module provides proof-of-coverage (PoC) beaconing support.
 
 use crate::{
-    error::RegionError,
     gateway::{self, BeaconResp},
     impl_msg_sign, region_watcher,
     service::{entropy::EntropyService, poc::PocIotService},
@@ -133,9 +132,7 @@ impl Beaconer {
     }
 
     pub async fn mk_beacon(&mut self) -> Result<beacon::Beacon> {
-        if self.region_params.params.is_empty() {
-            return Err(RegionError::no_region_params());
-        }
+        self.region_params.check_valid()?;
 
         let mut entropy_service = EntropyService::new(self.entropy_uri.clone());
         let remote_entropy = entropy_service.get_entropy().await?;
@@ -225,8 +222,6 @@ impl Beaconer {
     }
 
     async fn handle_received_beacon(&mut self, packet: PacketUp) {
-        info!("received possible PoC payload: {packet:?}");
-
         if let Some(last_beacon) = &self.last_beacon {
             if packet.payload() == last_beacon.data {
                 info!("ignoring last self beacon witness");
@@ -266,7 +261,7 @@ impl Beaconer {
     }
 
     async fn handle_secondary_beacon(&mut self, report: poc_lora::LoraWitnessReportReqV1) {
-        if self.region_params.params.is_empty() {
+        if self.region_params.check_valid().is_err() {
             warn!("no region params for secondary beacon");
             return;
         };

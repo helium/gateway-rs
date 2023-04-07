@@ -1,9 +1,8 @@
 use crate::{
     gateway,
     message_cache::{CacheMessage, MessageCache},
-    region_watcher,
     service::packet_router::PacketRouterService,
-    sync, Base64, Keypair, MsgSign, PacketUp, RegionParams, Result, Settings,
+    sync, Base64, Keypair, MsgSign, PacketUp, Result, Settings,
 };
 use exponential_backoff::Backoff;
 use helium_proto::services::router::{PacketRouterPacketDownV1, PacketRouterPacketUpV1};
@@ -53,11 +52,9 @@ impl MessageSender {
 
 pub struct PacketRouter {
     messages: MessageReceiver,
-    region_watch: region_watcher::MessageReceiver,
     transmit: gateway::MessageSender,
     service: PacketRouterService,
     reconnect_retry: u32,
-    region_params: RegionParams,
     keypair: Arc<Keypair>,
     store: MessageCache<PacketUp>,
 }
@@ -66,18 +63,14 @@ impl PacketRouter {
     pub fn new(
         settings: &Settings,
         messages: MessageReceiver,
-        region_watch: region_watcher::MessageReceiver,
         transmit: gateway::MessageSender,
     ) -> Self {
         let router_settings = &settings.router;
         let service =
             PacketRouterService::new(router_settings.uri.clone(), settings.keypair.clone());
         let store = MessageCache::new(router_settings.queue);
-        let region_params = region_watcher::current_value(&region_watch);
         Self {
             service,
-            region_params,
-            region_watch,
             keypair: settings.keypair.clone(),
             transmit,
             messages,
@@ -117,10 +110,6 @@ impl PacketRouter {
                         tx_resp.send(status)
                     }
                     None => warn!("ignoring closed message channel"),
-                },
-                region_change = self.region_watch.changed() => match region_change {
-                    Ok(()) => self.region_params = region_watcher::current_value(&self.region_watch),
-                    Err(_) => warn!("region watch disconnected")
                 },
                 _ = time::sleep_until(reconnect_sleep) => {
                     reconnect_sleep = self.handle_reconnect(&reconnect_backoff).await;
@@ -182,7 +171,6 @@ impl PacketRouter {
         packet: CacheMessage<PacketUp>,
     ) -> Result<PacketRouterPacketUpV1> {
         let mut uplink: PacketRouterPacketUpV1 = packet.into_inner().into();
-        uplink.region = self.region_params.region.into();
         uplink.gateway = self.keypair.public_key().into();
         uplink.signature = uplink.sign(self.keypair.clone()).await?;
         Ok(uplink)
