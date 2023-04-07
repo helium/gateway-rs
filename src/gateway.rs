@@ -11,10 +11,7 @@ use semtech_udp::{
     tx_ack::Error as TxAckErr,
     CodingRate, MacAddress, Modulation,
 };
-use std::{
-    convert::TryFrom,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 use tracing::{debug, info, warn};
 
 pub const DOWNLINK_TIMEOUT: Duration = Duration::from_secs(5);
@@ -135,15 +132,17 @@ impl Gateway {
             Event::ClientDisconnected((mac, addr)) => {
                 info!(%mac, %addr, "disconnected packet forwarder")
             }
-            Event::PacketReceived(rxpk, _gateway_mac) => match PacketUp::try_from(rxpk) {
-                Ok(packet) if packet.is_potential_beacon() => {
-                    self.beacons.received_beacon(packet).await
+            Event::PacketReceived(rxpk, _gateway_mac) => {
+                match PacketUp::from_rxpk(rxpk, self.region_params.region) {
+                    Ok(packet) if packet.is_potential_beacon() => {
+                        self.handle_potential_beacon(packet).await;
+                    }
+                    Ok(packet) => self.handle_uplink(packet, Instant::now()).await,
+                    Err(err) => {
+                        warn!(%err, "ignoring push_data");
+                    }
                 }
-                Ok(packet) => self.handle_uplink(packet, Instant::now()).await,
-                Err(err) => {
-                    warn!(%err, "ignoring push_data");
-                }
-            },
+            }
             Event::NoClientWithMac(_packet, mac) => {
                 info!(%mac, "ignoring send to client with unknown MAC")
             }
@@ -154,7 +153,20 @@ impl Gateway {
         Ok(())
     }
 
+    async fn handle_potential_beacon(&mut self, packet: PacketUp) {
+        if self.region_params.is_unknown() {
+            info!(downlink_mac = %self.downlink_mac, uplink = %packet, "ignored potential beacon, no region");
+            return;
+        }
+        info!(downlink_mac = %self.downlink_mac, uplink = %packet, "received potential beacon");
+        self.beacons.received_beacon(packet).await
+    }
+
     async fn handle_uplink(&mut self, packet: PacketUp, received: Instant) {
+        if self.region_params.is_unknown() {
+            info!(downlink_mac = %self.downlink_mac, uplink = %packet, "ignored uplink, no region");
+            return;
+        }
         info!(downlink_mac = %self.downlink_mac, uplink = %packet, "received uplink");
         self.uplinks.uplink(packet, received).await;
     }

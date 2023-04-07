@@ -69,15 +69,25 @@ impl From<&Region> for i32 {
     }
 }
 
+impl Default for Region {
+    fn default() -> Self {
+        Region(ProtoRegion::Unknown)
+    }
+}
+
 impl Region {
     pub fn from_i32(v: i32) -> Result<Self> {
         ProtoRegion::from_i32(v)
             .map(Self)
             .ok_or_else(|| Error::unsupported_region(v))
     }
+
+    pub fn is_unknown(&self) -> bool {
+        self.0 == ProtoRegion::Unknown
+    }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct RegionParams {
     pub gain: Decimal,
     pub region: Region,
@@ -164,10 +174,22 @@ impl RegionParams {
             params,
         })
     }
+
+    pub fn is_unknown(&self) -> bool {
+        self.region.is_unknown()
+    }
 }
 
 impl RegionParams {
+    pub fn check_valid(&self) -> Result {
+        if self.is_unknown() || self.params.is_empty() {
+            return Err(Error::no_region_params());
+        }
+        Ok(())
+    }
+
     pub fn max_eirp(&self) -> Result<Decimal> {
+        self.check_valid()?;
         self.params
             .iter()
             .max_by_key(|p| p.max_eirp)
