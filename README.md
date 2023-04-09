@@ -25,17 +25,19 @@ In turn, the Helium Gateway application does two things:
                                                                  +-----------+
 ```
 
-**NOTE**: A Helium Gateway based hotspot is eligible for data rewards **only**.
-Proof of coverage rewards are only possible for approved maker hotspots.
+**NOTE**: A DIY Helium Gateway based hotspot is eligible for data rewards **only**.
+Proof of coverage rewards are only possible for [approved maker hotspots](https://github.com/dewi-alliance/hotspot-manufacturers).
 
 ### Releases
 
 The project builds binary compressed tar
 [release](https://github.com/helium/gateway-rs/releases) files which are named
 after the crypto module used and the cpu architecture they were built for. For
-example `helium-gateway-ecc608-aarch64-unknown-linux-gnu.tar.gz` contains the
+example `helium-gateway-1.0.0-aarch64-unknown-linux-gnu.tar.gz` contains the
 `helium_gateway` executable with ecc608 support and it's `setttings.toml`
 configuration file.
+
+For versions using the ecc608, the crypto module name is not included in the file name. However for TPM variants it is included, for example `helium-gateway-1.0.0-x86_64-tpm-debian-gnu.tar.gz`
 
 Releases are tagged using [semantic versioning](https://semver.org) with a
 `major.minor.patch` form. A alpha/beta release tags may also be issued for early
@@ -83,13 +85,13 @@ helium-gateway pre-installed, manual installation requires you to:
    the `syslog` service on your device to accept the logs.
 
 6. Configure the region if required. The default region of the gateway is set to
-   `UKNOWN`, and fetched based on the asserted location of the gateway. Setting
+   `UNKNOWN`, and fetched based on the asserted location of the gateway. Setting
    the region to a known region or caching the last fetched region and using
    the `GW_REGION` environment variable on startup will allow the gateway to use
    the correct region for uplinks immediately, while the region parameters are
    retrieved.
 
-   The supported region values are listed in the [region protobuf definition](https://github.com/helium/proto/blob/master/src/region.proto)
+   The supported region values are listed in the [region protobuf definition](https://github.com/helium/proto/blob/master/src/region.proto).
 
    **NOTE**: Due to TX power regulations, the gateway location needs to be
    asserted on the blockchain to be able to send downlinks.
@@ -145,8 +147,10 @@ Note that platforms will be tested much faster if you join the development proce
 |                                | :white_check_mark: [Kona Micro] IoT Gateway                                                                                 |
 |                                | :white_check_mark: [Kona Enterprise] IoT Gateway                                                                            |
 |                                | :white_check_mark: [RisingHF RHF2S027] Light Hotspot                                                                        |
+| x86_64-unknown-linux-gnu       | :white_check_mark: Debian x86_64 (ecc608)                                                                                   |
+|                                | :white_check_mark: LongAP                                                                                                   |
 | x86_64-tpm-debian-gnu          | :white_check_mark: Debian x86_64 (tpm)                                                                                      |
-|                                | :white_check_mark: FreedomfFi gateway                                                                                       |
+|                                | :white_check_mark: FreedomFi gateway                                                                                        |
 
 [rak833]: https://github.com/RAKWireless/RAK2247-RAK833-LoRaGateway-OpenWRT-MT7628
 [rak7258]: https://store.rakwireless.com/products/rak7258-micro-gateway
@@ -243,6 +247,18 @@ configured for use.
 
 See the [gateway-mfr-rs repo](https://github.com/helium/gateway-mfr-rs) for
 instructions on configuring, locking, and testing an ECC chip.
+
+It is expected that most gateways will use the same key slot for the onboarding key and the keypair, however this key is also configurable in the same way as the keypair:
+
+```
+onboarding = "ecc://i2c-1:96?slot=0"
+```
+
+The original helium miners use an onboarding key on slot 15:
+
+```
+onboarding = "ecc://i2c-1:96?slot=15"
+```
 
 ### Envrionment variables
 
@@ -443,3 +459,7 @@ However as discussed above you can also pass the `-c` option to tell the service
 ```
 ./helium_gateway -c /location/of/config/file server
 ```
+
+## More docs and info
+
+There is a wealth of further information on maker hotspot software on the [Helium Docs site](https://docs.helium.com/solana/migration/maker-hotspot-software/) including information about the [gRPC api](https://github.com/helium/gateway-rs/tree/main/src/api) that allows you to interact with the gateway via the maker app and other services over gRPC rather than via the command line options described above.
