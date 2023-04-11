@@ -197,9 +197,18 @@ pub enum ListenAddress {
 impl TryFrom<&ListenAddress> for std::net::SocketAddr {
     type Error = crate::Error;
     fn try_from(value: &ListenAddress) -> std::result::Result<Self, Self::Error> {
+        fn local_addr_from_port(v: &u16) -> String {
+            format!("127.0.0.1:{v}")
+        }
         match value {
-            ListenAddress::Address(str) => Ok(str.parse()?),
-            ListenAddress::Port(v) => Ok(format!("127.0.0.1:{v}").parse()?),
+            ListenAddress::Address(str) => {
+                if let Ok(v) = str.parse::<u16>() {
+                    Ok(local_addr_from_port(&v).parse()?)
+                } else {
+                    Ok(str.parse()?)
+                }
+            }
+            ListenAddress::Port(v) => Ok(local_addr_from_port(v).parse()?),
         }
     }
 }
