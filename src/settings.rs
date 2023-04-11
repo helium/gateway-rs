@@ -223,48 +223,6 @@ impl TryFrom<&ListenAddress> for http::Uri {
     }
 }
 
-// pub mod api {
-//     use serde::de;
-
-//     pub fn deserialize<'de, D>(deserializer: D) -> std::result::Result<String, D::Error>
-//     where
-//         D: de::Deserializer<'de>,
-//     {
-//         struct _Visitor;
-
-//         impl<'de> de::Visitor<'de> for _Visitor {
-//             type Value = String;
-//             fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-//                 formatter.write_str("api listen port or address")
-//             }
-
-//             fn visit_i32<E>(self, v: i32) -> Result<Self::Value, E>
-//             where
-//                 E: de::Error,
-//             {
-//                 Ok(format!("127.0.0.1:{v}"))
-//             }
-
-//             fn visit_u16<E>(self, v: u16) -> Result<Self::Value, E>
-//             where
-//                 E: de::Error,
-//             {
-//                 Ok(format!("127.0.0.1:{v}"))
-//             }
-
-//             fn visit_str<E>(self, value: &str) -> std::result::Result<Self::Value, E>
-//             where
-//                 E: de::Error,
-//             {
-//                 Ok(value.to_string())
-//             }
-//         }
-
-//         eprintln!("visiting");
-//         deserializer.deserialize_any(_Visitor)
-//     }
-// }
-
 pub mod log_level {
     use serde::de::{self, Deserialize, Deserializer, Visitor};
     use std::fmt;
