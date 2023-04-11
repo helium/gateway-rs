@@ -143,13 +143,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup | QEMU
-        uses: docker/setup-qemu-action@v2
-
       - name: Setup | Docker
         uses: docker/setup-buildx-action@v2
         with:
-          platforms: linux/amd64,linux/arm64,linux/arm/v7,linux/arm/v6
+          platforms: linux/amd64,linux/arm64
 
       - name: Setup | Quay.io
         uses: docker/login-action@v2
@@ -175,9 +172,9 @@ jobs:
           BUILDX_NO_DEFAULT_ATTESTATIONS: 1
         with:
           push: true
-          platforms: linux/amd64,linux/arm64,linux/arm/v7,linux/arm/v6
-          labels: VERSION="${{ env.image_tag }}"
-          tags: quay.io/team-helium/test-images:gateway-"${{ env.image_tag }}"
+          platforms: linux/amd64,linux/arm64
+          labels: "VERSION=${{ env.image_tag }}"
+          tags: "quay.io/team-helium/test-images:gateway-${{ env.image_tag }}"
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -191,10 +188,10 @@ jobs:
           BUILDX_NO_DEFAULT_ATTESTATIONS: 1
         with:
           push: true
-          platforms: linux/amd64,linux/arm64,linux/arm/v7,linux/arm/v6
-          labels: VERSION="${GITHUB_REF#refs/*/}"
-          tags: | 
-            quay.io/team-helium/miner:gateway-"${GITHUB_REF#refs/*/}" \
-            quay.io/team-helium/miner:gateway-latest \
+          platforms: linux/amd64,linux/arm64
+          labels: "VERSION=${GITHUB_REF#refs/*/}"
+          tags: |
+            quay.io/team-helium/miner:gateway-${GITHUB_REF#refs/*/}
+            quay.io/team-helium/miner:gateway-latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
