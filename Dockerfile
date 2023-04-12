@@ -75,7 +75,7 @@ RUN mv target/$(cat rust_target.txt)/release/helium_gateway .
 # Run steps run in a VM based on the target architecture
 # Produces image for target architecture
 # ------------------------------------------------------------------------------
-FROM alpine:3.17.1
+FROM alpine:3.17.3
 ENV RUST_BACKTRACE=1
 ENV GW_LISTEN="0.0.0.0:1680"
 ARG TARGETPLATFORM
