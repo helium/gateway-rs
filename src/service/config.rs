@@ -1,14 +1,15 @@
 use crate::{
-    impl_msg_sign,
     service::{CONNECT_TIMEOUT, RPC_TIMEOUT},
-    KeyedUri, Keypair, MsgSign, MsgVerify, Region, RegionParams, Result,
+    sign, verify, Error, KeyedUri, Keypair, Region, RegionParams, Result,
 };
-use helium_proto::services::{self, iot_config::GatewayRegionParamsReqV1, Channel, Endpoint};
+use helium_crypto::Verify;
+use helium_proto::{
+    services::{self, iot_config::GatewayRegionParamsReqV1, Channel, Endpoint},
+    Message,
+};
 use std::sync::Arc;
 
 type ConfigClient = services::iot_config::GatewayClient<Channel>;
-
-impl_msg_sign!(GatewayRegionParamsReqV1, signature);
 
 #[derive(Debug, Clone)]
 pub struct ConfigService {
@@ -38,10 +39,10 @@ impl ConfigService {
             address: keypair.public_key().to_vec(),
             signature: vec![],
         };
-        req.signature = req.sign(keypair).await?;
+        req.signature = sign(keypair, req.encode_to_vec()).await?;
 
         let resp = self.client.region_params(req).await?.into_inner();
-        resp.verify(&self.uri.pubkey)?;
+        verify!(&self.uri.pubkey, resp, signature)?;
         Ok(RegionParams::try_from(resp)?)
     }
 }

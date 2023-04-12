@@ -2,10 +2,13 @@ use crate::{
     gateway,
     message_cache::{CacheMessage, MessageCache},
     service::packet_router::PacketRouterService,
-    sync, Base64, Keypair, MsgSign, PacketUp, Result, Settings,
+    sign, sync, Base64, Keypair, PacketUp, Result, Settings,
 };
 use exponential_backoff::Backoff;
-use helium_proto::services::router::{PacketRouterPacketDownV1, PacketRouterPacketUpV1};
+use helium_proto::{
+    services::router::{PacketRouterPacketDownV1, PacketRouterPacketUpV1},
+    Message as ProtoMessage,
+};
 use serde::Serialize;
 use std::{sync::Arc, time::Instant as StdInstant};
 use tokio::time::{self, Duration, Instant};
@@ -197,7 +200,7 @@ impl PacketRouter {
         let mut uplink: PacketRouterPacketUpV1 = packet.deref().into();
         uplink.hold_time = packet.hold_time().as_millis() as u64;
         uplink.gateway = self.keypair.public_key().into();
-        uplink.signature = uplink.sign(self.keypair.clone()).await?;
+        uplink.signature = sign(self.keypair.clone(), uplink.encode_to_vec()).await?;
         Ok(uplink)
     }
 

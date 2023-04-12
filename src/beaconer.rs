@@ -2,10 +2,10 @@
 
 use crate::{
     gateway::{self, BeaconResp},
-    impl_msg_sign, region_watcher,
+    region_watcher,
     service::{entropy::EntropyService, poc::PocIotService},
     settings::Settings,
-    sync, Base64, Keypair, MsgSign, PacketUp, RegionParams, Result,
+    sign, sync, Base64, Keypair, PacketUp, RegionParams, Result,
 };
 use futures::TryFutureExt;
 use helium_proto::{services::poc_lora, Message as ProtoMessage};
@@ -21,9 +21,6 @@ use xxhash_rust::xxh64::xxh64;
 /// to the configured beacon interval. This jitter factor is one time only, and
 /// will only change when this process or task restarts.
 const BEACON_INTERVAL_JITTER_PERCENTAGE: u64 = 10;
-
-impl_msg_sign!(poc_lora::LoraBeaconReportReqV1, signature);
-impl_msg_sign!(poc_lora::LoraWitnessReportReqV1, signature);
 
 /// Message types that can be sent to `Beaconer`'s inbox.
 #[derive(Debug)]
@@ -189,7 +186,7 @@ impl Beaconer {
         report.tx_power = conducted_power;
         report.tmst = tmst;
         report.pub_key = self.keypair.public_key().to_vec();
-        report.signature = report.sign(self.keypair.clone()).await?;
+        report.signature = sign(self.keypair.clone(), report.encode_to_vec()).await?;
         Ok(report)
     }
 
@@ -199,7 +196,7 @@ impl Beaconer {
     ) -> Result<poc_lora::LoraWitnessReportReqV1> {
         let mut report = poc_lora::LoraWitnessReportReqV1::try_from(packet)?;
         report.pub_key = self.keypair.public_key().to_vec();
-        report.signature = report.sign(self.keypair.clone()).await?;
+        report.signature = sign(self.keypair.clone(), report.encode_to_vec()).await?;
         Ok(report)
     }
 

@@ -5,17 +5,19 @@ use std::{
 
 use crate::{
     error::DecodeError,
-    impl_msg_sign,
     service::{CONNECT_TIMEOUT, RPC_TIMEOUT},
-    Error, Keypair, MsgSign, Result,
+    sign, Error, Keypair, Result,
 };
 
-use helium_proto::services::{
-    router::{
-        envelope_down_v1, envelope_up_v1, EnvelopeDownV1, EnvelopeUpV1, PacketRouterClient,
-        PacketRouterPacketDownV1, PacketRouterPacketUpV1, PacketRouterRegisterV1,
+use helium_proto::{
+    services::{
+        router::{
+            envelope_down_v1, envelope_up_v1, EnvelopeDownV1, EnvelopeUpV1, PacketRouterClient,
+            PacketRouterPacketDownV1, PacketRouterPacketUpV1, PacketRouterRegisterV1,
+        },
+        Channel, Endpoint,
     },
-    Channel, Endpoint,
+    Message,
 };
 
 use http::Uri;
@@ -26,9 +28,6 @@ type PacketClient = PacketRouterClient<Channel>;
 
 type PacketSender = mpsc::Sender<EnvelopeUpV1>;
 type PacketReceiver = tonic::Streaming<EnvelopeDownV1>;
-
-impl_msg_sign!(PacketRouterRegisterV1, signature);
-impl_msg_sign!(PacketRouterPacketUpV1, signature);
 
 // The router service maintains a re-connectable connection to a remote packet
 // router. The service will connect when (re)connect or a packet send is
@@ -101,7 +100,7 @@ impl PacketRouterConduit {
             gateway: keypair.public_key().into(),
             signature: vec![],
         };
-        msg.signature = msg.sign(keypair.clone()).await?;
+        msg.signature = sign(keypair.clone(), msg.encode_to_vec()).await?;
         let msg = EnvelopeUpV1 {
             data: Some(envelope_up_v1::Data::Register(msg)),
         };

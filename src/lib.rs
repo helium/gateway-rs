@@ -33,3 +33,29 @@ pub type Future<T> = Pin<Box<dyn StdFuture<Output = Result<T>> + Send>>;
 
 /// A type alias for `Stream` that may result in `crate::error::Error`
 pub type Stream<T> = Pin<Box<dyn StdStream<Item = Result<T>> + Send>>;
+
+pub async fn sign<K>(keypair: K, data: Vec<u8>) -> Result<Vec<u8>>
+where
+    K: AsRef<Keypair> + std::marker::Send + 'static,
+{
+    use futures::TryFutureExt;
+    use helium_crypto::Sign;
+    let join_handle: tokio::task::JoinHandle<Result<Vec<u8>>> =
+        tokio::task::spawn_blocking(move || {
+            keypair.as_ref().sign(&data).map_err(crate::Error::from)
+        });
+    join_handle
+        .map_err(|err| helium_crypto::Error::from(signature::Error::from_source(err)))
+        .await?
+}
+
+macro_rules! verify {
+    ($key: expr, $msg: expr, $sig: ident) => {{
+        let mut _msg = $msg.clone();
+        _msg.$sig = vec![];
+        let buf = _msg.encode_to_vec();
+        $key.verify(&buf, &$msg.$sig).map_err(Error::from)
+    }};
+}
+
+pub(crate) use verify;
