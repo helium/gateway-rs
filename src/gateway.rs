@@ -110,7 +110,10 @@ impl Gateway {
                     }
                 },
                 region_change = self.region_watch.changed() => match region_change {
-                    Ok(()) => self.region_params = region_watcher::current_value(&self.region_watch),
+                    Ok(()) => {
+                        self.region_params = region_watcher::current_value(&self.region_watch);
+                        info!(region = RegionParams::to_string(&self.region_params), "region updated");
+                    }
                     Err(_) => warn!("region watch disconnected")
                 },
             }
