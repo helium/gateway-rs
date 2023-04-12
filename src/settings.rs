@@ -216,9 +216,18 @@ impl TryFrom<&ListenAddress> for std::net::SocketAddr {
 impl TryFrom<&ListenAddress> for http::Uri {
     type Error = crate::Error;
     fn try_from(value: &ListenAddress) -> std::result::Result<Self, Self::Error> {
+        fn local_uri_from_port(v: &u16) -> String {
+            format!("http://127.0.0.1:{v}")
+        }
         match value {
-            ListenAddress::Address(str) => Ok(Uri::from_str(&format!("http://{str}"))?),
-            ListenAddress::Port(v) => Ok(Uri::from_str(&format!("http://127.0.0.1:{v}"))?),
+            ListenAddress::Address(str) => {
+                if let Ok(v) = str.parse::<u16>() {
+                    Ok(local_uri_from_port(&v).parse()?)
+                } else {
+                    Ok(format!("http://{str}").parse()?)
+                }
+            }
+            ListenAddress::Port(v) => Ok(local_uri_from_port(v).parse()?),
         }
     }
 }
@@ -267,5 +276,44 @@ pub mod log_level {
 
             deserializer.deserialize_str(LevelVisitor)
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use std::net::SocketAddr;
+
+    #[test]
+    fn listen_addr() {
+        assert_eq!(
+            SocketAddr::try_from(&ListenAddress::Port(4468)).expect("socket addr from port"),
+            "127.0.0.1:4468".parse().expect("socket addr")
+        );
+        assert_eq!(
+            SocketAddr::try_from(&ListenAddress::Address("4468".to_string()))
+                .expect("socket addr from port str"),
+            "127.0.0.1:4468".parse().expect("socket addr")
+        );
+        assert_eq!(
+            SocketAddr::try_from(&ListenAddress::Address("1.2.3.4:4468".to_string()))
+                .expect("socket addr from addr string"),
+            "1.2.3.4:4468".parse().expect("socket addr")
+        );
+
+        // Now try URI form
+        assert_eq!(
+            Uri::try_from(&ListenAddress::Port(4468)).expect("urifrom port"),
+            Uri::from_static("http://127.0.0.1:4468")
+        );
+        assert_eq!(
+            Uri::try_from(&ListenAddress::Address("4468".to_string())).expect("uri from port str"),
+            Uri::from_static("http://127.0.0.1:4468")
+        );
+        assert_eq!(
+            Uri::try_from(&ListenAddress::Address("1.2.3.4:4468".to_string()))
+                .expect("uri from addr string"),
+            Uri::from_static("http://1.2.3.4:4468")
+        );
     }
 }
