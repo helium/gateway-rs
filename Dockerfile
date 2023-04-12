@@ -27,7 +27,6 @@
 # Cross compiles for target architecture
 # ------------------------------------------------------------------------------
 FROM --platform=$BUILDPLATFORM rust:alpine3.17 AS cargo-build
-# RUN apk add --no-cache --update clang15-libclang cmake musl-dev protobuf
 RUN apk add --no-cache --update \
     clang15-libclang \
     cmake \
@@ -38,43 +37,35 @@ RUN apk add --no-cache --update \
     protobuf \
     tpm2-tss-dev
 
-ARG TARGETPLATFORM
-ARG BUILDPLATFORM
-
-# We will never enable TPM on anything other than x86
-# RUN if [[ "$TARGETPLATFORM" == "linux/amd64" ]] ; then apk add g++ gcc libc-dev tpm2-tss-dev ; fi
-
 WORKDIR /tmp/helium_gateway
 COPY . .
 
-ENV CC_aarch64_unknown_linux_musl=clang
-ENV AR_aarch64_unknown_linux_musl=llvm-ar
-ENV CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_RUSTFLAGS="-Clink-self-contained=yes -Clinker=rust-lld"
-
-# ENV CC=gcc CXX=g++
-# ENV CC_x86_64_unknown_linux_musl=gcc
-# ENV AR_x86_64_unknown_linux_musl=llvm-ar
-ENV CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_RUSTFLAGS="-Ctarget-feature=-crt-static"
-
-# ENV CC=gcc CXX=g++ CFLAGS="-U__sun__" RUSTFLAGS="-C target-feature=-crt-static"
+ARG BUILDPLATFORM
+ARG TARGETPLATFORM
 
 RUN \
 case "$BUILDPLATFORM $TARGETPLATFORM" in \
     "linux/amd64 linux/arm64") \
-        echo "--target=aarch64-unknown-linux-musl" > rust_target.txt ; \
         rustup target add aarch64-unknown-linux-musl ; \
-        echo > rust_features.txt \
+        echo "aarch64-unknown-linux-musl" > rust_target.txt ; \
+        echo "--target=aarch64-unknown-linux-musl" > cargo_flags.txt ; \
         ;; \
     "linux/amd64 linux/amd64") \
         echo > rust_target.txt ; \
-        echo "--no-default-features --features=tpm" > rust_features.txt ; \
+        echo "--no-default-features --features=tpm" > cargo_flags.txt ; \
         ;; \
     *) \
         exit 1 \
         ;; \
 esac
 
-RUN cargo build --release $(cat rust_target.txt) $(cat rust_features.txt)
+ENV CC_aarch64_unknown_linux_musl=clang
+ENV AR_aarch64_unknown_linux_musl=llvm-ar
+ENV CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_RUSTFLAGS="-Clink-self-contained=yes -Clinker=rust-lld"
+
+ENV CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_RUSTFLAGS="-Ctarget-feature=-crt-static"
+
+RUN cargo build --release $(cat cargo_flags.txt)
 RUN mv target/$(cat rust_target.txt)/release/helium_gateway .
 
 
