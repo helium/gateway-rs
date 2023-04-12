@@ -101,7 +101,10 @@ impl PacketRouter {
                 },
                 message = self.messages.recv() => match message {
                     Some(Message::Uplink{packet, received}) =>
-                        self.handle_uplink(packet, received).await,
+                        if self.handle_uplink(packet, received).await.is_err() {
+                            warn!("router disconnected");
+                            reconnect_sleep = self.next_connect(&reconnect_backoff, true);
+                        },
                     Some(Message::Status(tx_resp)) => {
                         let status = RouterStatus {
                             uri: self.service.uri.clone(),
@@ -116,67 +119,89 @@ impl PacketRouter {
                 },
                 downlink = self.service.recv() => match downlink {
                     Ok(Some(message)) => self.handle_downlink(message).await,
-                    Ok(None) => warn!("router disconnected"),
-                    Err(err) => warn!("router error {:?}", err),
+                    Ok(None) => {
+                        warn!("router disconnected");
+                        reconnect_sleep = self.next_connect(&reconnect_backoff, true)
+                    },
+                    Err(err) => {
+                        warn!(?err, "router error");
+                        reconnect_sleep = self.next_connect(&reconnect_backoff, true)
+                    },
                 }
             }
         }
+    }
+
+    fn next_connect(&mut self, reconnect_backoff: &Backoff, inc_retry: bool) -> Instant {
+        if inc_retry {
+            if self.reconnect_retry == RECONNECT_BACKOFF_RETRIES {
+                self.reconnect_retry = 0;
+            } else {
+                self.reconnect_retry += 1;
+            }
+        }
+        let backoff = reconnect_backoff
+            .next(self.reconnect_retry)
+            .unwrap_or(RECONNECT_BACKOFF_MAX_WAIT);
+        info!(seconds = backoff.as_secs(), "next connect");
+        Instant::now() + backoff
     }
 
     async fn handle_reconnect(&mut self, reconnect_backoff: &Backoff) -> Instant {
-        info!("reconnecting");
-        match self.service.reconnect().await {
+        info!("connecting");
+        let inc_retry = match self.service.reconnect().await {
             Ok(_) => {
-                info!("reconnected");
+                info!("connected");
                 self.reconnect_retry = RECONNECT_BACKOFF_RETRIES;
-                self.send_waiting_packets().await
+                self.send_waiting_packets().await.is_err()
             }
             Err(err) => {
-                warn!(%err, "failed to reconnect");
-                if self.reconnect_retry == RECONNECT_BACKOFF_RETRIES {
-                    self.reconnect_retry = 0;
-                } else {
-                    self.reconnect_retry += 1;
-                }
+                warn!(%err, "failed to connect");
+                true
             }
-        }
-        Instant::now()
-            + reconnect_backoff
-                .next(self.reconnect_retry)
-                .unwrap_or(RECONNECT_BACKOFF_MAX_WAIT)
+        };
+        self.next_connect(reconnect_backoff, inc_retry)
     }
 
-    async fn handle_uplink(&mut self, uplink: PacketUp, received: StdInstant) {
+    async fn handle_uplink(&mut self, uplink: PacketUp, received: StdInstant) -> Result {
         self.store.push_back(uplink, received);
-        self.send_waiting_packets().await;
+        if self.service.is_connected() {
+            self.send_waiting_packets().await?;
+        }
+        Ok(())
     }
 
     async fn handle_downlink(&mut self, message: PacketRouterPacketDownV1) {
         self.transmit.downlink(message.into()).await;
     }
 
-    async fn send_waiting_packets(&mut self) {
+    async fn send_waiting_packets(&mut self) -> Result {
         while let (removed, Some(packet)) = self.store.pop_front(STORE_GC_INTERVAL) {
             if removed > 0 {
-                info!("discarded {removed} queued packets");
+                info!(removed, "discarded queued packets");
             }
-            if let Err(err) = self.send_packet(packet).await {
-                warn!(%err, "failed to send uplink")
+            if let Err(err) = self.send_packet(&packet).await {
+                warn!(%err, "failed to send uplink");
+                self.store.push_front(packet);
+                return Err(err);
             }
         }
+        Ok(())
     }
 
     pub async fn mk_uplink(
         &self,
-        packet: CacheMessage<PacketUp>,
+        packet: &CacheMessage<PacketUp>,
     ) -> Result<PacketRouterPacketUpV1> {
-        let mut uplink: PacketRouterPacketUpV1 = packet.into_inner().into();
+        use std::ops::Deref;
+        let mut uplink: PacketRouterPacketUpV1 = packet.deref().into();
+        uplink.hold_time = packet.hold_time().as_millis() as u64;
         uplink.gateway = self.keypair.public_key().into();
         uplink.signature = uplink.sign(self.keypair.clone()).await?;
         Ok(uplink)
     }
 
-    async fn send_packet(&mut self, packet: CacheMessage<PacketUp>) -> Result {
+    async fn send_packet(&mut self, packet: &CacheMessage<PacketUp>) -> Result {
         debug!(packet_hash = packet.hash().to_b64(), "sending packet");
 
         let uplink = self.mk_uplink(packet).await?;

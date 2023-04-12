@@ -164,10 +164,18 @@ impl Gateway {
 
     async fn handle_uplink(&mut self, packet: PacketUp, received: Instant) {
         if self.region_params.is_unknown() {
-            info!(downlink_mac = %self.downlink_mac, uplink = %packet, "ignored uplink, no region");
+            info!(
+                downlink_mac = %self.downlink_mac,
+                uplink = %packet,
+                region = %self.region_params,
+                "ignored uplink");
             return;
         }
-        info!(downlink_mac = %self.downlink_mac, uplink = %packet, "received uplink");
+        info!(
+            downlink_mac = %self.downlink_mac,
+            uplink = %packet,
+            region = %self.region_params,
+            "received uplink");
         self.uplinks.uplink(packet, received).await;
     }
 
