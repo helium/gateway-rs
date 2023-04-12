@@ -197,9 +197,18 @@ pub enum ListenAddress {
 impl TryFrom<&ListenAddress> for std::net::SocketAddr {
     type Error = crate::Error;
     fn try_from(value: &ListenAddress) -> std::result::Result<Self, Self::Error> {
+        fn local_addr_from_port(v: &u16) -> String {
+            format!("127.0.0.1:{v}")
+        }
         match value {
-            ListenAddress::Address(str) => Ok(str.parse()?),
-            ListenAddress::Port(v) => Ok(format!("127.0.0.1:{v}").parse()?),
+            ListenAddress::Address(str) => {
+                if let Ok(v) = str.parse::<u16>() {
+                    Ok(local_addr_from_port(&v).parse()?)
+                } else {
+                    Ok(str.parse()?)
+                }
+            }
+            ListenAddress::Port(v) => Ok(local_addr_from_port(v).parse()?),
         }
     }
 }
@@ -207,54 +216,21 @@ impl TryFrom<&ListenAddress> for std::net::SocketAddr {
 impl TryFrom<&ListenAddress> for http::Uri {
     type Error = crate::Error;
     fn try_from(value: &ListenAddress) -> std::result::Result<Self, Self::Error> {
+        fn local_uri_from_port(v: &u16) -> String {
+            format!("http://127.0.0.1:{v}")
+        }
         match value {
-            ListenAddress::Address(str) => Ok(Uri::from_str(&format!("http://{str}"))?),
-            ListenAddress::Port(v) => Ok(Uri::from_str(&format!("http://127.0.0.1:{v}"))?),
+            ListenAddress::Address(str) => {
+                if let Ok(v) = str.parse::<u16>() {
+                    Ok(local_uri_from_port(&v).parse()?)
+                } else {
+                    Ok(format!("http://{str}").parse()?)
+                }
+            }
+            ListenAddress::Port(v) => Ok(local_uri_from_port(v).parse()?),
         }
     }
 }
-
-// pub mod api {
-//     use serde::de;
-
-//     pub fn deserialize<'de, D>(deserializer: D) -> std::result::Result<String, D::Error>
-//     where
-//         D: de::Deserializer<'de>,
-//     {
-//         struct _Visitor;
-
-//         impl<'de> de::Visitor<'de> for _Visitor {
-//             type Value = String;
-//             fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-//                 formatter.write_str("api listen port or address")
-//             }
-
-//             fn visit_i32<E>(self, v: i32) -> Result<Self::Value, E>
-//             where
-//                 E: de::Error,
-//             {
-//                 Ok(format!("127.0.0.1:{v}"))
-//             }
-
-//             fn visit_u16<E>(self, v: u16) -> Result<Self::Value, E>
-//             where
-//                 E: de::Error,
-//             {
-//                 Ok(format!("127.0.0.1:{v}"))
-//             }
-
-//             fn visit_str<E>(self, value: &str) -> std::result::Result<Self::Value, E>
-//             where
-//                 E: de::Error,
-//             {
-//                 Ok(value.to_string())
-//             }
-//         }
-
-//         eprintln!("visiting");
-//         deserializer.deserialize_any(_Visitor)
-//     }
-// }
 
 pub mod log_level {
     use serde::de::{self, Deserialize, Deserializer, Visitor};
@@ -300,5 +276,44 @@ pub mod log_level {
 
             deserializer.deserialize_str(LevelVisitor)
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use std::net::SocketAddr;
+
+    #[test]
+    fn listen_addr() {
+        assert_eq!(
+            SocketAddr::try_from(&ListenAddress::Port(4468)).expect("socket addr from port"),
+            "127.0.0.1:4468".parse().expect("socket addr")
+        );
+        assert_eq!(
+            SocketAddr::try_from(&ListenAddress::Address("4468".to_string()))
+                .expect("socket addr from port str"),
+            "127.0.0.1:4468".parse().expect("socket addr")
+        );
+        assert_eq!(
+            SocketAddr::try_from(&ListenAddress::Address("1.2.3.4:4468".to_string()))
+                .expect("socket addr from addr string"),
+            "1.2.3.4:4468".parse().expect("socket addr")
+        );
+
+        // Now try URI form
+        assert_eq!(
+            Uri::try_from(&ListenAddress::Port(4468)).expect("urifrom port"),
+            Uri::from_static("http://127.0.0.1:4468")
+        );
+        assert_eq!(
+            Uri::try_from(&ListenAddress::Address("4468".to_string())).expect("uri from port str"),
+            Uri::from_static("http://127.0.0.1:4468")
+        );
+        assert_eq!(
+            Uri::try_from(&ListenAddress::Address("1.2.3.4:4468".to_string()))
+                .expect("uri from addr string"),
+            Uri::from_static("http://1.2.3.4:4468")
+        );
     }
 }
