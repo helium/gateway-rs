@@ -1,11 +1,13 @@
 use super::{AddGatewayReq, GatewayStakingMode, PubkeyReq, RegionReq, RouterReq};
 use crate::{
-    error::Error,
+    error::{DecodeError, Error},
     packet_router::RouterStatus,
     settings::{ListenAddress, StakingMode},
-    PublicKey, Region, Result, TxnEnvelope,
+    PublicKey, Region, Result,
 };
-use helium_proto::{services::local::Client, BlockchainTxnAddGatewayV1};
+use helium_proto::{
+    services::local::Client, BlockchainTxn, BlockchainTxnAddGatewayV1, Message, Txn,
+};
 use std::convert::TryFrom;
 use tonic::transport::{Channel, Endpoint};
 
@@ -55,8 +57,12 @@ impl LocalClient {
                 staking_mode: GatewayStakingMode::from(mode).into(),
             })
             .await?;
+
         let encoded = response.into_inner().add_gateway_txn;
-        let txn = BlockchainTxnAddGatewayV1::from_envelope_vec(&encoded)?;
-        Ok(txn)
+        let envelope = BlockchainTxn::decode(encoded.as_ref())?;
+        match envelope.txn {
+            Some(Txn::AddGateway(txn)) => Ok(txn),
+            _ => Err(DecodeError::invalid_envelope()),
+        }
     }
 }

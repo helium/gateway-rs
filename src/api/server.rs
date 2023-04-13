@@ -3,12 +3,12 @@ use super::{
 };
 use crate::{
     packet_router, region_watcher, settings::StakingMode, Error, Keypair, PublicKey, Result,
-    Settings, TxnEnvelope, TxnFee, TxnFeeConfig,
+    Settings, TxnFee, TxnFeeConfig,
 };
 use futures::TryFutureExt;
 use helium_crypto::Sign;
 use helium_proto::services::local::{Api, Server};
-use helium_proto::{BlockchainTxnAddGatewayV1, Message};
+use helium_proto::{BlockchainTxn, BlockchainTxnAddGatewayV1, Message, Txn};
 use std::{net::SocketAddr, sync::Arc};
 use tonic::{self, transport::Server as TransportServer, Request, Response, Status};
 use tracing::info;
@@ -109,9 +109,10 @@ impl Api for LocalServer {
             .map_err(|_err| Status::internal("Failed signing txn"))?;
         txn.gateway_signature = signature;
 
-        let add_gateway_txn = txn
-            .in_envelope_vec()
-            .map_err(|_err| Status::internal("Failed to encode txn"))?;
+        let add_gateway_txn = BlockchainTxn {
+            txn: Some(Txn::AddGateway(txn)),
+        }
+        .encode_to_vec();
         Ok(Response::new(AddGatewayRes { add_gateway_txn }))
     }
 }
