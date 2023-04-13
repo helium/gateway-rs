@@ -1,5 +1,5 @@
-use crate::{settings::StakingMode, Result, TxnEnvelope};
-use helium_proto::{BlockchainTxnAddGatewayV1, Message};
+use crate::{settings::StakingMode, Result};
+use helium_proto::{BlockchainTxn, BlockchainTxnAddGatewayV1, Message, Txn};
 use serde::Deserialize;
 
 pub trait TxnFee {
@@ -21,15 +21,16 @@ macro_rules! payer_sig_clear {
 }
 
 macro_rules! impl_txn_fee {
-    (($kind:ident, $txn_type:ty), $( $sig:ident ),+ ) => {
+    (($kind:ident, $txn_type:ty, $txn_env:expr), $( $sig:ident ),+ ) => {
         impl TxnFee for $txn_type {
             fn txn_fee(&self, config: &TxnFeeConfig) -> Result<u64> {
                 let mut txn: $txn_type = self.clone();
                 txn.fee = 0;
                 $(txn.$sig = vec![0; TXN_FEE_SIGNATURE_SIZE];)+
                 payer_sig_clear!($kind, txn);
-                let mut buf = vec![];
-                txn.in_envelope().encode(&mut buf)?;
+                let buf = BlockchainTxn {
+                    txn: Some($txn_env(txn))
+                }.encode_to_vec();
                 Ok(config.get_txn_fee(buf.len()))
             }
         }
@@ -40,7 +41,7 @@ macro_rules! impl_txn_fee {
 }
 
 impl_txn_fee!(
-    (payer, BlockchainTxnAddGatewayV1),
+    (payer, BlockchainTxnAddGatewayV1, Txn::AddGateway),
     owner_signature,
     gateway_signature
 );
