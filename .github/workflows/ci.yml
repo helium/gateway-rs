@@ -173,8 +173,8 @@ jobs:
         with:
           push: true
           platforms: linux/amd64,linux/arm64
-          labels: "VERSION=${{ env.image_tag }}"
-          tags: "quay.io/team-helium/test-images:gateway-${{ env.image_tag }}"
+          labels: VERSION=${{ env.image_tag }}
+          tags: quay.io/team-helium/test-images:gateway-${{ env.image_tag }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -189,9 +189,9 @@ jobs:
         with:
           push: true
           platforms: linux/amd64,linux/arm64
-          labels: "VERSION=${GITHUB_REF#refs/*/}"
+          labels: VERSION=${{ github.ref_name }}
           tags: |
-            quay.io/team-helium/miner:gateway-${GITHUB_REF#refs/*/}
+            quay.io/team-helium/miner:gateway-${{ github.ref_name }}
             quay.io/team-helium/miner:gateway-latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
