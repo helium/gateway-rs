@@ -52,7 +52,7 @@ case "$BUILDPLATFORM $TARGETPLATFORM" in \
         ;; \
     "linux/amd64 linux/amd64") \
         echo > rust_target.txt ; \
-        echo "--no-default-features --features=tpm" > cargo_flags.txt ; \
+        echo "--features=tpm" > cargo_flags.txt ; \
         ;; \
     *) \
         exit 1 \
