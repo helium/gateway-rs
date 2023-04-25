@@ -867,8 +867,7 @@ checksum = "95505c38b4572b2d910cecb0281560f54b440a19336cbbcb27bf6ce6adc6f5a8"
 [[package]]
 name = "helium-crypto"
 version = "0.6.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "138416a642e7228796b191795035ca5e4aad8a0b3628706caf73198dd8b44ff6"
+source = "git+https://github.com/helium/helium-crypto-rs.git?branch=jsk/ecc608/remove-unsafe#3192657ef339cbcfe2b41f8619c7fede6a0c5226"
 dependencies = [
  "base64",
  "bs58",
@@ -882,7 +881,7 @@ dependencies = [
  "p256",
  "rand_core",
  "serde",
- "sha2 0.10.6",
+ "sha2 0.9.9",
  "signature 2.1.0",
  "thiserror",
  "tss2",

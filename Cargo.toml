@@ -56,7 +56,7 @@ lorawan = { package = "lorawan", path = "lorawan" }
 beacon = { package = "beacon", path = "beacon" }
 exponential-backoff = {git = "https://github.com/yoshuawuyts/exponential-backoff", branch = "master"}
 semtech-udp = { version = ">=0.10.7", default-features=false, features=["server"] }
-helium-crypto = "0.6"
+helium-crypto = { git = "https://github.com/helium/helium-crypto-rs.git", branch = "jsk/ecc608/remove-unsafe" }
 
 [features]
 default = [ "ecc608" ]
