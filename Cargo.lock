@@ -891,7 +891,7 @@ dependencies = [
 [[package]]
 name = "helium-proto"
 version = "0.1.0"
-source = "git+https://github.com/helium/proto?branch=master#40388d260fd3603f453a965dbc13f79470b5adcb"
+source = "git+https://github.com/helium/proto?branch=jg/update-heartbeat-invalid-error#d901919ed501c840d8df6a05c0214ee1a87db103"
 dependencies = [
  "bytes",
  "prost",
