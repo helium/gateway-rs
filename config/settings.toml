@@ -33,6 +33,9 @@ level = "info"
 timestamp = true
 
 [poc]
+# Whether the poc is enabled or not. When a gateway is not on chain (i.e.
+# dataonly) set this to false to avoid unneeded RF traffic.
+enable = true
 # The uri to fetch entropy for poc beacons
 entropy_uri = "http://entropy.iot.mainnet.helium.io:7080"
 # The uri for IOT ingest services to deliver beacons and witnesses

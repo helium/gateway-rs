@@ -79,6 +79,9 @@ impl tracing_subscriber::fmt::time::FormatTime for TimeFormatter {
 /// Settings for proof-of-coverage (PoC).
 #[derive(Debug, Deserialize, Clone)]
 pub struct PocSettings {
+    // Enable/disable poc related activities (baecon/witness)
+    #[serde(default = "default_poc_enable")]
+    pub enable: bool,
     /// Entropy URL.
     #[serde(with = "http_serde::uri")]
     pub entropy_uri: Uri,
@@ -141,6 +144,10 @@ fn default_listen() -> String {
 
 fn default_api() -> ListenAddress {
     ListenAddress::Address("127.0.0.1:4467".to_string())
+}
+
+fn default_poc_enable() -> bool {
+    true
 }
 
 fn default_poc_interval() -> u64 {

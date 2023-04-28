@@ -42,6 +42,8 @@ impl MessageSender {
 }
 
 pub struct Beaconer {
+    /// Beacon/Witness handling enabled
+    enabled: bool,
     /// keypair to sign reports with
     keypair: Arc<Keypair>,
     /// gateway packet transmit message queue
@@ -74,6 +76,7 @@ impl Beaconer {
         let entropy_uri = settings.poc.entropy_uri.clone();
         let keypair = settings.keypair.clone();
         let region_params = region_watcher::current_value(&region_watch);
+        let enabled = settings.poc.enable;
 
         Self {
             keypair,
@@ -89,11 +92,16 @@ impl Beaconer {
             region_params,
             poc_ingest_uri,
             entropy_uri,
+            enabled,
         }
     }
 
     pub async fn run(&mut self, shutdown: &triggered::Listener) -> Result {
-        info!(beacon_interval = self.interval.as_secs(), "starting");
+        info!(
+            beacon_interval = self.interval.as_secs(),
+            enabled = self.enabled,
+            "starting"
+        );
 
         loop {
             tokio::select! {
@@ -105,7 +113,7 @@ impl Beaconer {
                     self.handle_beacon_tick().await
                 },
                 message = self.messages.recv() => match message {
-                    Some(message) => self.handle_message(message).await,
+                    Some(Message::ReceivedBeacon(packet)) => self.handle_received_beacon(packet).await,
                     None => {
                         warn!("ignoring closed message channel");
                     }
@@ -170,12 +178,6 @@ impl Beaconer {
             .await;
     }
 
-    async fn handle_message(&mut self, message: Message) {
-        match message {
-            Message::ReceivedBeacon(packet) => self.handle_received_beacon(packet).await,
-        }
-    }
-
     async fn mk_beacon_report(
         &self,
         beacon: beacon::Beacon,
@@ -201,6 +203,9 @@ impl Beaconer {
     }
 
     async fn handle_beacon_tick(&mut self) {
+        if !self.enabled {
+            return;
+        }
         match self.mk_beacon().await {
             Ok(beacon) => {
                 self.send_beacon(beacon).await;
@@ -219,6 +224,9 @@ impl Beaconer {
     }
 
     async fn handle_received_beacon(&mut self, packet: PacketUp) {
+        if !self.enabled {
+            return;
+        }
         if let Some(last_beacon) = &self.last_beacon {
             if packet.payload() == last_beacon.data {
                 info!("ignoring last self beacon witness");
