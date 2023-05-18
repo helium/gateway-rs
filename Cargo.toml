@@ -18,7 +18,7 @@ members = ["lorawan", "beacon"]
 byteorder = "1"
 serde = {version = "1", features = ["rc", "derive"]}
 rust_decimal = {version = "1", features = ["serde-with-float"]}
-helium-proto = { git = "https://github.com/helium/proto", branch="master", features=["services"]}
+helium-proto = { git = "https://github.com/helium/proto", branch="andymck/extend-valid-reports-with-gain-elevation", features=["services"]}
 rand = "0.8"
 base64 = ">=0.21"
 sha2 = "0"
