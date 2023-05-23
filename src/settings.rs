@@ -237,7 +237,7 @@ pub mod log_level {
     use std::fmt;
 
     #[derive(Debug, Clone, Copy)]
-    pub struct Level(tracing::Level);
+    pub struct Level(pub tracing::Level);
 
     impl std::fmt::Display for Level {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
