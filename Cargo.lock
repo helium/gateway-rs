@@ -891,7 +891,7 @@ dependencies = [
 [[package]]
 name = "helium-proto"
 version = "0.1.0"
-source = "git+https://github.com/helium/proto?branch=andymck/support-subscriber-id-in-datatransfer#d5fc78cb6196fd8591b00edb62f03307756c9034"
+source = "git+https://github.com/helium/proto?branch=andymck/support-subscriber-id-in-datatransfer#9c5fd63d9e417a56828ae481bbf183c45f9ebc65"
 dependencies = [
  "bytes",
  "prost",
