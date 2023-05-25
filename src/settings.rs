@@ -251,6 +251,12 @@ pub mod log_level {
         }
     }
 
+    impl From<tracing::Level> for Level {
+        fn from(value: tracing::Level) -> Self {
+            Self(value)
+        }
+    }
+
     impl<'de> Deserialize<'de> for Level {
         fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
         where

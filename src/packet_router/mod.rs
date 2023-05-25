@@ -192,22 +192,22 @@ impl PacketRouter {
         Ok(())
     }
 
-    pub async fn mk_uplink(
-        &self,
-        packet: &CacheMessage<PacketUp>,
-    ) -> Result<PacketRouterPacketUpV1> {
-        use std::ops::Deref;
-        let mut uplink: PacketRouterPacketUpV1 = packet.deref().into();
-        uplink.hold_time = packet.hold_time().as_millis() as u64;
-        uplink.gateway = self.keypair.public_key().into();
-        uplink.signature = sign(self.keypair.clone(), uplink.encode_to_vec()).await?;
-        Ok(uplink)
-    }
-
     async fn send_packet(&mut self, packet: &CacheMessage<PacketUp>) -> Result {
         debug!(packet_hash = packet.hash().to_b64(), "sending packet");
 
-        let uplink = self.mk_uplink(packet).await?;
+        let uplink = mk_uplink(packet, self.keypair.clone()).await?;
         self.service.send(uplink).await
     }
+}
+
+pub async fn mk_uplink(
+    packet: &CacheMessage<PacketUp>,
+    keypair: Arc<Keypair>,
+) -> Result<PacketRouterPacketUpV1> {
+    use std::ops::Deref;
+    let mut uplink: PacketRouterPacketUpV1 = packet.deref().into();
+    uplink.hold_time = packet.hold_time().as_millis() as u64;
+    uplink.gateway = keypair.public_key().into();
+    uplink.signature = sign(keypair, uplink.encode_to_vec()).await?;
+    Ok(uplink)
 }
