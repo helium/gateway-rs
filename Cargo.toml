@@ -12,7 +12,7 @@ path = "src/main.rs"
 doc = false
 
 [workspace]
-members = ["lorawan", "beacon"]
+members = ["lorawan"]
 
 [workspace.dependencies]
 byteorder = "1"
@@ -53,7 +53,7 @@ signature = "2"
 async-trait = "0"
 angry-purple-tiger = "0"
 lorawan = { package = "lorawan", path = "lorawan" }
-beacon = { package = "beacon", path = "beacon" }
+beacon = { git = "https://github.com/helium/proto", branch="master" }
 exponential-backoff = {git = "https://github.com/yoshuawuyts/exponential-backoff", branch = "master"}
 semtech-udp = { version = ">=0.10.7", default-features=false, features=["server"] }
 helium-crypto = "0.6"
