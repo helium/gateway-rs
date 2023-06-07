@@ -42,8 +42,8 @@ impl MessageSender {
 }
 
 pub struct Beaconer {
-    /// Beacon/Witness handling enabled
-    enabled: bool,
+    /// Beacon/Witness handling disabled
+    disabled: bool,
     /// keypair to sign reports with
     keypair: Arc<Keypair>,
     /// gateway packet transmit message queue
@@ -76,7 +76,7 @@ impl Beaconer {
         let entropy_uri = settings.poc.entropy_uri.clone();
         let keypair = settings.keypair.clone();
         let region_params = region_watcher::current_value(&region_watch);
-        let enabled = settings.poc.enable;
+        let disabled = settings.poc.disable;
 
         Self {
             keypair,
@@ -92,14 +92,14 @@ impl Beaconer {
             region_params,
             poc_ingest_uri,
             entropy_uri,
-            enabled,
+            disabled,
         }
     }
 
     pub async fn run(&mut self, shutdown: &triggered::Listener) -> Result {
         info!(
             beacon_interval = self.interval.as_secs(),
-            enabled = self.enabled,
+            disabled = self.disabled,
             "starting"
         );
 
@@ -203,7 +203,7 @@ impl Beaconer {
     }
 
     async fn handle_beacon_tick(&mut self) {
-        if !self.enabled {
+        if self.disabled {
             return;
         }
         match self.mk_beacon().await {
@@ -224,7 +224,7 @@ impl Beaconer {
     }
 
     async fn handle_received_beacon(&mut self, packet: PacketUp) {
-        if !self.enabled {
+        if self.disabled {
             return;
         }
         if let Some(last_beacon) = &self.last_beacon {
