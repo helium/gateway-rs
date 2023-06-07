@@ -79,6 +79,9 @@ impl tracing_subscriber::fmt::time::FormatTime for TimeFormatter {
 /// Settings for proof-of-coverage (PoC).
 #[derive(Debug, Deserialize, Clone)]
 pub struct PocSettings {
+    // Enable/disable poc related activities (baecon/witness)
+    #[serde(default)]
+    pub disable: bool,
     /// Entropy URL.
     #[serde(with = "http_serde::uri")]
     pub entropy_uri: Uri,
