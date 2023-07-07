@@ -120,11 +120,18 @@ impl Beaconer {
                 },
                 region_change = self.region_watch.changed() => match region_change {
                     Ok(()) => {
-                        // Recalculate beacon time based on if this was the
-                        // first time region params have arrived. Do the first
-                        // time check below before region params are assigned
-                        self.next_beacon_time =
-                            Self::mk_next_beacon_time(self.interval, self.region_params.params.is_empty());
+                        // Recalculate beacon time based on if this
+                        // was the first time region params have
+                        // arrived.  Ensure that the next beacon
+                        // time is not the full interval if this is
+                        // not the first region change
+                        //
+                        // Do the first time check below before
+                        // region params are assigned
+                        if self.region_params.params.is_empty() {
+                            self.next_beacon_time =
+                                Self::mk_next_short_beacon_time(self.interval);
+                        }
                         self.region_params = region_watcher::current_value(&self.region_watch);
                         info!(region = RegionParams::to_string(&self.region_params), "region updated");
                     },
@@ -212,13 +219,13 @@ impl Beaconer {
                 // On success just use the normal behavior for selecting a next
                 // beacon time. Can't be the first time since we have region
                 // parameters to construct a beacon
-                self.next_beacon_time = Self::mk_next_beacon_time(self.interval, false);
+                self.next_beacon_time = Self::mk_next_beacon_time(self.interval);
             }
             Err(err) => {
                 warn!(%err, "construct beacon");
                 // On failure to construct a beacon at all, select a shortened
                 // "first time" next beacon time
-                self.next_beacon_time = Self::mk_next_beacon_time(self.interval, true);
+                self.next_beacon_time = Self::mk_next_short_beacon_time(self.interval);
             }
         };
     }
@@ -301,17 +308,18 @@ impl Beaconer {
         }
     }
 
-    /// Construct a beacon time based on the interval and whether this is the
-    /// "first time" to beacon. The first beacon time is closed by in time
-    fn mk_next_beacon_time(interval: Duration, first_params: bool) -> Instant {
+    /// Construct a next beacon time based on a fraction of the given interval.
+    fn mk_next_short_beacon_time(interval: Duration) -> Instant {
         let now = Instant::now();
-        if first_params {
-            let max_jitter = (interval.as_secs() * BEACON_INTERVAL_JITTER_PERCENTAGE) / 100;
-            let jitter = OsRng.gen_range(0..=max_jitter);
-            now + Duration::from_secs(jitter)
-        } else {
-            now + interval
-        }
+        let max_jitter = (interval.as_secs() * BEACON_INTERVAL_JITTER_PERCENTAGE) / 100;
+        let jitter = OsRng.gen_range(0..=max_jitter);
+        now + Duration::from_secs(jitter)
+    }
+
+    /// Construct a next beacon time based on the current time and given interval.
+    fn mk_next_beacon_time(interval: Duration) -> Instant {
+        let now = Instant::now();
+        now + interval
     }
 }
 
