@@ -14,7 +14,6 @@ use rand::{rngs::OsRng, Rng};
 use std::sync::Arc;
 use tokio::time::{self, Duration, Instant};
 use tracing::{info, warn};
-use xxhash_rust::xxh64::xxh64;
 
 /// To prevent a thundering herd of hotspots all beaconing at the same time, we
 /// add a randomized jitter value of up to `BEACON_INTERVAL_JITTER_PERCENTAGE`
@@ -143,7 +142,7 @@ impl Beaconer {
         }
     }
 
-    pub async fn mk_beacon(&mut self) -> Result<beacon::Beacon> {
+    pub async fn mk_beacon(&self) -> Result<beacon::Beacon> {
         self.region_params.check_valid()?;
 
         let mut entropy_service = EntropyService::new(self.entropy_uri.clone());
@@ -157,32 +156,29 @@ impl Beaconer {
     /// Sends a gateway-to-gateway packet.
     ///
     /// See [`gateway::MessageSender::transmit_beacon`]
-    pub async fn send_beacon(&mut self, beacon: beacon::Beacon) {
+    pub async fn send_beacon(&self, beacon: beacon::Beacon) -> Result<beacon::Beacon> {
         let beacon_id = beacon.beacon_id();
         info!(beacon_id, "transmitting beacon");
 
-        let (powe, tmst) = match self.transmit.transmit_beacon(beacon.clone()).await {
-            Ok(BeaconResp { powe, tmst }) => (powe, tmst),
-            Err(err) => {
-                warn!(%err, "transmit beacon");
-                return;
-            }
-        };
+        let (powe, tmst) = self
+            .transmit
+            .transmit_beacon(beacon.clone())
+            .inspect_err(|err| warn!(%err, "transmit beacon"))
+            .map_ok(|BeaconResp { powe, tmst }| (powe, tmst))
+            .await?;
 
-        self.last_beacon = Some(beacon.clone());
+        let report = self
+            .mk_beacon_report(beacon.clone(), powe, tmst)
+            .inspect_err(|err| warn!(beacon_id, %err, "poc beacon report"))
+            .await?;
 
-        let report = match self.mk_beacon_report(beacon, powe, tmst).await {
-            Ok(report) => report,
-            Err(err) => {
-                warn!(beacon_id, %err, "poc beacon report");
-                return;
-            }
-        };
-        let _ = PocIotService::new(self.poc_ingest_uri.clone())
+        PocIotService::new(self.poc_ingest_uri.clone())
             .submit_beacon(report)
             .inspect_err(|err| info!(beacon_id, %err, "submit poc beacon report",))
             .inspect_ok(|_| info!(beacon_id, "poc beacon report submitted",))
-            .await;
+            .await?;
+
+        Ok(beacon)
     }
 
     async fn mk_beacon_report(
@@ -213,21 +209,21 @@ impl Beaconer {
         if self.disabled {
             return;
         }
-        match self.mk_beacon().await {
-            Ok(beacon) => {
-                self.send_beacon(beacon).await;
-                // On success just use the normal behavior for selecting a next
-                // beacon time. Can't be the first time since we have region
-                // parameters to construct a beacon
-                self.next_beacon_time = Self::mk_next_beacon_time(self.interval);
-            }
-            Err(err) => {
-                warn!(%err, "construct beacon");
-                // On failure to construct a beacon at all, select a shortened
-                // "first time" next beacon time
-                self.next_beacon_time = Self::mk_next_short_beacon_time(self.interval);
-            }
-        };
+        let interval = self.interval;
+        let (last_beacon, next_beacon_time) = self
+            .mk_beacon()
+            .inspect_err(|err| warn!(%err, "construct beacon"))
+            .and_then(|beacon| self.send_beacon(beacon))
+            // On success to construct and transmit a beacon and it's report
+            // select a normal full next beacon time
+            .map_ok(|beacon| (Some(beacon), Self::mk_next_beacon_time(interval)))
+            // On failure to construct, transmit or send a beacon or it's
+            // report, select a shortened next beacon time
+            .unwrap_or_else(|_| (None, Self::mk_next_short_beacon_time(interval)))
+            .await;
+
+        self.next_beacon_time = next_beacon_time;
+        self.last_beacon = last_beacon;
     }
 
     async fn handle_received_beacon(&mut self, packet: PacketUp) {
@@ -265,47 +261,6 @@ impl Beaconer {
                 )
             })
             .await;
-
-        // Disable secondary beacons until TTL is implemented
-        if false {
-            self.handle_secondary_beacon(report).await
-        }
-    }
-
-    async fn handle_secondary_beacon(&mut self, report: poc_lora::LoraWitnessReportReqV1) {
-        if self.region_params.check_valid().is_err() {
-            warn!("no region params for secondary beacon");
-            return;
-        };
-
-        // check if hash of witness is below the "difficulty threshold" for a secondary beacon
-        // TODO provide a way to get this difficulty threshold from eg. the entropy server
-        let buf = report.encode_to_vec();
-        let threshold = 1855177858159416090;
-        // compare the hash of the witness report as a u64 to the difficulty threshold
-        // this is sort of a bitcoin-esque proof of work check insofar as as we're looking
-        // for hashes under a certain value. Because of the time constraints involved this
-        // should not be a 'mineable' check, but it provides a useful probabalistic way to
-        // allow for verifiable secondary beacons without any coordination.
-        let factor = xxh64(&buf, 0);
-        if factor < threshold {
-            let beacon = match beacon::Entropy::from_data(report.data.clone())
-                .and_then(|remote_entropy| {
-                    beacon::Entropy::from_data(buf)
-                        .map(|local_entropy| (remote_entropy, local_entropy))
-                })
-                .and_then(|(remote_entropy, local_entropy)| {
-                    beacon::Beacon::new(remote_entropy, local_entropy, &self.region_params)
-                }) {
-                Ok(beacon) => beacon,
-                Err(err) => {
-                    warn!(%err, "secondary beacon construction");
-                    return;
-                }
-            };
-
-            self.send_beacon(beacon).await
-        }
     }
 
     /// Construct a next beacon time based on a fraction of the given interval.

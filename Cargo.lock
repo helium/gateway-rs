@@ -792,7 +792,6 @@ dependencies = [
  "tracing-appender",
  "tracing-subscriber",
  "triggered",
- "xxhash-rust",
 ]
 
 [[package]]
@@ -2425,12 +2424,6 @@ checksum = "05f360fc0b24296329c78fda852a1e9ae82de9cf7b27dae4b7f62f118f77b9ed"
 dependencies = [
  "tap",
 ]
-
-[[package]]
-name = "xxhash-rust"
-version = "0.8.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "735a71d46c4d68d71d4b24d03fdc2b98e38cea81730595801db779c04fe80d70"
 
 [[package]]
 name = "zeroize"
