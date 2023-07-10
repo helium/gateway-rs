@@ -7,7 +7,7 @@ license = "Apache-2.0"
 
 [dependencies]
 byteorder = {workspace = true}
-bitfield = "0.13"
+bitfield = "0.14"
 
 [dev-dependencies]
 base64 = ">=0.21"

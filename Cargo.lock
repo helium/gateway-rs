@@ -203,12 +203,6 @@ dependencies = [
 
 [[package]]
 name = "bitfield"
-version = "0.13.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "46afbd2983a5d5a7bd740ccb198caf5b82f45c40c09c0eed36052d91cb92e719"
-
-[[package]]
-name = "bitfield"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2d7e60934ceec538daadb9d8432424ed043a904d8e0243f3c6446bce549a46ac"
@@ -517,7 +511,7 @@ version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a0e4b7ce1bb7badaf11912039331509503ad798854dc1351a36ce20ac33bf027"
 dependencies = [
- "bitfield 0.14.0",
+ "bitfield",
  "bytes",
  "i2c-linux",
  "serde",
@@ -1142,7 +1136,7 @@ name = "lorawan"
 version = "0.1.0"
 dependencies = [
  "base64",
- "bitfield 0.13.2",
+ "bitfield",
  "byteorder",
 ]
 
