@@ -174,7 +174,7 @@ impl Beaconer {
 
         PocIotService::new(self.poc_ingest_uri.clone())
             .submit_beacon(report)
-            .inspect_err(|err| info!(beacon_id, %err, "submit poc beacon report",))
+            .inspect_err(|err| warn!(beacon_id, %err, "submit poc beacon report",))
             .inspect_ok(|_| info!(beacon_id, "poc beacon report submitted",))
             .await?;
 
