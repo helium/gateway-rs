@@ -214,10 +214,10 @@ impl Beaconer {
             .mk_beacon()
             .inspect_err(|err| warn!(%err, "construct beacon"))
             .and_then(|beacon| self.send_beacon(beacon))
-            // On success to construct and transmit a beacon and it's report
+            // On success to construct and transmit a beacon and its report
             // select a normal full next beacon time
             .map_ok(|beacon| (Some(beacon), Self::mk_next_beacon_time(interval)))
-            // On failure to construct, transmit or send a beacon or it's
+            // On failure to construct, transmit or send a beacon or its
             // report, select a shortened next beacon time
             .unwrap_or_else(|_| (None, Self::mk_next_short_beacon_time(interval)))
             .await;
