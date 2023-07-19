@@ -34,7 +34,7 @@ timestamp = true
 
 [poc]
 # Whether the poc is enabled or not. When a gateway is not on chain (i.e.
-# dataonly) set this to false to avoid unneeded RF traffic. Defaults to false. 
+# dataonly) set this to true to avoid unneeded RF traffic. Defaults to false. 
 #
 # disable = false
 
