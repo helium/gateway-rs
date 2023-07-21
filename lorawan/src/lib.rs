@@ -1,6 +1,6 @@
 use bitfield::bitfield;
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
-use std::{convert::From, fmt, io, mem::size_of, result};
+use bytes::{Buf, BufMut, Bytes};
+use std::{convert::From, fmt, mem::size_of, result};
 
 pub mod error;
 pub use error::LoraWanError;
@@ -63,12 +63,12 @@ bitfield! {
 }
 
 impl MHDR {
-    pub fn read(reader: &mut dyn io::Read) -> Result<Self, LoraWanError> {
-        Ok(Self(reader.read_u8()?))
+    pub fn read(reader: &mut dyn Buf) -> Result<Self, LoraWanError> {
+        Ok(Self(reader.get_u8()))
     }
 
-    pub fn write(self, output: &mut dyn io::Write) -> Result<usize, LoraWanError> {
-        output.write_u8(self.0)?;
+    pub fn write(self, output: &mut dyn BufMut) -> Result<usize, LoraWanError> {
+        output.put_u8(self.0);
         Ok(1)
     }
 }
@@ -93,16 +93,15 @@ impl PHYPayload {
                 mhdr.set_mtype(MType::Proprietary);
                 mhdr
             },
-            payload: PHYPayloadFrame::Proprietary(payload.into()),
+            payload: PHYPayloadFrame::Proprietary(Bytes::copy_from_slice(payload)),
             mic: None,
         }
     }
 
-    pub fn read(direction: Direction, reader: &mut dyn io::Read) -> Result<Self, LoraWanError> {
+    pub fn read(direction: Direction, reader: &mut dyn Buf) -> Result<Self, LoraWanError> {
         let mhdr = MHDR::read(reader)?;
         let packet_type = mhdr.mtype();
-        let mut data = vec![];
-        reader.read_to_end(&mut data)?;
+        let mut data = reader.copy_to_bytes(reader.remaining());
 
         let phy_len = data.len() + 1;
         let invalid = match packet_type {
@@ -135,21 +134,21 @@ impl PHYPayload {
             None
         };
 
-        let mut payload = &data[..];
         let res = Self {
             mhdr,
-            payload: PHYPayloadFrame::read(direction, packet_type, &mut payload)?,
+            payload: PHYPayloadFrame::read(direction, packet_type, &mut data)?,
             mic,
         };
         Ok(res)
     }
 
-    pub fn write(&self, output: &mut dyn io::Write) -> Result<usize, LoraWanError> {
+    pub fn write(&self, output: &mut dyn BufMut) -> Result<usize, LoraWanError> {
         let mut written = 0_usize;
         written += self.mhdr.write(output)?;
         written += self.payload.write(output)?;
         if let Some(mic) = self.mic {
-            written += output.write(&mic)?;
+            output.put_slice(&mic);
+            written += mic.len();
         }
         Ok(written)
     }
@@ -173,21 +172,20 @@ pub enum PHYPayloadFrame {
     MACPayload(MACPayload),
     JoinRequest(JoinRequest),
     JoinAccept(JoinAccept),
-    Proprietary(Vec<u8>),
+    Proprietary(Bytes),
 }
 
 impl PHYPayloadFrame {
     pub fn read(
         direction: Direction,
         packet_type: MType,
-        reader: &mut dyn io::Read,
+        reader: &mut dyn Buf,
     ) -> Result<Self, LoraWanError> {
         let res = match packet_type {
             MType::JoinRequest => Self::JoinRequest(JoinRequest::read(reader)?),
             MType::JoinAccept => Self::JoinAccept(JoinAccept::read(reader)?),
             MType::Proprietary => {
-                let mut proprietary_payload = vec![];
-                reader.read_to_end(&mut proprietary_payload)?;
+                let proprietary_payload = reader.copy_to_bytes(reader.remaining());
                 Self::Proprietary(proprietary_payload)
             }
             _ => Self::MACPayload(MACPayload::read(packet_type, direction, reader)?),
@@ -195,12 +193,15 @@ impl PHYPayloadFrame {
         Ok(res)
     }
 
-    pub fn write(&self, output: &mut dyn io::Write) -> Result<usize, LoraWanError> {
+    pub fn write(&self, output: &mut dyn BufMut) -> Result<usize, LoraWanError> {
         match self {
             Self::MACPayload(mp) => mp.write(output),
             Self::JoinRequest(jr) => jr.write(output),
             Self::JoinAccept(ja) => ja.write(output),
-            Self::Proprietary(v) => Ok(output.write(v)?),
+            Self::Proprietary(v) => {
+                output.put_slice(v);
+                Ok(v.len())
+            }
         }
     }
 
@@ -217,7 +218,7 @@ pub struct Fhdr {
     pub dev_addr: u32,
     pub fctrl: FCtrl,
     pub fcnt: u16,
-    pub fopts: Vec<u8>,
+    pub fopts: Bytes,
 }
 
 impl fmt::Debug for Fhdr {
@@ -232,12 +233,11 @@ impl fmt::Debug for Fhdr {
 }
 
 impl Fhdr {
-    pub fn read(direction: Direction, reader: &mut dyn io::Read) -> Result<Self, LoraWanError> {
-        let dev_addr = reader.read_u32::<LittleEndian>()?;
+    pub fn read(direction: Direction, reader: &mut dyn Buf) -> Result<Self, LoraWanError> {
+        let dev_addr = reader.get_u32_le();
         let fctrl = FCtrl::read(direction, reader)?;
-        let fcnt = reader.read_u16::<LittleEndian>()?;
-        let mut fopts = vec![0u8; fctrl.fopts_len().into()];
-        reader.read_exact(&mut fopts)?;
+        let fcnt = reader.get_u16_le();
+        let fopts = reader.copy_to_bytes(fctrl.fopts_len());
         let res = Self {
             dev_addr,
             fctrl,
@@ -247,15 +247,16 @@ impl Fhdr {
         Ok(res)
     }
 
-    pub fn write(&self, output: &mut dyn io::Write) -> Result<usize, LoraWanError> {
+    pub fn write(&self, output: &mut dyn BufMut) -> Result<usize, LoraWanError> {
         let mut written = 0;
-        output.write_u32::<LittleEndian>(self.dev_addr)?;
+        output.put_u32_le(self.dev_addr);
         written += size_of::<u32>();
-        output.write_u32::<LittleEndian>(self.dev_addr)?;
+        output.put_u32_le(self.dev_addr);
         written += self.fctrl.write(output)?;
-        output.write_u16::<LittleEndian>(self.fcnt)?;
+        output.put_u16_le(self.fcnt);
         written += size_of::<u16>();
-        written += output.write(&self.fopts)?;
+        output.put_slice(&self.fopts);
+        written += self.fopts.len();
         Ok(written)
     }
 }
@@ -272,12 +273,12 @@ bitfield! {
 }
 
 impl FCtrlUplink {
-    pub fn read(reader: &mut dyn io::Read) -> Result<Self, LoraWanError> {
-        Ok(Self(reader.read_u8()?))
+    pub fn read(reader: &mut dyn Buf) -> Result<Self, LoraWanError> {
+        Ok(Self(reader.get_u8()))
     }
 
-    pub fn write(&self, output: &mut dyn io::Write) -> Result<usize, LoraWanError> {
-        output.write_u8(self.0)?;
+    pub fn write(&self, output: &mut dyn BufMut) -> Result<usize, LoraWanError> {
+        output.put_u8(self.0);
         Ok(size_of::<Self>())
     }
 }
@@ -294,12 +295,12 @@ bitfield! {
 }
 
 impl FCtrlDownlink {
-    pub fn read(reader: &mut dyn io::Read) -> Result<Self, LoraWanError> {
-        Ok(Self(reader.read_u8()?))
+    pub fn read(reader: &mut dyn Buf) -> Result<Self, LoraWanError> {
+        Ok(Self(reader.get_u8()))
     }
 
-    pub fn write(&self, output: &mut dyn io::Write) -> Result<usize, LoraWanError> {
-        output.write_u8(self.0)?;
+    pub fn write(&self, output: &mut dyn BufMut) -> Result<usize, LoraWanError> {
+        output.put_u8(self.0);
         Ok(size_of::<Self>())
     }
 }
@@ -311,14 +312,14 @@ pub enum FCtrl {
 }
 
 impl FCtrl {
-    pub fn fopts_len(&self) -> u8 {
+    pub fn fopts_len(&self) -> usize {
         match self {
-            FCtrl::Uplink(fctrl) => fctrl.fopts_len(),
-            FCtrl::Downlink(fctrl) => fctrl.fopts_len(),
+            FCtrl::Uplink(fctrl) => fctrl.fopts_len().into(),
+            FCtrl::Downlink(fctrl) => fctrl.fopts_len().into(),
         }
     }
 
-    pub fn read(direction: Direction, reader: &mut dyn io::Read) -> Result<Self, LoraWanError> {
+    pub fn read(direction: Direction, reader: &mut dyn Buf) -> Result<Self, LoraWanError> {
         let res = match direction {
             Direction::Uplink => Self::Uplink(FCtrlUplink::read(reader)?),
             Direction::Downlink => Self::Downlink(FCtrlDownlink::read(reader)?),
@@ -326,7 +327,7 @@ impl FCtrl {
         Ok(res)
     }
 
-    pub fn write(&self, output: &mut dyn io::Write) -> Result<usize, LoraWanError> {
+    pub fn write(&self, output: &mut dyn BufMut) -> Result<usize, LoraWanError> {
         match self {
             Self::Uplink(ul) => ul.write(output),
             Self::Downlink(dl) => dl.write(output),
@@ -345,11 +346,10 @@ impl MACPayload {
     pub fn read(
         payload_type: MType,
         direction: Direction,
-        reader: &mut dyn io::Read,
+        reader: &mut dyn Buf,
     ) -> Result<Self, LoraWanError> {
         let fhdr = Fhdr::read(direction, reader)?;
-        let mut data = vec![];
-        reader.read_to_end(&mut data)?;
+        let data = reader.copy_to_bytes(reader.remaining());
         let (fport, payload) = match data.split_first() {
             Some((port, mut payload)) => (
                 Some(*port),
@@ -368,12 +368,12 @@ impl MACPayload {
         Ok(res)
     }
 
-    pub fn write(&self, output: &mut dyn io::Write) -> Result<usize, LoraWanError> {
+    pub fn write(&self, output: &mut dyn BufMut) -> Result<usize, LoraWanError> {
         let mut written = 0;
         written += self.fhdr.write(output)?;
         written += match self.fport {
             Some(fp) => {
-                output.write_u8(fp)?;
+                output.put_u8(fp);
                 size_of::<u8>()
             }
             None => 0,
@@ -399,7 +399,7 @@ pub enum FRMPayload {
 }
 
 impl FRMPayload {
-    pub fn read(payload_type: MType, reader: &mut dyn io::Read) -> Result<Self, LoraWanError> {
+    pub fn read(payload_type: MType, reader: &mut dyn Buf) -> Result<Self, LoraWanError> {
         let res = match payload_type {
             MType::UnconfirmedUp => Self::UnconfirmedUp(Payload::read(reader)?),
             MType::UnconfirmedDown => Self::UnconfirmedDown(Payload::read(reader)?),
@@ -411,7 +411,7 @@ impl FRMPayload {
         Ok(res)
     }
 
-    pub fn write(&self, output: &mut dyn io::Write) -> Result<usize, LoraWanError> {
+    pub fn write(&self, output: &mut dyn BufMut) -> Result<usize, LoraWanError> {
         match self {
             Self::UnconfirmedUp(p) => p.write(output),
             Self::UnconfirmedDown(p) => p.write(output),
@@ -422,18 +422,17 @@ impl FRMPayload {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Payload(Vec<u8>);
+pub struct Payload(Bytes);
 
 impl Payload {
-    pub fn read(reader: &mut dyn io::Read) -> Result<Self, LoraWanError> {
-        let mut data = vec![];
-        reader.read_to_end(&mut data)?;
-        let res = Self(data);
-        Ok(res)
+    pub fn read(reader: &mut dyn Buf) -> Result<Self, LoraWanError> {
+        let data = reader.copy_to_bytes(reader.remaining());
+        Ok(Self(data))
     }
 
-    pub fn write(&self, output: &mut dyn io::Write) -> Result<usize, LoraWanError> {
-        Ok(output.write(&self.0)?)
+    pub fn write(&self, output: &mut dyn BufMut) -> Result<usize, LoraWanError> {
+        output.put_slice(&self.0);
+        Ok(self.0.len())
     }
 }
 
@@ -455,24 +454,22 @@ impl fmt::Debug for JoinRequest {
 }
 
 impl JoinRequest {
-    pub fn read(reader: &mut dyn io::Read) -> Result<Self, LoraWanError> {
+    pub fn read(reader: &mut dyn Buf) -> Result<Self, LoraWanError> {
+        // TODO: Reader length check
         let mut res = Self {
-            app_eui: reader.read_u64::<LittleEndian>()?,
-            dev_eui: reader.read_u64::<LittleEndian>()?,
+            app_eui: reader.get_u64_le(),
+            dev_eui: reader.get_u64_le(),
             dev_nonce: [0; 2],
         };
-        reader.read_exact(&mut res.dev_nonce)?;
+        reader.copy_to_slice(&mut res.dev_nonce);
         Ok(res)
     }
 
-    pub fn write(&self, output: &mut dyn io::Write) -> Result<usize, LoraWanError> {
-        let mut written = 0;
-        output.write_u64::<LittleEndian>(self.app_eui)?;
-        written += size_of::<u64>();
-        output.write_u64::<LittleEndian>(self.dev_eui)?;
-        written += size_of::<u64>();
-        written += output.write(&self.dev_nonce)?;
-        Ok(written)
+    pub fn write(&self, output: &mut dyn BufMut) -> Result<usize, LoraWanError> {
+        output.put_u64_le(self.app_eui);
+        output.put_u64_le(self.dev_eui);
+        output.put_slice(&self.dev_nonce);
+        Ok(size_of::<Self>())
     }
 }
 
@@ -487,32 +484,29 @@ pub struct JoinAccept {
 }
 
 impl JoinAccept {
-    pub fn read(reader: &mut dyn io::Read) -> Result<Self, LoraWanError> {
+    pub fn read(reader: &mut dyn Buf) -> Result<Self, LoraWanError> {
+        // TODO: Reader length check
         let mut app_nonce = [0u8; 3];
         let mut net_id = [0u8; 3];
-        reader.read_exact(&mut app_nonce)?;
-        reader.read_exact(&mut net_id)?;
+        reader.copy_to_slice(&mut app_nonce);
+        reader.copy_to_slice(&mut net_id);
         let res = Self {
             app_nonce,
             net_id,
-            dev_addr: reader.read_u32::<LittleEndian>()?,
-            dl_settings: reader.read_u8()?,
-            rx_delay: reader.read_u8()?,
+            dev_addr: reader.get_u32_le(),
+            dl_settings: reader.get_u8(),
+            rx_delay: reader.get_u8(),
         };
         Ok(res)
     }
 
-    pub fn write(&self, output: &mut dyn io::Write) -> Result<usize, LoraWanError> {
-        let mut written = 0;
-        written += output.write(&self.app_nonce)?;
-        written += output.write(&self.net_id)?;
-        output.write_u32::<LittleEndian>(self.dev_addr)?;
-        written += size_of::<u32>();
-        output.write_u8(self.dl_settings)?;
-        written += size_of::<u8>();
-        output.write_u8(self.rx_delay)?;
-        written += size_of::<u8>();
-        Ok(written)
+    pub fn write(&self, output: &mut dyn BufMut) -> Result<usize, LoraWanError> {
+        output.put_slice(&self.app_nonce);
+        output.put_slice(&self.net_id);
+        output.put_u32_le(self.dev_addr);
+        output.put_u8(self.dl_settings);
+        output.put_u8(self.rx_delay);
+        Ok(size_of::<Self>())
     }
 }
 
@@ -531,5 +525,139 @@ mod test {
         let mut data_b = Vec::with_capacity(data_a.len());
         payload_a.write(&mut data_b).unwrap();
         assert_eq!(data_a, data_b);
+    }
+
+    #[test]
+    fn test_packets() {
+        for (routing, data) in mk_test_packets() {
+            let expected_routing = Routing::try_from(data).expect("routing");
+            assert_eq!(routing, expected_routing);
+        }
+    }
+
+    impl TryFrom<&[u8]> for Routing {
+        type Error = LoraWanError;
+        fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+            match PHYPayload::read(Direction::Uplink, &mut &value[..]) {
+                Err(_err) => Ok(Self::Invalid),
+                Ok(payload) => payload.try_into(),
+            }
+        }
+    }
+
+    impl TryFrom<PHYPayload> for Routing {
+        type Error = LoraWanError;
+        fn try_from(value: PHYPayload) -> Result<Self, Self::Error> {
+            fn get_dev_addr(mtype: MType, payload: &PHYPayload) -> Result<u32, LoraWanError> {
+                match payload.payload {
+                    PHYPayloadFrame::MACPayload(MACPayload {
+                        fhdr: Fhdr { dev_addr, .. },
+                        ..
+                    }) => Ok(dev_addr),
+                    _ => return Err(LoraWanError::InvalidPacketType(mtype.into())),
+                }
+            }
+
+            match value.mtype() {
+                MType::UnconfirmedUp => {
+                    let dev_addr = get_dev_addr(value.mtype(), &value)?;
+                    Ok(Self::Unconfirmed {
+                        devaddr: format!("{:06X}", dev_addr),
+                    })
+                }
+                MType::ConfirmedUp => {
+                    let dev_addr = get_dev_addr(value.mtype(), &value)?;
+                    Ok(Self::Confirmed {
+                        devaddr: format!("{:06X}", dev_addr),
+                    })
+                }
+                MType::JoinRequest => {
+                    let (dev_eui, app_eui) = match value.payload {
+                        PHYPayloadFrame::JoinRequest(JoinRequest {
+                            dev_eui, app_eui, ..
+                        }) => (dev_eui, app_eui),
+                        _ => return Err(LoraWanError::InvalidPacketType(value.mtype().into())),
+                    };
+                    Ok(Self::Join {
+                        eui: format!("{:06X}", app_eui),
+                        dev: format!("{:06X}", dev_eui),
+                    })
+                }
+                _ => Ok(Self::Invalid),
+            }
+        }
+    }
+
+    #[derive(Debug, PartialEq, Eq)]
+    enum Routing {
+        Unconfirmed { devaddr: String },
+        Confirmed { devaddr: String },
+        Join { eui: String, dev: String },
+        Invalid,
+    }
+
+    fn mk_test_packets() -> Vec<(Routing, &'static [u8])> {
+        vec![
+            (
+                Routing::Unconfirmed {
+                    devaddr: "65A547".to_string(),
+                },
+                &[
+                    64, 71, 165, 101, 0, 128, 130, 41, 2, 214, 3, 27, 61, 140, 165, 211, 143, 196,
+                    1, 134, 56, 31, 122, 222,
+                ],
+            ),
+            (Routing::Invalid, &[4, 217, 181, 6, 11, 130, 2, 254, 1]),
+            (
+                Routing::Join {
+                    eui: "70B3D5B02000088D".to_string(),
+                    dev: "70B3D5B020038C7F".to_string(),
+                },
+                &[
+                    0, 141, 8, 0, 32, 176, 213, 179, 112, 127, 140, 3, 32, 176, 213, 179, 112, 135,
+                    15, 125, 90, 77, 199,
+                ],
+            ),
+            (
+                Routing::Confirmed {
+                    devaddr: "127B3F4".to_string(),
+                },
+                &[
+                    128, 244, 179, 39, 1, 128, 27, 0, 61, 112, 100, 42, 151, 154, 203, 136, 193,
+                    200, 210, 165,
+                ],
+            ),
+            (
+                Routing::Join {
+                    eui: "1122334455667799".to_string(),
+                    dev: "956906000056AD".to_string(),
+                },
+                &[
+                    0, 153, 119, 102, 85, 68, 51, 34, 17, 173, 86, 0, 0, 6, 105, 149, 0, 151, 197,
+                    232, 148, 220, 26,
+                ],
+            ),
+            (Routing::Invalid, &[4, 73, 201, 4, 152, 149, 2, 254, 1]),
+            (Routing::Invalid, &[4, 214, 159, 4, 116, 253, 2, 254, 1]),
+            (
+                Routing::Unconfirmed {
+                    devaddr: "90CC175".to_string(),
+                },
+                &[
+                    64, 117, 193, 12, 9, 128, 255, 254, 5, 4, 240, 62, 237, 70, 223, 10, 6, 103,
+                    172, 117, 113, 137, 253, 157, 62, 152, 146, 62,
+                ],
+            ),
+            (
+                Routing::Unconfirmed {
+                    devaddr: "203D5C8".to_string(),
+                },
+                &[
+                    64, 200, 213, 3, 2, 128, 11, 124, 1, 38, 51, 2, 5, 95, 101, 161, 40, 44, 86,
+                    116, 134, 134, 205, 127, 80, 215, 216, 107, 195, 105, 179, 202, 251, 251, 103,
+                    113, 108, 15, 139, 26, 35, 190, 230, 163, 135, 83, 179,
+                ],
+            ),
+        ]
     }
 }
