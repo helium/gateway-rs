@@ -70,7 +70,7 @@ impl TryFrom<PacketUp> for poc_lora::LoraWitnessReportReqV1 {
             _ => return Err(DecodeError::not_beacon()),
         };
         let report = poc_lora::LoraWitnessReportReqV1 {
-            data: payload,
+            data: payload.to_vec(),
             tmst: value.0.timestamp as u32,
             timestamp: SystemTime::now()
                 .duration_since(UNIX_EPOCH)

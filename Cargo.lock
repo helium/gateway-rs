@@ -203,12 +203,6 @@ dependencies = [
 
 [[package]]
 name = "bitfield"
-version = "0.13.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "46afbd2983a5d5a7bd740ccb198caf5b82f45c40c09c0eed36052d91cb92e719"
-
-[[package]]
-name = "bitfield"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2d7e60934ceec538daadb9d8432424ed043a904d8e0243f3c6446bce549a46ac"
@@ -517,7 +511,7 @@ version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a0e4b7ce1bb7badaf11912039331509503ad798854dc1351a36ce20ac33bf027"
 dependencies = [
- "bitfield 0.14.0",
+ "bitfield",
  "bytes",
  "i2c-linux",
  "serde",
@@ -792,7 +786,6 @@ dependencies = [
  "tracing-appender",
  "tracing-subscriber",
  "triggered",
- "xxhash-rust",
 ]
 
 [[package]]
@@ -1143,8 +1136,8 @@ name = "lorawan"
 version = "0.1.0"
 dependencies = [
  "base64",
- "bitfield 0.13.2",
- "byteorder",
+ "bitfield",
+ "bytes",
 ]
 
 [[package]]
@@ -2425,12 +2418,6 @@ checksum = "05f360fc0b24296329c78fda852a1e9ae82de9cf7b27dae4b7f62f118f77b9ed"
 dependencies = [
  "tap",
 ]
-
-[[package]]
-name = "xxhash-rust"
-version = "0.8.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "735a71d46c4d68d71d4b24d03fdc2b98e38cea81730595801db779c04fe80d70"
 
 [[package]]
 name = "zeroize"
