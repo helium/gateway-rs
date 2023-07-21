@@ -117,6 +117,10 @@ impl PacketUp {
             .unwrap_or(false)
     }
 
+    pub fn is_uplink(&self) -> bool {
+        Self::parse_frame(Direction::Uplink, self.payload()).is_ok()
+    }
+
     pub fn payload(&self) -> &[u8] {
         &self.0.payload
     }

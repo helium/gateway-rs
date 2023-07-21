@@ -140,7 +140,12 @@ impl Gateway {
                     Ok(packet) if packet.is_potential_beacon() => {
                         self.handle_potential_beacon(packet).await;
                     }
-                    Ok(packet) => self.handle_uplink(packet, Instant::now()).await,
+                    Ok(packet) if packet.is_uplink() => {
+                        self.handle_uplink(packet, Instant::now()).await
+                    }
+                    Ok(packet) => {
+                        info!(%packet, "ignoring non-uplink packet");
+                    }
                     Err(err) => {
                         warn!(%err, "ignoring push_data");
                     }
