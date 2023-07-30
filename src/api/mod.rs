@@ -20,6 +20,7 @@ impl TryFrom<RouterRes> for crate::packet_router::RouterStatus {
         Ok(Self {
             uri: http::Uri::from_str(&value.uri)?,
             connected: value.connected,
+            session_key: helium_crypto::PublicKey::try_from(value.session_key).ok(),
         })
     }
 }

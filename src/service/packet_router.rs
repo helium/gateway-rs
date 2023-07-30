@@ -13,7 +13,7 @@ use helium_proto::{
     services::{
         router::{
             envelope_down_v1, envelope_up_v1, EnvelopeDownV1, EnvelopeUpV1, PacketRouterClient,
-            PacketRouterPacketDownV1, PacketRouterPacketUpV1, PacketRouterRegisterV1,
+            PacketRouterRegisterV1,
         },
         Channel, Endpoint,
     },
@@ -73,10 +73,10 @@ impl PacketRouterConduit {
         Ok(Self { tx, rx })
     }
 
-    async fn recv(&mut self) -> Result<Option<PacketRouterPacketDownV1>> {
+    async fn recv(&mut self) -> Result<Option<envelope_down_v1::Data>> {
         match self.rx.message().await {
             Ok(Some(msg)) => match msg.data {
-                Some(envelope_down_v1::Data::Packet(packet)) => Ok(Some(packet)),
+                Some(data) => Ok(Some(data)),
                 None => Err(DecodeError::invalid_envelope()),
             },
             Ok(None) => Ok(None),
@@ -84,10 +84,8 @@ impl PacketRouterConduit {
         }
     }
 
-    async fn send(&mut self, msg: PacketRouterPacketUpV1) -> Result {
-        let msg = EnvelopeUpV1 {
-            data: Some(envelope_up_v1::Data::Packet(msg)),
-        };
+    async fn send(&mut self, msg: envelope_up_v1::Data) -> Result {
+        let msg = EnvelopeUpV1 { data: Some(msg) };
         Ok(self.tx.send(msg).await?)
     }
 
@@ -117,7 +115,7 @@ impl PacketRouterService {
         }
     }
 
-    pub async fn send(&mut self, msg: PacketRouterPacketUpV1) -> Result {
+    pub async fn send(&mut self, msg: envelope_up_v1::Data) -> Result {
         if self.conduit.is_none() {
             self.connect().await?;
         }
@@ -131,7 +129,7 @@ impl PacketRouterService {
         }
     }
 
-    pub async fn recv(&mut self) -> Result<Option<PacketRouterPacketDownV1>> {
+    pub async fn recv(&mut self) -> Result<Option<envelope_down_v1::Data>> {
         // Since recv is usually called from a select loop we don't try a
         // connect every time it is called since the rate for attempted
         // connections in failure setups would be as high as the loop rate of

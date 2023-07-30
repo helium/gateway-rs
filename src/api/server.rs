@@ -76,6 +76,10 @@ impl Api for LocalServer {
         Ok(Response::new(RouterRes {
             uri: router_status.uri.to_string(),
             connected: router_status.connected,
+            session_key: router_status
+                .session_key
+                .map(|k| k.to_vec())
+                .unwrap_or_default(),
         }))
     }
 
