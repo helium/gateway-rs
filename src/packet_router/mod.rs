@@ -275,7 +275,7 @@ pub async fn mk_session_key_init(
         nonce: offer.nonce.clone(),
         signature: vec![],
     };
-    session_init.signature = sign(session_keypair.clone(), session_init.encode_to_vec()).await?;
+    session_init.signature = sign(keypair, session_init.encode_to_vec()).await?;
     let envelope = envelope_up_v1::Data::SessionInit(session_init);
     Ok((session_keypair, envelope))
 }
