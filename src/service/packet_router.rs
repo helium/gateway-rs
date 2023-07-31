@@ -97,6 +97,7 @@ impl PacketRouterConduit {
                 .as_millis() as u64,
             gateway: keypair.public_key().into(),
             signature: vec![],
+            session_capable: true,
         };
         msg.signature = sign(keypair.clone(), msg.encode_to_vec()).await?;
         let msg = EnvelopeUpV1 {
