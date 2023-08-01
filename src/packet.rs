@@ -118,7 +118,11 @@ impl PacketUp {
     }
 
     pub fn is_uplink(&self) -> bool {
-        Self::parse_frame(Direction::Uplink, self.payload()).is_ok()
+        // An uplinkable packet is a parseable lorawan uplink frame which is not
+        // a proprietary frame
+        Self::parse_frame(Direction::Uplink, self.payload())
+            .map(|frame| !matches!(frame, PHYPayloadFrame::Proprietary(_)))
+            .unwrap_or(false)
     }
 
     pub fn payload(&self) -> &[u8] {
