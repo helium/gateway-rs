@@ -167,16 +167,23 @@ impl Beaconer {
             .map_ok(|BeaconResp { powe, tmst }| (powe, tmst))
             .await?;
 
-        let report = self
-            .mk_beacon_report(beacon.clone(), powe, tmst)
-            .inspect_err(|err| warn!(beacon_id, %err, "poc beacon report"))
-            .await?;
+        // Construct concurrent futures for connecting to the poc ingester and
+        // signing the report
+        let report_fut = self.mk_beacon_report(beacon.clone(), powe, tmst);
+        let service_fut = PocIotService::connect(self.poc_ingest_uri.clone());
 
-        PocIotService::new(self.poc_ingest_uri.clone())
-            .submit_beacon(report)
-            .inspect_err(|err| warn!(beacon_id, %err, "submit poc beacon report",))
-            .inspect_ok(|_| info!(beacon_id, "poc beacon report submitted",))
-            .await?;
+        match tokio::try_join!(report_fut, service_fut) {
+            Ok((report, mut poc_service)) => {
+                poc_service
+                    .submit_beacon(report)
+                    .inspect_err(|err| warn!(beacon_id, %err, "submit poc beacon report"))
+                    .inspect_ok(|_| info!(beacon_id, "poc beacon report submitted"))
+                    .await?
+            }
+            Err(err) => {
+                warn!(beacon_id, %err, "poc beacon report");
+            }
+        }
 
         Ok(beacon)
     }
@@ -237,30 +244,24 @@ impl Beaconer {
             }
         }
 
-        let report = match self.mk_witness_report(packet).await {
-            Ok(report) => report,
-            Err(err) => {
-                warn!(%err, "ignoring invalid witness report");
-                return;
-            }
-        };
+        // Construct concurrent futures for connecting to the poc ingester and
+        // signing the report
+        let report_fut = self.mk_witness_report(packet);
+        let service_fut = PocIotService::connect(self.poc_ingest_uri.clone());
 
-        let _ = PocIotService::new(self.poc_ingest_uri.clone())
-            .submit_witness(report.clone())
-            .inspect_err(|err| {
-                info!(
-                    beacon = report.data.to_b64(),
-                    %err,
-                    "submit poc witness report"
-                )
-            })
-            .inspect_ok(|_| {
-                info!(
-                    beacon = report.data.to_b64(),
-                    "poc witness report submitted"
-                )
-            })
-            .await;
+        match tokio::try_join!(report_fut, service_fut) {
+            Ok((report, mut poc_service)) => {
+                let beacon_id = report.data.to_b64();
+                let _ = poc_service
+                    .submit_witness(report)
+                    .inspect_err(|err| warn!(beacon_id, %err, "submit poc witness report"))
+                    .inspect_ok(|_| info!(beacon_id, "poc witness report submitted"))
+                    .await;
+            }
+            Err(err) => {
+                warn!(%err, "poc witness report");
+            }
+        }
     }
 
     /// Construct a next beacon time based on a fraction of the given interval.

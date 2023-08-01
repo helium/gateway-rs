@@ -15,13 +15,14 @@ type PocIotClient = helium_proto::services::poc_lora::Client<Channel>;
 pub struct PocIotService(PocIotClient);
 
 impl PocIotService {
-    pub fn new(uri: Uri) -> Self {
+    pub async fn connect(uri: Uri) -> Result<Self> {
         let channel = Endpoint::from(uri)
             .connect_timeout(CONNECT_TIMEOUT)
             .timeout(RPC_TIMEOUT)
-            .connect_lazy();
+            .connect()
+            .await?;
         let client = services::poc_lora::Client::new(channel);
-        Self(client)
+        Ok(Self(client))
     }
 
     pub async fn submit_beacon(&mut self, req: LoraBeaconReportReqV1) -> Result {
