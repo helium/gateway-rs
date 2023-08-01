@@ -121,7 +121,11 @@ impl PacketUp {
         // An uplinkable packet is a parseable lorawan uplink frame which is not
         // a proprietary frame
         Self::parse_frame(Direction::Uplink, self.payload())
-            .map(|frame| !matches!(frame, PHYPayloadFrame::Proprietary(_)))
+            .map(|frame| match frame {
+                PHYPayloadFrame::Proprietary(_) => false,
+                PHYPayloadFrame::JoinAccept(_) => false,
+                _ => true,
+            })
             .unwrap_or(false)
     }
 
