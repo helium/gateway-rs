@@ -282,6 +282,10 @@ pub(crate) mod datarate {
             (SpreadingFactor::SF9, Bandwidth::BW500) => ProtoRate::Sf9bw500,
             (SpreadingFactor::SF8, Bandwidth::BW500) => ProtoRate::Sf8bw500,
             (SpreadingFactor::SF7, Bandwidth::BW500) => ProtoRate::Sf7bw500,
+
+            (SpreadingFactor::SF6, _) | (SpreadingFactor::SF5, _) => {
+                return Err(DecodeError::invalid_data_rate(rate.to_string()))
+            }
         };
         Ok(rate)
     }
