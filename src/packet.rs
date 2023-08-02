@@ -113,7 +113,10 @@ impl PacketUp {
 
     pub fn is_potential_beacon(&self) -> bool {
         Self::parse_header(self.payload())
-            .map(|header| header.mtype() == lorawan::MType::Proprietary)
+            .map(|header| {
+                header.mtype() == lorawan::MType::Proprietary
+                    && self.payload().len() >= beacon::BEACON_PAYLOAD_SIZE
+            })
             .unwrap_or(false)
     }
 
