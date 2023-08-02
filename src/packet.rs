@@ -115,7 +115,7 @@ impl PacketUp {
         Self::parse_header(self.payload())
             .map(|header| {
                 header.mtype() == lorawan::MType::Proprietary
-                    && self.payload().len() >= beacon::BEACON_PAYLOAD_SIZE
+                    && self.payload().len() == beacon::BEACON_PAYLOAD_SIZE + Self::header_size()
             })
             .unwrap_or(false)
     }
@@ -140,6 +140,10 @@ impl PacketUp {
     pub fn parse_header(payload: &[u8]) -> Result<MHDR> {
         use std::io::Cursor;
         lorawan::MHDR::read(&mut Cursor::new(payload)).map_err(Error::from)
+    }
+
+    pub fn header_size() -> usize {
+        std::mem::size_of::<MHDR>()
     }
 
     pub fn parse_frame(direction: lorawan::Direction, payload: &[u8]) -> Result<PHYPayloadFrame> {
