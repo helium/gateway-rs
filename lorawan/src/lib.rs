@@ -100,6 +100,10 @@ impl PHYPayload {
 
     pub fn read(direction: Direction, reader: &mut dyn Buf) -> Result<Self, LoraWanError> {
         let mhdr = MHDR::read(reader)?;
+        let version = mhdr.major();
+        if version != 0 {
+            return Err(LoraWanError::InvalidPacketVersion(version));
+        }
         let packet_type = mhdr.mtype();
         let mut data = reader.copy_to_bytes(reader.remaining());
 

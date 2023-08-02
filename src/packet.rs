@@ -113,7 +113,23 @@ impl PacketUp {
 
     pub fn is_potential_beacon(&self) -> bool {
         Self::parse_header(self.payload())
-            .map(|header| header.mtype() == lorawan::MType::Proprietary)
+            .map(|header| {
+                header.mtype() == lorawan::MType::Proprietary
+                    && self.payload().len() == beacon::BEACON_PAYLOAD_SIZE + Self::header_size()
+            })
+            .unwrap_or(false)
+    }
+
+    pub fn is_uplink(&self) -> bool {
+        // An uplinkable packet is a parseable lorawan uplink frame which is not
+        // a proprietary frame
+        Self::parse_frame(Direction::Uplink, self.payload())
+            .map(|frame| {
+                !matches!(
+                    frame,
+                    PHYPayloadFrame::Proprietary(_) | PHYPayloadFrame::JoinAccept(_),
+                )
+            })
             .unwrap_or(false)
     }
 
@@ -124,6 +140,10 @@ impl PacketUp {
     pub fn parse_header(payload: &[u8]) -> Result<MHDR> {
         use std::io::Cursor;
         lorawan::MHDR::read(&mut Cursor::new(payload)).map_err(Error::from)
+    }
+
+    pub fn header_size() -> usize {
+        std::mem::size_of::<MHDR>()
     }
 
     pub fn parse_frame(direction: lorawan::Direction, payload: &[u8]) -> Result<PHYPayloadFrame> {
@@ -266,6 +286,10 @@ pub(crate) mod datarate {
             (SpreadingFactor::SF9, Bandwidth::BW500) => ProtoRate::Sf9bw500,
             (SpreadingFactor::SF8, Bandwidth::BW500) => ProtoRate::Sf8bw500,
             (SpreadingFactor::SF7, Bandwidth::BW500) => ProtoRate::Sf7bw500,
+
+            (SpreadingFactor::SF6, _) | (SpreadingFactor::SF5, _) => {
+                return Err(DecodeError::invalid_data_rate(rate.to_string()))
+            }
         };
         Ok(rate)
     }
