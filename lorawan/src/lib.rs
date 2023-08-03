@@ -62,9 +62,11 @@ bitfield! {
     pub major, set_major: 1, 0;
 }
 
+const MHDR_SIZE: usize = size_of::<u8>();
+
 impl MHDR {
     pub fn read(reader: &mut dyn Buf) -> Result<Self, LoraWanError> {
-        if reader.remaining() < size_of::<Self>() {
+        if reader.remaining() < MHDR_SIZE {
             return Err(LoraWanError::InvalidPacketSize(
                 MType::Invalid(0),
                 reader.remaining(),
@@ -75,7 +77,7 @@ impl MHDR {
 
     pub fn write(self, output: &mut dyn BufMut) -> Result<usize, LoraWanError> {
         output.put_u8(self.0);
-        Ok(1)
+        Ok(MHDR_SIZE)
     }
 }
 
@@ -286,9 +288,11 @@ bitfield! {
     pub fopts_len, set_fopts_len:3, 0;
 }
 
+const FCTRL_UPLINK_SIZE: usize = size_of::<u8>();
+
 impl FCtrlUplink {
     pub fn read(payload_type: MType, reader: &mut dyn Buf) -> Result<Self, LoraWanError> {
-        if reader.remaining() < size_of::<Self>() {
+        if reader.remaining() < FCTRL_UPLINK_SIZE {
             return Err(LoraWanError::InvalidPacketSize(
                 payload_type,
                 reader.remaining(),
@@ -299,7 +303,7 @@ impl FCtrlUplink {
 
     pub fn write(&self, output: &mut dyn BufMut) -> Result<usize, LoraWanError> {
         output.put_u8(self.0);
-        Ok(size_of::<Self>())
+        Ok(FCTRL_UPLINK_SIZE)
     }
 }
 
@@ -314,9 +318,11 @@ bitfield! {
     pub fopts_len, set_fopts_len:3, 0;
 }
 
+const FCTRL_DOWNLINK_SIZE: usize = size_of::<u8>();
+
 impl FCtrlDownlink {
     pub fn read(payload_type: MType, reader: &mut dyn Buf) -> Result<Self, LoraWanError> {
-        if reader.remaining() < size_of::<Self>() {
+        if reader.remaining() < FCTRL_DOWNLINK_SIZE {
             return Err(LoraWanError::InvalidPacketSize(
                 payload_type,
                 reader.remaining(),
@@ -327,7 +333,7 @@ impl FCtrlDownlink {
 
     pub fn write(&self, output: &mut dyn BufMut) -> Result<usize, LoraWanError> {
         output.put_u8(self.0);
-        Ok(size_of::<Self>())
+        Ok(FCTRL_DOWNLINK_SIZE)
     }
 }
 
@@ -473,6 +479,8 @@ pub struct JoinRequest {
     pub dev_nonce: [u8; 2],
 }
 
+const JOIN_REQUEST_SIZE: usize = 2 * size_of::<u64>() + size_of::<[u8; 2]>();
+
 impl fmt::Debug for JoinRequest {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> result::Result<(), fmt::Error> {
         f.debug_struct("JoinRequest")
@@ -485,7 +493,7 @@ impl fmt::Debug for JoinRequest {
 
 impl JoinRequest {
     pub fn read(reader: &mut dyn Buf) -> Result<Self, LoraWanError> {
-        if reader.remaining() < size_of::<Self>() {
+        if reader.remaining() < JOIN_REQUEST_SIZE {
             return Err(LoraWanError::InvalidPacketSize(
                 MType::JoinRequest,
                 reader.remaining(),
@@ -505,7 +513,7 @@ impl JoinRequest {
         output.put_u64_le(self.app_eui);
         output.put_u64_le(self.dev_eui);
         output.put_slice(&self.dev_nonce);
-        Ok(size_of::<Self>())
+        Ok(JOIN_REQUEST_SIZE)
     }
 }
 
@@ -519,9 +527,11 @@ pub struct JoinAccept {
     // cf_list: Option<CFList>,
 }
 
+const JOIN_ACCEPT_SIZE: usize = 3 * size_of::<u8>() + size_of::<u32>() + 2 * size_of::<u8>();
+
 impl JoinAccept {
     pub fn read(reader: &mut dyn Buf) -> Result<Self, LoraWanError> {
-        if reader.remaining() < size_of::<Self>() {
+        if reader.remaining() < JOIN_ACCEPT_SIZE {
             return Err(LoraWanError::InvalidPacketSize(
                 MType::JoinAccept,
                 reader.remaining(),
@@ -548,7 +558,7 @@ impl JoinAccept {
         output.put_u32_le(self.dev_addr);
         output.put_u8(self.dl_settings);
         output.put_u8(self.rx_delay);
-        Ok(size_of::<Self>())
+        Ok(JOIN_ACCEPT_SIZE)
     }
 }
 
@@ -625,7 +635,10 @@ mod test {
                         dev: format!("{:06X}", dev_eui),
                     })
                 }
-                _ => Ok(Self::Invalid),
+                other => {
+                    println!("OTHER {:?}", other);
+                    Ok(Self::Invalid)
+                }
             }
         }
     }
