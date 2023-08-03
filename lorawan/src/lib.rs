@@ -64,6 +64,12 @@ bitfield! {
 
 impl MHDR {
     pub fn read(reader: &mut dyn Buf) -> Result<Self, LoraWanError> {
+        if reader.remaining() < size_of::<Self>() {
+            return Err(LoraWanError::InvalidPacketSize(
+                MType::Invalid(0),
+                reader.remaining(),
+            ));
+        }
         Ok(Self(reader.get_u8()))
     }
 
@@ -237,9 +243,13 @@ impl fmt::Debug for Fhdr {
 }
 
 impl Fhdr {
-    pub fn read(direction: Direction, reader: &mut dyn Buf) -> Result<Self, LoraWanError> {
+    pub fn read(
+        direction: Direction,
+        payload_type: MType,
+        reader: &mut dyn Buf,
+    ) -> Result<Self, LoraWanError> {
         let dev_addr = reader.get_u32_le();
-        let fctrl = FCtrl::read(direction, reader)?;
+        let fctrl = FCtrl::read(direction, payload_type, reader)?;
         let fcnt = reader.get_u16_le();
         let fopts = reader.copy_to_bytes(fctrl.fopts_len());
         let res = Self {
@@ -277,7 +287,13 @@ bitfield! {
 }
 
 impl FCtrlUplink {
-    pub fn read(reader: &mut dyn Buf) -> Result<Self, LoraWanError> {
+    pub fn read(payload_type: MType, reader: &mut dyn Buf) -> Result<Self, LoraWanError> {
+        if reader.remaining() < size_of::<Self>() {
+            return Err(LoraWanError::InvalidPacketSize(
+                payload_type,
+                reader.remaining(),
+            ));
+        }
         Ok(Self(reader.get_u8()))
     }
 
@@ -299,7 +315,13 @@ bitfield! {
 }
 
 impl FCtrlDownlink {
-    pub fn read(reader: &mut dyn Buf) -> Result<Self, LoraWanError> {
+    pub fn read(payload_type: MType, reader: &mut dyn Buf) -> Result<Self, LoraWanError> {
+        if reader.remaining() < size_of::<Self>() {
+            return Err(LoraWanError::InvalidPacketSize(
+                payload_type,
+                reader.remaining(),
+            ));
+        }
         Ok(Self(reader.get_u8()))
     }
 
@@ -323,10 +345,14 @@ impl FCtrl {
         }
     }
 
-    pub fn read(direction: Direction, reader: &mut dyn Buf) -> Result<Self, LoraWanError> {
+    pub fn read(
+        direction: Direction,
+        payload_type: MType,
+        reader: &mut dyn Buf,
+    ) -> Result<Self, LoraWanError> {
         let res = match direction {
-            Direction::Uplink => Self::Uplink(FCtrlUplink::read(reader)?),
-            Direction::Downlink => Self::Downlink(FCtrlDownlink::read(reader)?),
+            Direction::Uplink => Self::Uplink(FCtrlUplink::read(payload_type, reader)?),
+            Direction::Downlink => Self::Downlink(FCtrlDownlink::read(payload_type, reader)?),
         };
         Ok(res)
     }
@@ -352,7 +378,7 @@ impl MACPayload {
         direction: Direction,
         reader: &mut dyn Buf,
     ) -> Result<Self, LoraWanError> {
-        let fhdr = Fhdr::read(direction, reader)?;
+        let fhdr = Fhdr::read(direction, payload_type, reader)?;
         let data = reader.copy_to_bytes(reader.remaining());
         let (fport, payload) = match data.split_first() {
             Some((port, mut payload)) => (
@@ -459,7 +485,13 @@ impl fmt::Debug for JoinRequest {
 
 impl JoinRequest {
     pub fn read(reader: &mut dyn Buf) -> Result<Self, LoraWanError> {
-        // TODO: Reader length check
+        if reader.remaining() < size_of::<Self>() {
+            return Err(LoraWanError::InvalidPacketSize(
+                MType::JoinRequest,
+                reader.remaining(),
+            ));
+        }
+
         let mut res = Self {
             app_eui: reader.get_u64_le(),
             dev_eui: reader.get_u64_le(),
@@ -489,7 +521,13 @@ pub struct JoinAccept {
 
 impl JoinAccept {
     pub fn read(reader: &mut dyn Buf) -> Result<Self, LoraWanError> {
-        // TODO: Reader length check
+        if reader.remaining() < size_of::<Self>() {
+            return Err(LoraWanError::InvalidPacketSize(
+                MType::JoinAccept,
+                reader.remaining(),
+            ));
+        }
+
         let mut app_nonce = [0u8; 3];
         let mut net_id = [0u8; 3];
         reader.copy_to_slice(&mut app_nonce);
