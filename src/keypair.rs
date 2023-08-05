@@ -84,7 +84,7 @@ impl FromStr for Keypair {
                     .host()
                     .map(|dev| Path::new("/dev").join(dev))
                     .ok_or_else(|| uri_error!("missing ecc device path"))?;
-                let keypair = ecc608::init(&path.to_string_lossy(), bus_address)
+                let keypair = ecc608::init(&path.to_string_lossy(), bus_address, None)
                     .map_err(|err| {
                         uri_error!(
                             "could not initialize ecc \"{}:{bus_address}\": {err:?}",
