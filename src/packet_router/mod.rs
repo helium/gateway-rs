@@ -195,6 +195,7 @@ impl PacketRouter {
     }
 
     async fn handle_session_offer(&mut self, message: PacketRouterSessionOfferV1) {
+        info!("received session offer");
         let disconnect = match mk_session_key_init(self.keypair.clone(), &message)
             .and_then(|(session_key, session_init)| {
                 self.service.send(session_init).map_ok(|_| session_key)
@@ -203,6 +204,7 @@ impl PacketRouter {
         {
             Ok(session_key) => {
                 self.session_key = Some(session_key.clone());
+                info!(session_key = %session_key.public_key(),"initialized session");
                 self.send_waiting_packets(session_key.clone())
                     .inspect_err(|err| warn!(%err, "failed to send queued packets"))
                     .await
