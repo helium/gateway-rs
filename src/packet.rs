@@ -1,4 +1,4 @@
-use crate::{error::DecodeError, Error, Region, Result};
+use crate::{error::DecodeError, Error, PublicKey, Region, Result};
 use helium_proto::services::{
     poc_lora,
     router::{PacketRouterPacketDownV1, PacketRouterPacketUpV1},
@@ -88,7 +88,7 @@ impl TryFrom<PacketUp> for poc_lora::LoraWitnessReportReqV1 {
 }
 
 impl PacketUp {
-    pub fn from_rxpk(rxpk: push_data::RxPk, region: Region) -> Result<Self> {
+    pub fn from_rxpk(rxpk: push_data::RxPk, gateway: &PublicKey, region: Region) -> Result<Self> {
         if rxpk.get_crc_status() != &CRC::OK {
             return Err(DecodeError::invalid_crc());
         }
@@ -105,7 +105,7 @@ impl PacketUp {
             snr: rxpk.get_snr(),
             region: region.into(),
             hold_time: 0,
-            gateway: vec![],
+            gateway: gateway.into(),
             signature: vec![],
         };
         Ok(Self(packet))

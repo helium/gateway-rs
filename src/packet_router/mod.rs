@@ -258,7 +258,6 @@ pub async fn mk_uplink(
     use std::ops::Deref;
     let mut uplink: PacketRouterPacketUpV1 = packet.deref().into();
     uplink.hold_time = packet.hold_time().as_millis() as u64;
-    uplink.gateway = keypair.public_key().into();
     uplink.signature = sign(keypair, uplink.encode_to_vec()).await?;
     let envelope = envelope_up_v1::Data::Packet(uplink);
     Ok(envelope)
