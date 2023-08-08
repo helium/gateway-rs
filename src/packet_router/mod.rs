@@ -1,17 +1,23 @@
 use crate::{
     gateway,
+    keypair::mk_session_keypair,
     message_cache::{CacheMessage, MessageCache},
     service::packet_router::PacketRouterService,
     sign, sync, Base64, Keypair, PacketUp, Result, Settings,
 };
 use exponential_backoff::Backoff;
+use futures::TryFutureExt;
 use helium_proto::{
-    services::router::{PacketRouterPacketDownV1, PacketRouterPacketUpV1},
+    services::router::{
+        envelope_down_v1, envelope_up_v1, PacketRouterPacketDownV1, PacketRouterPacketUpV1,
+        PacketRouterSessionInitV1, PacketRouterSessionOfferV1,
+    },
     Message as ProtoMessage,
 };
 use serde::Serialize;
 use std::{sync::Arc, time::Instant as StdInstant};
 use tokio::time::{self, Duration, Instant};
+
 use tracing::{debug, info, warn};
 
 const STORE_GC_INTERVAL: Duration = Duration::from_secs(60);
@@ -34,6 +40,7 @@ pub struct RouterStatus {
     #[serde(with = "http_serde::uri")]
     pub uri: http::Uri,
     pub connected: bool,
+    pub session_key: Option<helium_crypto::PublicKey>,
 }
 
 pub type MessageSender = sync::MessageSender<Message>;
@@ -58,6 +65,7 @@ pub struct PacketRouter {
     transmit: gateway::MessageSender,
     service: PacketRouterService,
     reconnect_retry: u32,
+    session_key: Option<Arc<Keypair>>,
     keypair: Arc<Keypair>,
     store: MessageCache<PacketUp>,
 }
@@ -75,6 +83,7 @@ impl PacketRouter {
         Self {
             service,
             keypair: settings.keypair.clone(),
+            session_key: None,
             transmit,
             messages,
             store,
@@ -105,6 +114,7 @@ impl PacketRouter {
                 message = self.messages.recv() => match message {
                     Some(Message::Uplink{packet, received}) =>
                         if self.handle_uplink(packet, received).await.is_err() {
+                            self.disconnect();
                             warn!("router disconnected");
                             reconnect_sleep = self.next_connect(&reconnect_backoff, true);
                         },
@@ -112,6 +122,7 @@ impl PacketRouter {
                         let status = RouterStatus {
                             uri: self.service.uri.clone(),
                             connected: self.service.is_connected(),
+                            session_key: self.session_key.as_ref().map(|keypair| keypair.public_key().to_owned()),
                         };
                         tx_resp.send(status)
                     }
@@ -120,8 +131,9 @@ impl PacketRouter {
                 _ = time::sleep_until(reconnect_sleep) => {
                     reconnect_sleep = self.handle_reconnect(&reconnect_backoff).await;
                 },
-                downlink = self.service.recv() => match downlink {
-                    Ok(Some(message)) => self.handle_downlink(message).await,
+                router_message = self.service.recv() => match router_message {
+                    Ok(Some(envelope_down_v1::Data::Packet(message))) => self.handle_downlink(message).await,
+                    Ok(Some(envelope_down_v1::Data::SessionOffer(message))) => self.handle_session_offer(message).await,
                     Ok(None) => {
                         warn!("router disconnected");
                         reconnect_sleep = self.next_connect(&reconnect_backoff, true)
@@ -154,9 +166,11 @@ impl PacketRouter {
         info!("connecting");
         let inc_retry = match self.service.reconnect().await {
             Ok(_) => {
+                // Do not send waiting packets here since we wait for a sesson
+                // offer
                 info!("connected");
                 self.reconnect_retry = RECONNECT_BACKOFF_RETRIES;
-                self.send_waiting_packets().await.is_err()
+                false
             }
             Err(err) => {
                 warn!(%err, "failed to connect");
@@ -169,7 +183,9 @@ impl PacketRouter {
     async fn handle_uplink(&mut self, uplink: PacketUp, received: StdInstant) -> Result {
         self.store.push_back(uplink, received);
         if self.service.is_connected() {
-            self.send_waiting_packets().await?;
+            if let Some(session_key) = &self.session_key {
+                self.send_waiting_packets(session_key.clone()).await?;
+            }
         }
         Ok(())
     }
@@ -178,12 +194,43 @@ impl PacketRouter {
         self.transmit.downlink(message.into()).await;
     }
 
-    async fn send_waiting_packets(&mut self) -> Result {
+    async fn handle_session_offer(&mut self, message: PacketRouterSessionOfferV1) {
+        info!("received session offer");
+        let disconnect = match mk_session_key_init(self.keypair.clone(), &message)
+            .and_then(|(session_key, session_init)| {
+                self.service.send(session_init).map_ok(|_| session_key)
+            })
+            .await
+        {
+            Ok(session_key) => {
+                self.session_key = Some(session_key.clone());
+                info!(session_key = %session_key.public_key(),"initialized session");
+                self.send_waiting_packets(session_key.clone())
+                    .inspect_err(|err| warn!(%err, "failed to send queued packets"))
+                    .await
+                    .is_err()
+            }
+            Err(err) => {
+                warn!(%err, "failed to initialize session");
+                true
+            }
+        };
+        if disconnect {
+            self.disconnect();
+        }
+    }
+
+    fn disconnect(&mut self) {
+        self.service.disconnect();
+        self.session_key = None;
+    }
+
+    async fn send_waiting_packets(&mut self, keypair: Arc<Keypair>) -> Result {
         while let (removed, Some(packet)) = self.store.pop_front(STORE_GC_INTERVAL) {
             if removed > 0 {
                 info!(removed, "discarded queued packets");
             }
-            if let Err(err) = self.send_packet(&packet).await {
+            if let Err(err) = self.send_packet(&packet, keypair.clone()).await {
                 warn!(%err, "failed to send uplink");
                 self.store.push_front(packet);
                 return Err(err);
@@ -192,10 +239,14 @@ impl PacketRouter {
         Ok(())
     }
 
-    async fn send_packet(&mut self, packet: &CacheMessage<PacketUp>) -> Result {
+    async fn send_packet(
+        &mut self,
+        packet: &CacheMessage<PacketUp>,
+        keypair: Arc<Keypair>,
+    ) -> Result {
         debug!(packet_hash = packet.hash().to_b64(), "sending packet");
 
-        let uplink = mk_uplink(packet, self.keypair.clone()).await?;
+        let uplink = mk_uplink(packet, keypair).await?;
         self.service.send(uplink).await
     }
 }
@@ -203,11 +254,29 @@ impl PacketRouter {
 pub async fn mk_uplink(
     packet: &CacheMessage<PacketUp>,
     keypair: Arc<Keypair>,
-) -> Result<PacketRouterPacketUpV1> {
+) -> Result<envelope_up_v1::Data> {
     use std::ops::Deref;
     let mut uplink: PacketRouterPacketUpV1 = packet.deref().into();
     uplink.hold_time = packet.hold_time().as_millis() as u64;
-    uplink.gateway = keypair.public_key().into();
     uplink.signature = sign(keypair, uplink.encode_to_vec()).await?;
-    Ok(uplink)
+    let envelope = envelope_up_v1::Data::Packet(uplink);
+    Ok(envelope)
+}
+
+pub async fn mk_session_key_init(
+    keypair: Arc<Keypair>,
+    offer: &PacketRouterSessionOfferV1,
+) -> Result<(Arc<Keypair>, envelope_up_v1::Data)> {
+    let session_keypair = Arc::new(mk_session_keypair());
+    let session_key = session_keypair.public_key();
+
+    let mut session_init = PacketRouterSessionInitV1 {
+        gateway: keypair.public_key().into(),
+        session_key: session_key.into(),
+        nonce: offer.nonce.clone(),
+        signature: vec![],
+    };
+    session_init.signature = sign(keypair, session_init.encode_to_vec()).await?;
+    let envelope = envelope_up_v1::Data::SessionInit(session_init);
+    Ok((session_keypair, envelope))
 }

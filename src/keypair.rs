@@ -28,6 +28,17 @@ pub fn save_to_file(keypair: &Keypair, path: &str) -> io::Result<()> {
     Ok(())
 }
 
+pub fn mk_session_keypair() -> Keypair {
+    let keypair = helium_crypto::Keypair::generate(
+        KeyTag {
+            network: Network::MainNet,
+            key_type: KeyType::Ed25519,
+        },
+        &mut OsRng,
+    );
+    keypair.into()
+}
+
 macro_rules! uri_error {
     ($format:expr) => {
         error::DecodeError::keypair_uri(format!($format))

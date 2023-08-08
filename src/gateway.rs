@@ -1,6 +1,6 @@
 use crate::{
-    beaconer, packet, packet_router, region_watcher, sync, PacketDown, PacketUp, RegionParams,
-    Result, Settings,
+    beaconer, packet, packet_router, region_watcher, sync, PacketDown, PacketUp, PublicKey,
+    RegionParams, Result, Settings,
 };
 use beacon::Beacon;
 use lorawan::PHYPayload;
@@ -60,6 +60,7 @@ impl MessageSender {
 }
 
 pub struct Gateway {
+    public_key: PublicKey,
     messages: MessageReceiver,
     uplinks: packet_router::MessageSender,
     beacons: beaconer::MessageSender,
@@ -79,7 +80,9 @@ impl Gateway {
         beacons: beaconer::MessageSender,
     ) -> Result<Self> {
         let region_params = region_watcher::current_value(&region_watch);
+        let public_key = settings.keypair.public_key().clone();
         let gateway = Gateway {
+            public_key,
             messages,
             uplinks,
             beacons,
@@ -136,7 +139,7 @@ impl Gateway {
                 info!(%mac, %addr, "disconnected packet forwarder")
             }
             Event::PacketReceived(rxpk, _gateway_mac) => {
-                match PacketUp::from_rxpk(rxpk, self.region_params.region) {
+                match PacketUp::from_rxpk(rxpk, &self.public_key, self.region_params.region) {
                     Ok(packet) if packet.is_potential_beacon() => {
                         self.handle_potential_beacon(packet).await;
                     }
