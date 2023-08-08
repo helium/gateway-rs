@@ -65,7 +65,7 @@ http = "*"
 sha2 = { workspace = true }
 base64 = { workspace = true }
 helium-proto = { workspace = true }
-signature = "2"
+signature = { version = "1", features = ["std"] }
 async-trait = "0"
 angry-purple-tiger = "0"
 lorawan = { package = "lorawan", path = "lorawan" }
@@ -74,7 +74,7 @@ exponential-backoff = { git = "https://github.com/yoshuawuyts/exponential-backof
 semtech-udp = { version = ">=0.10.9", default-features = false, features = [
     "server",
 ] }
-helium-crypto = "0.6"
+helium-crypto = ">=0.8"
 
 [features]
 default = ["ecc608"]
