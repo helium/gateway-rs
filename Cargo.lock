@@ -593,9 +593,9 @@ checksum = "2c4a817d8b683f6e649aed359aab0c47a875377516bb5791d0f7e46d9066d209"
 
 [[package]]
 name = "ecc608-linux"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "188865ddf3637960e2140bb94c7edbcfc752a011e49b915407703ac4f24d1992"
+checksum = "2ae137e32355c70e1830c99f4b2e078818bbd24fc514adf937351cf6b1ba7bf6"
 dependencies = [
  "bitfield",
  "bytes",
