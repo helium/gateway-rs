@@ -22,7 +22,7 @@ use tracing::{debug, info, warn};
 
 const STORE_GC_INTERVAL: Duration = Duration::from_secs(60);
 
-const RECONNECT_BACKOFF_RETRIES: u32 = 20;
+const RECONNECT_BACKOFF_RETRIES: u32 = 40;
 const RECONNECT_BACKOFF_MIN_WAIT: Duration = Duration::from_secs(5);
 const RECONNECT_BACKOFF_MAX_WAIT: Duration = Duration::from_secs(1800); // 30 minutes
 
