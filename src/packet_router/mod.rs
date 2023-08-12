@@ -133,7 +133,11 @@ impl PacketRouter {
                 },
                 router_message = self.service.recv() => match router_message {
                     Ok(Some(envelope_down_v1::Data::Packet(message))) => self.handle_downlink(message).await,
-                    Ok(Some(envelope_down_v1::Data::SessionOffer(message))) => self.handle_session_offer(message).await,
+                    Ok(Some(envelope_down_v1::Data::SessionOffer(message))) =>
+                        if self.handle_session_offer(message).await.is_err() {
+                            self.disconnect();
+                            reconnect_sleep = self.next_connect(&reconnect_backoff, true);
+                        },
                     Ok(None) => {
                         warn!("router disconnected");
                         reconnect_sleep = self.next_connect(&reconnect_backoff, true)
@@ -167,9 +171,9 @@ impl PacketRouter {
         let inc_retry = match self.service.reconnect().await {
             Ok(_) => {
                 // Do not send waiting packets here since we wait for a sesson
-                // offer
+                // offer. Also do not reset the reconnect retry counter since
+                // only a session key indicates a good connection
                 info!("connected");
-                self.reconnect_retry = RECONNECT_BACKOFF_RETRIES;
                 false
             }
             Err(err) => {
@@ -194,30 +198,21 @@ impl PacketRouter {
         self.transmit.downlink(message.into()).await;
     }
 
-    async fn handle_session_offer(&mut self, message: PacketRouterSessionOfferV1) {
+    async fn handle_session_offer(&mut self, message: PacketRouterSessionOfferV1) -> Result {
         info!("received session offer");
-        let disconnect = match mk_session_key_init(self.keypair.clone(), &message)
+        let session_key = mk_session_key_init(self.keypair.clone(), &message)
             .and_then(|(session_key, session_init)| {
                 self.service.send(session_init).map_ok(|_| session_key)
             })
-            .await
-        {
-            Ok(session_key) => {
-                self.session_key = Some(session_key.clone());
-                info!(session_key = %session_key.public_key(),"initialized session");
-                self.send_waiting_packets(session_key.clone())
-                    .inspect_err(|err| warn!(%err, "failed to send queued packets"))
-                    .await
-                    .is_err()
-            }
-            Err(err) => {
-                warn!(%err, "failed to initialize session");
-                true
-            }
-        };
-        if disconnect {
-            self.disconnect();
-        }
+            .inspect_err(|err| warn!(%err, "failed to initialize session"))
+            .await?;
+        self.session_key = Some(session_key.clone());
+        info!(session_key = %session_key.public_key(),"initialized session");
+        self.send_waiting_packets(session_key.clone())
+            .inspect_err(|err| warn!(%err, "failed to send queued packets"))
+            .await?;
+        self.reconnect_retry = RECONNECT_BACKOFF_RETRIES;
+        Ok(())
     }
 
     fn disconnect(&mut self) {
