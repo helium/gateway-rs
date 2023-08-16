@@ -617,7 +617,9 @@ mod test {
         };
         let mut buffer = Vec::new();
         fhdr.write(&mut buffer).unwrap();
-        let read = Fhdr::read(Direction::Uplink, MType::UnconfirmedUp, &mut &buffer[..]);
+        // Coerce to Bytes to hit the Bytes implementation
+        let mut buffer = bytes::Bytes::from(buffer);
+        let read = Fhdr::read(Direction::Uplink, MType::UnconfirmedUp, &mut buffer);
         match read {
             Err(LoraWanError::InvalidPacketSize(MType::UnconfirmedUp, 0)) => (),
             _ => panic!("Error was expected! There was none or it was the wrong type"),
