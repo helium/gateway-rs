@@ -233,6 +233,8 @@ pub struct Fhdr {
     pub fopts: Bytes,
 }
 
+const FHDR_MIN_SIZE: usize = size_of::<u32>() + FCTRL_SIZE + size_of::<u16>();
+
 impl fmt::Debug for Fhdr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> result::Result<(), fmt::Error> {
         f.debug_struct("Fhdr")
@@ -250,9 +252,23 @@ impl Fhdr {
         payload_type: MType,
         reader: &mut dyn Buf,
     ) -> Result<Self, LoraWanError> {
+        // Checj minimum length requirements
+        if reader.remaining() < FHDR_MIN_SIZE {
+            return Err(LoraWanError::InvalidPacketSize(
+                payload_type,
+                reader.remaining(),
+            ));
+        }
         let dev_addr = reader.get_u32_le();
         let fctrl = FCtrl::read(direction, payload_type, reader)?;
         let fcnt = reader.get_u16_le();
+        // Ensure indicated fopts data is available
+        if reader.remaining() < fctrl.fopts_len() {
+            return Err(LoraWanError::InvalidPacketSize(
+                payload_type,
+                reader.remaining(),
+            ));
+        }
         let fopts = reader.copy_to_bytes(fctrl.fopts_len());
         let res = Self {
             dev_addr,
@@ -342,6 +358,8 @@ pub enum FCtrl {
     Uplink(FCtrlUplink),
     Downlink(FCtrlDownlink),
 }
+
+pub const FCTRL_SIZE: usize = size_of::<u8>();
 
 impl FCtrl {
     pub fn fopts_len(&self) -> usize {
@@ -527,7 +545,7 @@ pub struct JoinAccept {
     // cf_list: Option<CFList>,
 }
 
-const JOIN_ACCEPT_SIZE: usize = 3 * size_of::<u8>() + size_of::<u32>() + 2 * size_of::<u8>();
+const JOIN_ACCEPT_SIZE: usize = 6 * size_of::<u8>() + size_of::<u32>() + 2 * size_of::<u8>();
 
 impl JoinAccept {
     pub fn read(reader: &mut dyn Buf) -> Result<Self, LoraWanError> {
