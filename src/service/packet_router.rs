@@ -55,7 +55,7 @@ pub const CONDUIT_CAPACITY: usize = 50;
 /// router open. Some load balancer disconnect after a number of seconds. AWS
 /// NLBs are hardcoded to 350s so we pick a slightly shorter timeframe to send
 /// keepalives
-pub const TCP_KEEP_ALIVE_DURATION: std::time::Duration = std::time::Duration::from_secs(300);
+pub const TCP_KEEP_ALIVE_DURATION: std::time::Duration = std::time::Duration::from_secs(30);
 
 impl PacketRouterConduit {
     async fn new(uri: Uri) -> Result<Self> {
