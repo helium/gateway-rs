@@ -283,7 +283,6 @@ impl Fhdr {
         let mut written = 0;
         output.put_u32_le(self.dev_addr);
         written += size_of::<u32>();
-        output.put_u32_le(self.dev_addr);
         written += self.fctrl.write(output)?;
         output.put_u16_le(self.fcnt);
         written += size_of::<u16>();
