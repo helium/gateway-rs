@@ -252,7 +252,7 @@ impl Fhdr {
         payload_type: MType,
         reader: &mut dyn Buf,
     ) -> Result<Self, LoraWanError> {
-        // Checj minimum length requirements
+        // Check minimum length requirements
         if reader.remaining() < FHDR_MIN_SIZE {
             return Err(LoraWanError::InvalidPacketSize(
                 payload_type,
@@ -601,6 +601,26 @@ mod test {
         for (routing, data) in mk_test_packets() {
             let expected_routing = Routing::try_from(data).expect("routing");
             assert_eq!(routing, expected_routing);
+        }
+    }
+
+    #[test]
+    fn test_fopts_len_error() {
+        // FCtrl indicates 8 bytes in FOpts but we will pass empty FOpts
+        let mut fctrl_uplink = FCtrlUplink(0);
+        fctrl_uplink.set_fopts_len(8);
+        let fhdr = Fhdr {
+            dev_addr: 0,
+            fcnt: 0,
+            fctrl: FCtrl::Uplink(fctrl_uplink),
+            fopts: Bytes::new(),
+        };
+        let mut buffer = Vec::new();
+        fhdr.write(&mut buffer).unwrap();
+        let read = Fhdr::read(Direction::Uplink, MType::UnconfirmedUp, &mut &buffer[..]);
+        match read {
+            Err(LoraWanError::InvalidPacketSize(MType::UnconfirmedUp, 0)) => (),
+            _ => panic!("Error was expected! There was none or it was the wrong type"),
         }
     }
 
