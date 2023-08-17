@@ -233,6 +233,8 @@ pub struct Fhdr {
     pub fopts: Bytes,
 }
 
+const FHDR_MIN_SIZE: usize = size_of::<u32>() + FCTRL_SIZE + size_of::<u16>();
+
 impl fmt::Debug for Fhdr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> result::Result<(), fmt::Error> {
         f.debug_struct("Fhdr")
@@ -250,9 +252,23 @@ impl Fhdr {
         payload_type: MType,
         reader: &mut dyn Buf,
     ) -> Result<Self, LoraWanError> {
+        // Check minimum length requirements
+        if reader.remaining() < FHDR_MIN_SIZE {
+            return Err(LoraWanError::InvalidPacketSize(
+                payload_type,
+                reader.remaining(),
+            ));
+        }
         let dev_addr = reader.get_u32_le();
         let fctrl = FCtrl::read(direction, payload_type, reader)?;
         let fcnt = reader.get_u16_le();
+        // Ensure indicated fopts data is available
+        if reader.remaining() < fctrl.fopts_len() {
+            return Err(LoraWanError::InvalidPacketSize(
+                payload_type,
+                reader.remaining(),
+            ));
+        }
         let fopts = reader.copy_to_bytes(fctrl.fopts_len());
         let res = Self {
             dev_addr,
@@ -267,7 +283,6 @@ impl Fhdr {
         let mut written = 0;
         output.put_u32_le(self.dev_addr);
         written += size_of::<u32>();
-        output.put_u32_le(self.dev_addr);
         written += self.fctrl.write(output)?;
         output.put_u16_le(self.fcnt);
         written += size_of::<u16>();
@@ -342,6 +357,8 @@ pub enum FCtrl {
     Uplink(FCtrlUplink),
     Downlink(FCtrlDownlink),
 }
+
+pub const FCTRL_SIZE: usize = size_of::<u8>();
 
 impl FCtrl {
     pub fn fopts_len(&self) -> usize {
@@ -527,7 +544,7 @@ pub struct JoinAccept {
     // cf_list: Option<CFList>,
 }
 
-const JOIN_ACCEPT_SIZE: usize = 3 * size_of::<u8>() + size_of::<u32>() + 2 * size_of::<u8>();
+const JOIN_ACCEPT_SIZE: usize = 6 * size_of::<u8>() + size_of::<u32>() + 2 * size_of::<u8>();
 
 impl JoinAccept {
     pub fn read(reader: &mut dyn Buf) -> Result<Self, LoraWanError> {
@@ -584,6 +601,28 @@ mod test {
         for (routing, data) in mk_test_packets() {
             let expected_routing = Routing::try_from(data).expect("routing");
             assert_eq!(routing, expected_routing);
+        }
+    }
+
+    #[test]
+    fn test_fopts_len_error() {
+        // FCtrl indicates 8 bytes in FOpts but we will pass empty FOpts
+        let mut fctrl_uplink = FCtrlUplink(0);
+        fctrl_uplink.set_fopts_len(8);
+        let fhdr = Fhdr {
+            dev_addr: 0,
+            fcnt: 0,
+            fctrl: FCtrl::Uplink(fctrl_uplink),
+            fopts: Bytes::new(),
+        };
+        let mut buffer = Vec::new();
+        fhdr.write(&mut buffer).unwrap();
+        // Coerce to Bytes to hit the Bytes implementation
+        let mut buffer = bytes::Bytes::from(buffer);
+        let read = Fhdr::read(Direction::Uplink, MType::UnconfirmedUp, &mut buffer);
+        match read {
+            Err(LoraWanError::InvalidPacketSize(MType::UnconfirmedUp, 0)) => (),
+            _ => panic!("Error was expected! There was none or it was the wrong type"),
         }
     }
 
