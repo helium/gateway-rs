@@ -206,9 +206,13 @@ impl Beaconer {
         &self,
         packet: PacketUp,
     ) -> Result<poc_lora::LoraWitnessReportReqV1> {
+        let mut total_duration = Duration::new(0, 0);
+        let start = Instant::now();
         let mut report = poc_lora::LoraWitnessReportReqV1::try_from(packet)?;
         report.pub_key = self.keypair.public_key().to_vec();
         report.signature = sign(self.keypair.clone(), report.encode_to_vec()).await?;
+        total_duration += start.elapsed();
+        info!("signing took {:?}", total_duration);
         Ok(report)
     }
 
@@ -252,11 +256,15 @@ impl Beaconer {
         match tokio::try_join!(report_fut, service_fut) {
             Ok((report, mut poc_service)) => {
                 let beacon_id = report.data.to_b64();
+                let mut total_duration = Duration::new(0, 0);
+                let start = Instant::now();
                 let _ = poc_service
                     .submit_witness(report)
                     .inspect_err(|err| warn!(beacon_id, %err, "submit poc witness report"))
                     .inspect_ok(|_| info!(beacon_id, "poc witness report submitted"))
                     .await;
+                total_duration += start.elapsed();
+                info!("poc submission took {:?}", total_duration);
             }
             Err(err) => {
                 warn!(%err, "poc witness report");
