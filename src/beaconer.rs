@@ -1,6 +1,7 @@
 //! This module provides proof-of-coverage (PoC) beaconing support.
 
 use crate::{
+    error::DecodeError,
     gateway::{self, BeaconResp},
     region_watcher,
     service::{entropy::EntropyService, poc::PocIotService},
@@ -11,7 +12,7 @@ use futures::TryFutureExt;
 use helium_proto::{services::poc_lora, Message as ProtoMessage};
 use http::Uri;
 use rand::{rngs::OsRng, Rng};
-use std::sync::Arc;
+use std::{num::NonZeroUsize, sync::Arc};
 use tokio::time::{self, Duration, Instant};
 use tracing::{info, warn};
 
@@ -40,6 +41,9 @@ impl MessageSender {
     }
 }
 
+#[derive(Debug)]
+struct SeenCache(lru::LruCache<Vec<u8>, bool>);
+
 pub struct Beaconer {
     /// Beacon/Witness handling disabled
     disabled: bool,
@@ -55,8 +59,8 @@ pub struct Beaconer {
     interval: Duration,
     // Time next beacon attempt is o be made
     next_beacon_time: Instant,
-    /// The last beacon that was transitted
-    last_beacon: Option<beacon::Beacon>,
+    /// Last seen beacons
+    last_seen: SeenCache,
     /// Use for channel plan and FR parameters
     region_params: RegionParams,
     poc_ingest_uri: Uri,
@@ -83,7 +87,7 @@ impl Beaconer {
             messages,
             region_watch,
             interval,
-            last_beacon: None,
+            last_seen: SeenCache::new(10),
             // Set a beacon at least an interval out... arrival of region_params
             // will recalculate this time and no arrival of region_params will
             // cause the beacon to not occur
@@ -157,7 +161,11 @@ impl Beaconer {
     ///
     /// See [`gateway::MessageSender::transmit_beacon`]
     pub async fn send_beacon(&self, beacon: beacon::Beacon) -> Result<beacon::Beacon> {
-        let beacon_id = beacon.beacon_id();
+        let beacon_id = beacon
+            .beacon_data()
+            .map(|data| data.to_b64())
+            .ok_or_else(DecodeError::not_beacon)?;
+
         info!(beacon_id, "transmitting beacon");
 
         let (powe, tmst) = self
@@ -205,8 +213,10 @@ impl Beaconer {
     async fn mk_witness_report(
         &self,
         packet: PacketUp,
+        payload: Vec<u8>,
     ) -> Result<poc_lora::LoraWitnessReportReqV1> {
         let mut report = poc_lora::LoraWitnessReportReqV1::try_from(packet)?;
+        report.data = payload;
         report.pub_key = self.keypair.public_key().to_vec();
         report.signature = sign(self.keypair.clone(), report.encode_to_vec()).await?;
         Ok(report)
@@ -230,28 +240,39 @@ impl Beaconer {
             .await;
 
         self.next_beacon_time = next_beacon_time;
-        self.last_beacon = last_beacon;
+
+        if let Some(data) = last_beacon.beacon_data() {
+            self.last_seen.tag(data);
+        }
     }
 
     async fn handle_received_beacon(&mut self, packet: PacketUp) {
+        // Check if poc reporting is disabled
         if self.disabled {
             return;
         }
-        if let Some(last_beacon) = &self.last_beacon {
-            if packet.payload() == last_beacon.data {
-                info!("ignoring last self beacon witness");
-                return;
-            }
+
+        // Check that there is beacon data present
+        let Some(beacon_data) = packet.beacon_data() else {
+            warn!("ignoring invalid received beacon");
+            return;
+        };
+
+        let beacon_id = beacon_data.to_b64();
+
+        // Check if we've seen this beacon before
+        if self.last_seen.tag(beacon_data.clone()) {
+            info!(%beacon_id, "ignoring duplicate or self beacon witness");
+            return;
         }
 
         // Construct concurrent futures for connecting to the poc ingester and
         // signing the report
-        let report_fut = self.mk_witness_report(packet);
+        let report_fut = self.mk_witness_report(packet, beacon_data);
         let service_fut = PocIotService::connect(self.poc_ingest_uri.clone());
 
         match tokio::try_join!(report_fut, service_fut) {
             Ok((report, mut poc_service)) => {
-                let beacon_id = report.data.to_b64();
                 let _ = poc_service
                     .submit_witness(report)
                     .inspect_err(|err| warn!(beacon_id, %err, "submit poc witness report"))
@@ -276,6 +297,46 @@ impl Beaconer {
     fn mk_next_beacon_time(interval: Duration) -> Instant {
         let now = Instant::now();
         now + interval
+    }
+}
+
+trait BeaconData {
+    fn beacon_data(&self) -> Option<Vec<u8>>;
+}
+
+impl BeaconData for PacketUp {
+    fn beacon_data(&self) -> Option<Vec<u8>> {
+        match PacketUp::parse_frame(lorawan::Direction::Uplink, self.payload()) {
+            Ok(lorawan::PHYPayloadFrame::Proprietary(payload)) => Some(payload.into()),
+            _ => None,
+        }
+    }
+}
+
+impl BeaconData for beacon::Beacon {
+    fn beacon_data(&self) -> Option<Vec<u8>> {
+        Some(self.data.clone())
+    }
+}
+
+impl BeaconData for Option<beacon::Beacon> {
+    fn beacon_data(&self) -> Option<Vec<u8>> {
+        self.as_ref().and_then(|beacon| beacon.beacon_data())
+    }
+}
+
+impl SeenCache {
+    fn new(capacity: usize) -> Self {
+        Self(lru::LruCache::new(
+            NonZeroUsize::new(capacity).expect("cache capacity > 0"),
+        ))
+    }
+
+    /// Checks the cache for a given key. If the key is not present, the key is
+    /// inserted, if it does exist it's moved to the head of the lru cache to
+    /// keep it fresh
+    fn tag(&mut self, key: Vec<u8>) -> bool {
+        *self.0.get_or_insert(key, || true)
     }
 }
 

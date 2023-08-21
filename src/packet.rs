@@ -65,12 +65,8 @@ impl fmt::Display for PacketUp {
 impl TryFrom<PacketUp> for poc_lora::LoraWitnessReportReqV1 {
     type Error = Error;
     fn try_from(value: PacketUp) -> Result<Self> {
-        let payload = match PacketUp::parse_frame(Direction::Uplink, value.payload()) {
-            Ok(PHYPayloadFrame::Proprietary(payload)) => payload,
-            _ => return Err(DecodeError::not_beacon()),
-        };
         let report = poc_lora::LoraWitnessReportReqV1 {
-            data: payload.to_vec(),
+            data: vec![],
             tmst: value.0.timestamp as u32,
             timestamp: SystemTime::now()
                 .duration_since(UNIX_EPOCH)

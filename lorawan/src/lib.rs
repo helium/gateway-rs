@@ -3,6 +3,7 @@ use bytes::{Buf, BufMut, Bytes};
 use std::{convert::From, fmt, mem::size_of, result};
 
 pub mod error;
+pub use bytes;
 pub use error::LoraWanError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
