@@ -336,7 +336,13 @@ impl SeenCache {
     /// inserted, if it does exist it's moved to the head of the lru cache to
     /// keep it fresh
     pub fn tag(&mut self, key: Vec<u8>) -> bool {
-        self.0.push(key, true).is_some()
+        if self.0.contains(&key) {
+            self.0.promote(&key);
+            true
+        } else {
+            self.0.put(key, true);
+            false
+        }
     }
 
     pub fn peek_lru(&self) -> Option<&[u8]> {
@@ -370,5 +376,10 @@ mod test {
         // Second tag should promote the old entry
         assert!(cache.tag(vec![1]));
         assert_eq!(cache.peek_lru(), Some([2u8].as_ref()));
+
+        // Third tag should evict the least recently used entry (2)
+        assert!(!cache.tag(vec![3]));
+        assert!(cache.0.contains([1u8].as_ref()));
+        assert!(!cache.0.contains([2u8].as_ref()));
     }
 }
