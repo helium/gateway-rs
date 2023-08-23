@@ -42,7 +42,7 @@ impl MessageSender {
 }
 
 #[derive(Debug)]
-struct SeenCache(lru::LruCache<Vec<u8>, bool>);
+pub struct SeenCache(lru::LruCache<Vec<u8>, bool>);
 
 pub struct Beaconer {
     /// Beacon/Witness handling disabled
@@ -335,17 +335,40 @@ impl SeenCache {
     /// Checks the cache for a given key. If the key is not present, the key is
     /// inserted, if it does exist it's moved to the head of the lru cache to
     /// keep it fresh
-    fn tag(&mut self, key: Vec<u8>) -> bool {
-        *self.0.get_or_insert(key, || true)
+    pub fn tag(&mut self, key: Vec<u8>) -> bool {
+        self.0.push(key, true).is_some()
+    }
+
+    pub fn peek_lru(&self) -> Option<&[u8]> {
+        self.0.peek_lru().map(|(key, _)| key.as_ref())
     }
 }
 
-#[test]
-fn test_beacon_roundtrip() {
-    use lorawan::PHYPayload;
+#[cfg(test)]
+mod test {
+    use super::*;
+    #[test]
+    fn test_beacon_roundtrip() {
+        use lorawan::PHYPayload;
 
-    let phy_payload_a = PHYPayload::proprietary(b"poc_beacon_data");
-    let payload: Vec<u8> = phy_payload_a.clone().try_into().expect("beacon packet");
-    let phy_payload_b = PHYPayload::read(lorawan::Direction::Uplink, &mut &payload[..]).unwrap();
-    assert_eq!(phy_payload_a, phy_payload_b);
+        let phy_payload_a = PHYPayload::proprietary(b"poc_beacon_data");
+        let payload: Vec<u8> = phy_payload_a.clone().try_into().expect("beacon packet");
+        let phy_payload_b =
+            PHYPayload::read(lorawan::Direction::Uplink, &mut &payload[..]).unwrap();
+        assert_eq!(phy_payload_a, phy_payload_b);
+    }
+
+    #[test]
+    fn test_lru_cache() {
+        let mut cache = SeenCache::new(2);
+
+        // First should trigger a "not in cache"
+        assert!(!cache.tag(vec![1]));
+        // Second should trigger a "not in cache" and make the first least
+        // recently used
+        assert!(!cache.tag(vec![2]));
+        // Second tag should promote the old entry
+        assert!(cache.tag(vec![1]));
+        assert_eq!(cache.peek_lru(), Some([2u8].as_ref()));
+    }
 }
