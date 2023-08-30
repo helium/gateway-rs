@@ -3,6 +3,7 @@
 use crate::{
     error::DecodeError,
     gateway::{self, BeaconResp},
+    message_cache::MessageCache,
     region_watcher,
     service::{entropy::EntropyService, poc::PocIotService},
     settings::Settings,
@@ -12,7 +13,7 @@ use futures::TryFutureExt;
 use helium_proto::{services::poc_lora, Message as ProtoMessage};
 use http::Uri;
 use rand::{rngs::OsRng, Rng};
-use std::{num::NonZeroUsize, sync::Arc};
+use std::sync::Arc;
 use tokio::time::{self, Duration, Instant};
 use tracing::{info, warn};
 
@@ -41,9 +42,6 @@ impl MessageSender {
     }
 }
 
-#[derive(Debug)]
-pub struct SeenCache(lru::LruCache<Vec<u8>, bool>);
-
 pub struct Beaconer {
     /// Beacon/Witness handling disabled
     disabled: bool,
@@ -60,7 +58,7 @@ pub struct Beaconer {
     // Time next beacon attempt is o be made
     next_beacon_time: Instant,
     /// Last seen beacons
-    last_seen: SeenCache,
+    last_seen: MessageCache<Vec<u8>>,
     /// Use for channel plan and FR parameters
     region_params: RegionParams,
     poc_ingest_uri: Uri,
@@ -87,7 +85,7 @@ impl Beaconer {
             messages,
             region_watch,
             interval,
-            last_seen: SeenCache::new(10),
+            last_seen: MessageCache::new(15),
             // Set a beacon at least an interval out... arrival of region_params
             // will recalculate this time and no arrival of region_params will
             // cause the beacon to not occur
@@ -242,7 +240,7 @@ impl Beaconer {
         self.next_beacon_time = next_beacon_time;
 
         if let Some(data) = last_beacon.beacon_data() {
-            self.last_seen.tag(data);
+            self.last_seen.tag_now(data);
         }
     }
 
@@ -261,7 +259,7 @@ impl Beaconer {
         let beacon_id = beacon_data.to_b64();
 
         // Check if we've seen this beacon before
-        if self.last_seen.tag(beacon_data.clone()) {
+        if self.last_seen.tag_now(beacon_data.clone()) {
             info!(%beacon_id, "ignoring duplicate or self beacon witness");
             return;
         }
@@ -325,34 +323,8 @@ impl BeaconData for Option<beacon::Beacon> {
     }
 }
 
-impl SeenCache {
-    fn new(capacity: usize) -> Self {
-        Self(lru::LruCache::new(
-            NonZeroUsize::new(capacity).expect("cache capacity > 0"),
-        ))
-    }
-
-    /// Checks the cache for a given key. If the key is not present, the key is
-    /// inserted, if it does exist it's moved to the head of the lru cache to
-    /// keep it fresh
-    pub fn tag(&mut self, key: Vec<u8>) -> bool {
-        if self.0.contains(&key) {
-            self.0.promote(&key);
-            true
-        } else {
-            self.0.put(key, true);
-            false
-        }
-    }
-
-    pub fn peek_lru(&self) -> Option<&[u8]> {
-        self.0.peek_lru().map(|(key, _)| key.as_ref())
-    }
-}
-
 #[cfg(test)]
 mod test {
-    use super::*;
     #[test]
     fn test_beacon_roundtrip() {
         use lorawan::PHYPayload;
@@ -362,24 +334,5 @@ mod test {
         let phy_payload_b =
             PHYPayload::read(lorawan::Direction::Uplink, &mut &payload[..]).unwrap();
         assert_eq!(phy_payload_a, phy_payload_b);
-    }
-
-    #[test]
-    fn test_lru_cache() {
-        let mut cache = SeenCache::new(2);
-
-        // First should trigger a "not in cache"
-        assert!(!cache.tag(vec![1]));
-        // Second should trigger a "not in cache" and make the first least
-        // recently used
-        assert!(!cache.tag(vec![2]));
-        // Second tag should promote the old entry
-        assert!(cache.tag(vec![1]));
-        assert_eq!(cache.peek_lru(), Some([2u8].as_ref()));
-
-        // Third tag should evict the least recently used entry (2)
-        assert!(!cache.tag(vec![3]));
-        assert!(cache.0.contains([1u8].as_ref()));
-        assert!(!cache.0.contains([2u8].as_ref()));
     }
 }
