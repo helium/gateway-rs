@@ -373,22 +373,20 @@ mod test {
         let early_offset = Duration::minutes(10);
         let late_offset = early_offset + Duration::hours(5);
 
-        let current_time = datetime!(2023-09-01 23:20 UTC);
+        let current_time = datetime!(2023-09-01 09:20 UTC);
         let early_sleep =
             mk_first_beacon_delay(current_time.unix_timestamp() as u64, interval, early_offset)
                 .unwrap_or(early_offset);
         let late_sleep =
             mk_first_beacon_delay(current_time.unix_timestamp() as u64, interval, late_offset)
                 .unwrap_or(late_offset);
-        println!("now: {current_time}");
-        println!(
-            "offset: {early_offset}, sleep: {}, next: {}",
-            early_sleep.whole_seconds(),
+
+        assert_eq!(
+            datetime!(2023-09-01 12:10:00 UTC),
             current_time + early_sleep
         );
-        println!(
-            "offset: {late_offset}, sleep: {}, next: {}",
-            late_sleep.whole_seconds(),
+        assert_eq!(
+            datetime!(2023-09-01 11:10:00 UTC),
             current_time + late_sleep
         );
     }
