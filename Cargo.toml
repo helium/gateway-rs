@@ -18,7 +18,7 @@ members = ["lorawan"]
 byteorder = "1"
 serde = { version = "1", features = ["rc", "derive"] }
 rust_decimal = { version = "1", features = ["serde-with-float"] }
-helium-proto = { git = "https://github.com/helium/proto", branch = "master", features = [
+helium-proto = { git = "https://github.com/helium/proto", branch = "madninja/params_timestamp", features = [
     "services",
 ] }
 rand = "0.8"
@@ -69,17 +69,22 @@ signature = { version = "1", features = ["std"] }
 async-trait = "0"
 angry-purple-tiger = "0"
 lorawan = { package = "lorawan", path = "lorawan" }
-beacon = { git = "https://github.com/helium/proto", branch = "master" }
+beacon = { git = "https://github.com/helium/proto", branch = "madninja/params_timestamp" }
 exponential-backoff = { git = "https://github.com/yoshuawuyts/exponential-backoff", branch = "master" }
 semtech-udp = { version = ">=0.11", default-features = false, features = [
     "server",
 ] }
 helium-crypto = ">=0.8"
+time = { version = ">=0.3", features = ["std"] }
 
 [features]
 default = ["ecc608"]
 ecc608 = ["helium-crypto/ecc608"]
 tpm = ["helium-crypto/tpm"]
+
+[dev-dependencies]
+time = { version = ">=0.3", features = ["std", "macros"] }
+
 
 [profile.release]
 opt-level = "z"
