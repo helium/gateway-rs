@@ -38,7 +38,7 @@ configuration file.
 
 For versions using the ecc608, the crypto module name is not included in the
 file name. For TPM variants it is included, for example,
-`helium-gateway-1.0.0-x86_64-tpm-debian-gnu.tar.gz``
+`helium-gateway-1.0.0-x86_64-tpm-debian-gnu.tar.gz`
 
 Releases are tagged using [semantic versioning](https://semver.org) with a
 `major.minor.patch` form. An alpha/beta release tag may also be issued for early
