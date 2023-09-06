@@ -7,21 +7,14 @@ use crate::{
     region_watcher,
     service::{entropy::EntropyService, poc::PocIotService},
     settings::Settings,
-    sign, sync, Base64, Keypair, PacketUp, RegionParams, Result,
+    sign, sync, Base64, Keypair, PacketUp, PublicKey, RegionParams, Result,
 };
 use futures::TryFutureExt;
 use helium_proto::{services::poc_lora, Message as ProtoMessage};
 use http::Uri;
-use rand::{rngs::OsRng, Rng};
 use std::sync::Arc;
-use tokio::time::{self, Duration, Instant};
+use time::{Duration, Instant};
 use tracing::{info, warn};
-
-/// To prevent a thundering herd of hotspots all beaconing at the same time, we
-/// add a randomized jitter value of up to `BEACON_INTERVAL_JITTER_PERCENTAGE`
-/// to the configured beacon interval. This jitter factor is one time only, and
-/// will only change when this process or task restarts.
-const BEACON_INTERVAL_JITTER_PERCENTAGE: u64 = 10;
 
 /// Message types that can be sent to `Beaconer`'s inbox.
 #[derive(Debug)]
@@ -72,7 +65,7 @@ impl Beaconer {
         region_watch: region_watcher::MessageReceiver,
         transmit: gateway::MessageSender,
     ) -> Self {
-        let interval = Duration::from_secs(settings.poc.interval);
+        let interval = Duration::seconds(settings.poc.interval as i64);
         let poc_ingest_uri = settings.poc.ingest_uri.clone();
         let entropy_uri = settings.poc.entropy_uri.clone();
         let keypair = settings.keypair.clone();
@@ -99,7 +92,7 @@ impl Beaconer {
 
     pub async fn run(&mut self, shutdown: &triggered::Listener) -> Result {
         info!(
-            beacon_interval = self.interval.as_secs(),
+            beacon_interval = self.interval.whole_seconds(),
             disabled = self.disabled,
             "starting"
         );
@@ -110,8 +103,9 @@ impl Beaconer {
                     info!("shutting down");
                     return Ok(())
                 },
-                _ = time::sleep_until(self.next_beacon_time) => {
-                    self.handle_beacon_tick().await
+                _ = tokio::time::sleep_until(self.next_beacon_time.into_inner().into()) => {
+                    self.handle_beacon_tick().await;
+                    self.next_beacon_time += self.interval;
                 },
                 message = self.messages.recv() => match message {
                     Some(Message::ReceivedBeacon(packet)) => self.handle_received_beacon(packet).await,
@@ -129,9 +123,20 @@ impl Beaconer {
                         //
                         // Do the first time check below before
                         // region params are assigned
+                        let new_region_params = region_watcher::current_value(&self.region_watch);
+
                         if self.region_params.params.is_empty() {
-                            self.next_beacon_time =
-                                Self::mk_next_short_beacon_time(self.interval);
+                            // Calculate a random but deterministic time offset
+                            // for this hotspot's beacons
+                            let offset = mk_beacon_offset(self.keypair.public_key(), self.interval);
+                            // Get a delay for the first beacon based on the
+                            // deterministic offset and the timestamp in the
+                            // first region params. If there's an error
+                            // converting the region param timestamp the
+                            // calculated offset
+                            let delay = mk_first_beacon_delay(new_region_params.timestamp, self.interval, offset).unwrap_or(offset);
+                            info!(delay = delay.whole_seconds(), "first beacon");
+                            self.next_beacon_time = Instant::now() + delay;
                         }
                         self.region_params = region_watcher::current_value(&self.region_watch);
                         info!(region = RegionParams::to_string(&self.region_params), "region updated");
@@ -224,20 +229,12 @@ impl Beaconer {
         if self.disabled {
             return;
         }
-        let interval = self.interval;
-        let (last_beacon, next_beacon_time) = self
+        let last_beacon = self
             .mk_beacon()
             .inspect_err(|err| warn!(%err, "construct beacon"))
             .and_then(|beacon| self.send_beacon(beacon))
-            // On success to construct and transmit a beacon and its report
-            // select a normal full next beacon time
-            .map_ok(|beacon| (Some(beacon), Self::mk_next_beacon_time(interval)))
-            // On failure to construct, transmit or send a beacon or its
-            // report, select a shortened next beacon time
-            .unwrap_or_else(|_| (None, Self::mk_next_short_beacon_time(interval)))
+            .map_ok_or_else(|_| None, Some)
             .await;
-
-        self.next_beacon_time = next_beacon_time;
 
         if let Some(data) = last_beacon.beacon_data() {
             self.last_seen.tag_now(data);
@@ -282,19 +279,50 @@ impl Beaconer {
             }
         }
     }
+}
 
-    /// Construct a next beacon time based on a fraction of the given interval.
-    fn mk_next_short_beacon_time(interval: Duration) -> Instant {
-        let now = Instant::now();
-        let max_jitter = (interval.as_secs() * BEACON_INTERVAL_JITTER_PERCENTAGE) / 100;
-        let jitter = OsRng.gen_range(0..=max_jitter);
-        now + Duration::from_secs(jitter)
-    }
+/// Construct a random but deterministic offset for beaconing. This is based on
+/// the public key as of this hotspot as the seed to a random number generator.
+fn mk_beacon_offset(key: &PublicKey, interval: Duration) -> Duration {
+    use rand::{Rng, SeedableRng};
+    use sha2::Digest;
 
-    /// Construct a next beacon time based on the current time and given interval.
-    fn mk_next_beacon_time(interval: Duration) -> Instant {
-        let now = Instant::now();
-        now + interval
+    let hash = sha2::Sha256::digest(key.to_vec());
+    let mut rng = rand::rngs::StdRng::from_seed(*hash.as_ref());
+    Duration::seconds(rng.gen_range(0..interval.whole_seconds()))
+}
+
+/// Construct the first beacon time. This positions the given offset in the next
+/// interval based wall clock segment. It returns the time to sleep until that
+/// determinstic offset in the current or next segment.
+fn mk_first_beacon_delay(
+    current_time: u64,
+    interval: Duration,
+    offset: Duration,
+) -> Option<Duration> {
+    time::OffsetDateTime::from_unix_timestamp(current_time as i64)
+        .map(|now| {
+            let current_segment = duration_trunc(now, interval);
+            let mut first_time = current_segment + offset;
+            if first_time < now {
+                first_time += interval;
+            }
+            first_time - now
+        })
+        .ok()
+}
+
+/// Return a the given time truncated to the nearest duration. Based on
+/// duration_trunc in the chrono crate
+fn duration_trunc(time: time::OffsetDateTime, duration: Duration) -> time::OffsetDateTime {
+    use std::cmp::Ordering;
+    let span = duration.whole_seconds().abs();
+    let stamp = time.unix_timestamp();
+    let delta_down = stamp % span;
+    match delta_down.cmp(&0) {
+        Ordering::Equal => time,
+        Ordering::Greater => time - Duration::seconds(delta_down),
+        Ordering::Less => time - Duration::seconds(span - delta_down.abs()),
     }
 }
 
@@ -334,5 +362,32 @@ mod test {
         let phy_payload_b =
             PHYPayload::read(lorawan::Direction::Uplink, &mut &payload[..]).unwrap();
         assert_eq!(phy_payload_a, phy_payload_b);
+    }
+
+    #[test]
+    fn test_beacon_first_time() {
+        use super::mk_first_beacon_delay;
+        use time::{macros::datetime, Duration};
+
+        let interval = Duration::hours(6);
+        let early_offset = Duration::minutes(10);
+        let late_offset = early_offset + Duration::hours(5);
+
+        let current_time = datetime!(2023-09-01 09:20 UTC);
+        let early_sleep =
+            mk_first_beacon_delay(current_time.unix_timestamp() as u64, interval, early_offset)
+                .unwrap_or(early_offset);
+        let late_sleep =
+            mk_first_beacon_delay(current_time.unix_timestamp() as u64, interval, late_offset)
+                .unwrap_or(late_offset);
+
+        assert_eq!(
+            datetime!(2023-09-01 12:10:00 UTC),
+            current_time + early_sleep
+        );
+        assert_eq!(
+            datetime!(2023-09-01 11:10:00 UTC),
+            current_time + late_sleep
+        );
     }
 }
