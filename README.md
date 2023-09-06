@@ -32,15 +32,16 @@ Proof of coverage rewards are only possible for [approved maker hotspots](https:
 
 The project builds binary compressed tar
 [release](https://github.com/helium/gateway-rs/releases) files which are named
-after the crypto module used and the cpu architecture they were built for. For
-example `helium-gateway-1.0.0-aarch64-unknown-linux-gnu.tar.gz` contains the
-`helium_gateway` executable with ecc608 support and it's `setttings.toml`
+after the crypto module used and the CPU architecture they were built for. For example, `helium-gateway-1.0.0-aarch64-unknown-linux-gnu.tar.gz` contains the
+`helium_gateway` executable with ecc608 support and its `setttings.toml`
 configuration file.
 
-For versions using the ecc608, the crypto module name is not included in the file name. However for TPM variants it is included, for example `helium-gateway-1.0.0-x86_64-tpm-debian-gnu.tar.gz`
+For versions using the ecc608, the crypto module name is not included in the
+file name. For TPM variants it is included, for example,
+`helium-gateway-1.0.0-x86_64-tpm-debian-gnu.tar.gz``
 
 Releases are tagged using [semantic versioning](https://semver.org) with a
-`major.minor.patch` form. A alpha/beta release tags may also be issued for early
+`major.minor.patch` form. An alpha/beta release tag may also be issued for early
 feature/bug development and testing. Makers are _not_ required to pick up
 alpha/beta releases.
 
@@ -181,8 +182,7 @@ target as part of the supported matrix of gateway platforms!
    ```shell
    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
    ```
-2. Install cargo `cross`. The `cross` command allows for cross compiling to
-   hardware targets using docker image.
+2. Install cargo `cross`. The `cross` command allows for cross-compiling to hardware targets using a docker image.
    ```shell
    cargo install cross
    ```
@@ -191,7 +191,7 @@ target as part of the supported matrix of gateway platforms!
    targets.
 
    ```shell
-   cargo build --profile <target> --release build
+   cross build --profile <target> --release build
    ```
 
    The resulting application binary is located in
@@ -200,14 +200,13 @@ target as part of the supported matrix of gateway platforms!
    target/<target>/release/helium_gateway
    ```
 
-   **NOTE** The target triplet and profile may not be the same. For example the
-   `x86_64-tpm-debian-gnu` profile uses the `x86_64-unknown-linux-gnu` target
+   **NOTE** The target triplet and profile may not be the same. For example, the
+   ` x86_64-tpm-debian-gnu`` profile uses the  `x86_64-unknown-linux-gnu` target
 
 ## Additional usage info
 
 The Helium Gateway application can be configured to suit your hardware/software
-environment in a variety of ways - either from the command line, using
-customizations to the `settings.toml` file or with environment variables. The
+environment in a variety of ways - either from the command line or customizations to the `settings.toml` file or with environment variables. The
 following sections describe this functionality in more detail as well as more
 general information on how to use the application.
 
@@ -217,11 +216,11 @@ The Helium Gateway application is configured using a TOML settings file. The
 released settings file can be found in the
 [settings.toml](https://github.com/helium/gateway-rs/blob/main/config/settings.toml)
 file in this repo. Edit this file with specifics for your target platform and
-store it either at the default expected locaton
-`/etc/helium_gateway/settings.toml` or at a custom location of your choosing. If
-you store the file in a non default location you will need to pass the `-c` flag
-to the `helium_gateway` application as shown below in the [general usage
-section](#general-usage-info).
+store it either at the default expected
+location`/etc/helium_gateway/settings.toml`or at a custom location of your
+choosing. If you store the file in a non-default location you will need to pass
+the`-c`flag to the`helium_gateway` application as shown below in the [general
+usage section](#general-usage-info).
 
 ### Using the ECC crypto chip
 
@@ -237,18 +236,18 @@ keypair = "ecc://i2c-1:96?slot=0&network=mainnet"
 ```
 
 will have helium_gateway use the ECC at the `/dev/i2c-1` device driver location,
-use bus address `96` (which is hex `0x60`) and slot `0` for it's crypto
+use bus address `96` (which is hex `0x60`), and slot ` 0`` for its crypto
 operations. While marking the resulting key as a mainnet key. Bus address, slot
 and network are all optional parameters and default to the above values (only
-device driver location is required such as `ecc://i2c-1`).
+device driver location is required such as  `ecc://i2c-1`).
 
-Note that the file based keypair will no longer be used once the ECC is
+Note that the file-based keypair will no longer be used once the ECC is
 configured for use.
 
 See the [gateway-mfr-rs repo](https://github.com/helium/gateway-mfr-rs) for
 instructions on configuring, locking, and testing an ECC chip.
 
-It is expected that most gateways will use the same key slot for the onboarding key and the keypair, however this key is also configurable in the same way as the keypair:
+It is expected that most gateways will use the same key slot for the onboarding key and the keypair, however, this key is also configurable in the same way as the keypair:
 
 ```
 onboarding = "ecc://i2c-1:96?slot=0"
@@ -262,7 +261,7 @@ onboarding = "ecc://i2c-1:96?slot=15"
 
 ### Envrionment variables
 
-Instead of editing paramaters in the
+Instead of editing parameters in the
 [settings.toml](https://github.com/helium/gateway-rs/blob/main/config/settings.toml)
 file as described above, you can also use environment variables. The environment
 variable name will be the same name as the entries in the settings file in
@@ -274,7 +273,7 @@ region setting. If the settings are in one of the lower sections such as the
 name such as `GW_LOG_LEVEL`.
 
 The settings are loaded first from the `settings.toml` file, and then from
-environment variables and any duplicates are overriden in the order. Therefore,
+environment variables and any duplicates are overridden in the order. Therefore,
 please note that if you have a setting in both locations, the environment
 variable will override the settings in the other two locations.
 
@@ -320,14 +319,14 @@ follows whilst passing any of the other commands such as `server` or `add`
 ./helium_gateway -c /location/of/config/file server
 ```
 
-Lastly you can check the version, read the help information or daemonize the
+Lastly you can check the version, read the help information, or daemonize the
 application using the `--version`, `--help` and `--daemon` flags respectively.
 
 ### Add gateway subcommand
 
 As shown in the help output below, this subcommand is used to construct an add
 gateway transaction which can subsequently be used with the Helium Wallet
-application to onboard the gateway to the blockchain. More infomation on this
+application to onboard the gateway to the blockchain. More information on this
 process can be found [on the docs article for Data Only
 Hotspots](https://docs.helium.com/mine-hnt/data-only-hotspots/#add-hotspot).
 
@@ -347,7 +346,7 @@ OPTIONS:
 --payer <payer> The account that will pay account for this addition
 ```
 
-So for example, to construct a dataonly add gateway transaction you would enter
+So for example, to construct a data-only add gateway transaction you would enter
 the following command at the terminal:
 
 ```
@@ -385,7 +384,7 @@ The output of this command will be mostly the same as if you used the default
 `dataonly` however you will see that the mode has changed to `"mode": "light",`
 and the staking fee amount has changed to `"staking fee": 4000000`.
 
-The txn field from the JSON object needs to be used as the input to the wallet
+The ` txn` field from the JSON object needs to be used as the input to the wallet
 command `helium-wallet hotspot add` when you subsequently want to add it to the
 blockchain. For example, using the above JSON object as an example, you would
 use the following command:
@@ -462,4 +461,4 @@ However as discussed above you can also pass the `-c` option to tell the service
 
 ## More docs and info
 
-There is a wealth of further information on maker hotspot software on the [Helium Docs site](https://docs.helium.com/solana/migration/maker-hotspot-software/) including information about the [gRPC api](https://github.com/helium/gateway-rs/tree/main/src/api) that allows you to interact with the gateway via the maker app and other services over gRPC rather than via the command line options described above.
+There is a wealth of further information on maker hotspot software on the [Helium Docs site](https://docs.helium.com/solana/migration/maker-hotspot-software/) including information about the [gRPC API](https://github.com/helium/gateway-rs/tree/main/src/api) that allows you to interact with the gateway via the maker app and other services over gRPC rather than via the command line options described above.
