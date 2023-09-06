@@ -133,11 +133,13 @@ impl PacketRouter {
                 },
                 router_message = self.service.recv() => match router_message {
                     Ok(Some(envelope_down_v1::Data::Packet(message))) => self.handle_downlink(message).await,
-                    Ok(Some(envelope_down_v1::Data::SessionOffer(message))) =>
-                        if self.handle_session_offer(message).await.is_err() {
+                    Ok(Some(envelope_down_v1::Data::SessionOffer(message))) => {
+                        let session_result = self.handle_session_offer(message).await;
+                        if session_result.is_err() {
                             self.disconnect();
-                            reconnect_sleep = self.next_connect(&reconnect_backoff, true);
-                        },
+                        }
+                        reconnect_sleep = self.next_connect(&reconnect_backoff, session_result.is_err());
+                    },
                     Ok(None) => {
                         warn!("router disconnected");
                         reconnect_sleep = self.next_connect(&reconnect_backoff, true)
@@ -162,26 +164,18 @@ impl PacketRouter {
         let backoff = reconnect_backoff
             .next(self.reconnect_retry)
             .unwrap_or(RECONNECT_BACKOFF_MAX_WAIT);
-        info!(seconds = backoff.as_secs(), "next connect");
         Instant::now() + backoff
     }
 
     async fn handle_reconnect(&mut self, reconnect_backoff: &Backoff) -> Instant {
-        info!("connecting");
-        let inc_retry = match self.service.reconnect().await {
-            Ok(_) => {
-                // Do not send waiting packets here since we wait for a sesson
-                // offer. Also do not reset the reconnect retry counter since
-                // only a session key indicates a good connection
-                info!("connected");
-                false
-            }
-            Err(err) => {
-                warn!(%err, "failed to connect");
-                true
-            }
-        };
-        self.next_connect(reconnect_backoff, inc_retry)
+        let reconnect_result = self.service.reconnect().await;
+        // Do not send waiting packets on ok here since we wait for a sesson
+        // offer. Also do not reset the reconnect retry counter since only a
+        // session key indicates a good connection
+        if let Err(err) = &reconnect_result {
+            warn!(%err, "failed to connect");
+        }
+        self.next_connect(reconnect_backoff, reconnect_result.is_err())
     }
 
     async fn handle_uplink(&mut self, uplink: PacketUp, received: StdInstant) -> Result {
@@ -199,7 +193,6 @@ impl PacketRouter {
     }
 
     async fn handle_session_offer(&mut self, message: PacketRouterSessionOfferV1) -> Result {
-        info!("received session offer");
         let session_key = mk_session_key_init(self.keypair.clone(), &message)
             .and_then(|(session_key, session_init)| {
                 self.service.send(session_init).map_ok(|_| session_key)
