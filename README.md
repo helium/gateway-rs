@@ -201,7 +201,7 @@ target as part of the supported matrix of gateway platforms!
    ```
 
    **NOTE** The target triplet and profile may not be the same. For example, the
-   ` x86_64-tpm-debian-gnu`` profile uses the  `x86_64-unknown-linux-gnu` target
+   ` x86_64-tpm-debian-gnu` profile uses the `x86_64-unknown-linux-gnu` target
 
 ## Additional usage info
 
