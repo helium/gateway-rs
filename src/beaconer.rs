@@ -365,6 +365,31 @@ mod test {
     }
 
     #[test]
+    fn test_beacon_offset() {
+        use super::mk_beacon_offset;
+        use std::str::FromStr;
+
+        const PUBKEY_1: &str = "13WvV82S7QN3VMzMSieiGxvuaPKknMtf213E5JwPnboDkUfesKw";
+        const PUBKEY_2: &str = "14HZVR4bdF9QMowYxWrumcFBNfWnhDdD5XXA5za1fWwUhHxxFS1";
+        let pubkey_1 = helium_crypto::PublicKey::from_str(PUBKEY_1).expect("public key");
+        let offset_1 = mk_beacon_offset(&pubkey_1, time::Duration::hours(6));
+        // Same key and interval should always end up at the same offset
+        assert_eq!(
+            offset_1,
+            mk_beacon_offset(&pubkey_1, time::Duration::hours(6))
+        );
+        let pubkey_2 = helium_crypto::PublicKey::from_str(PUBKEY_2).expect("public key 2");
+        let offset_2 = mk_beacon_offset(&pubkey_2, time::Duration::hours(6));
+        assert_eq!(
+            offset_2,
+            mk_beacon_offset(&pubkey_2, time::Duration::hours(6))
+        );
+        // And two offsets based on different keys should not land at the same
+        // offset
+        assert_ne!(offset_1, offset_2);
+    }
+
+    #[test]
     fn test_beacon_first_time() {
         use super::mk_first_beacon_delay;
         use time::{macros::datetime, Duration};
