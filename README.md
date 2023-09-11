@@ -236,7 +236,7 @@ keypair = "ecc://i2c-1:96?slot=0&network=mainnet"
 ```
 
 will have helium_gateway use the ECC at the `/dev/i2c-1` device driver location,
-use bus address `96` (which is hex `0x60`), and slot ` 0`` for its crypto
+use bus address `96` (which is hex `0x60`), and slot `0` for its crypto
 operations. While marking the resulting key as a mainnet key. Bus address, slot
 and network are all optional parameters and default to the above values (only
 device driver location is required such as  `ecc://i2c-1`).
