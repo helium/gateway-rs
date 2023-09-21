@@ -582,8 +582,10 @@ impl JoinAccept {
 
 #[cfg(test)]
 mod test {
+    use std::collections::VecDeque;
     use super::*;
     use base64;
+    use rand::RngCore;
 
     #[test]
     fn test_read_write_roundtrip() {
@@ -602,6 +604,24 @@ mod test {
         for (routing, data) in mk_test_packets() {
             let expected_routing = Routing::try_from(data).expect("routing");
             assert_eq!(routing, expected_routing);
+        }
+    }
+
+    #[test]
+    fn test_fuzz() {
+        // generate a random array
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
+
+
+        for i in 0..1000000 {
+            let mut data = VecDeque::new();
+            // generate a random len between 1-255
+            let len = rng.gen_range(1..255);
+            for _ in 0..len {
+                data.push_front(rng.next_u32() as u8)
+            }
+            let result = PHYPayload::read(Direction::Uplink, &mut data);
         }
     }
 
@@ -751,6 +771,13 @@ mod test {
                     64, 200, 213, 3, 2, 128, 11, 124, 1, 38, 51, 2, 5, 95, 101, 161, 40, 44, 86,
                     116, 134, 134, 205, 127, 80, 215, 216, 107, 195, 105, 179, 202, 251, 251, 103,
                     113, 108, 15, 139, 26, 35, 190, 230, 163, 135, 83, 179,
+                ],
+            ),
+            (
+                // this is a data frame truncated at the 11th byte
+                Routing::Invalid,
+                &[
+                    64, 200, 213, 3, 2, 128, 11, 124, 1, 38, 51,
                 ],
             ),
         ]

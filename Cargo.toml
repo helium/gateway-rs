@@ -85,7 +85,6 @@ tpm = ["helium-crypto/tpm"]
 [dev-dependencies]
 time = { version = ">=0.3", features = ["std", "macros"] }
 
-
 [profile.release]
 opt-level = "z"
 lto = true
