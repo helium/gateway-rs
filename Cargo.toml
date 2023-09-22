@@ -34,6 +34,7 @@ clap = { version = "4", default-features = false, features = [
     "std",
     "error-context",
 ] }
+bs58 = "0"
 semver = "0"
 config = { version = "0", default-features = false, features = ["toml"] }
 serde = { workspace = true }

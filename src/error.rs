@@ -45,6 +45,8 @@ pub enum DecodeError {
     KeypairUri(String),
     #[error("json decode: {0}")]
     Json(#[from] serde_json::Error),
+    #[error("base58 decode: {0}")]
+    Base58(#[from] bs58::decode::Error),
     #[error("base64 decode: {0}")]
     Base64(#[from] base64::DecodeError),
     #[error("network address decode: {0}")]
@@ -115,6 +117,7 @@ from_err!(EncodeError, prost::EncodeError);
 // Decode Errors
 from_err!(DecodeError, http::uri::InvalidUri);
 from_err!(DecodeError, base64::DecodeError);
+from_err!(DecodeError, bs58::decode::Error);
 from_err!(DecodeError, serde_json::Error);
 from_err!(DecodeError, net::AddrParseError);
 from_err!(DecodeError, prost::DecodeError);
