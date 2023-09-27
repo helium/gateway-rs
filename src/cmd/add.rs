@@ -34,10 +34,8 @@ fn print_txn(mode: &StakingMode, txn: BlockchainTxnAddGatewayV1) -> Result {
     let table = json!({
         "mode": mode.to_string(),
         "address": PublicKey::from_bytes(&txn.gateway)?.to_string(),
-        "payer": PublicKey::from_bytes(&txn.payer)?.to_string(),
-        "owner": PublicKey::from_bytes(&txn.owner)?.to_string(),
-        "fee": txn.fee,
-        "staking fee": txn.staking_fee,
+        "payer": PublicKey::from_bytes(&txn.payer).and_then(solana_pubkey)?,
+        "owner": PublicKey::from_bytes(&txn.owner).and_then(solana_pubkey)?,
         "txn": BlockchainTxn {
             txn: Some(Txn::AddGateway(txn))
         }.encode_to_vec().to_b64()
@@ -57,4 +55,9 @@ fn parse_pubkey(str: &str) -> Result<PublicKey> {
             Ok(public_key.into())
         }
     }
+}
+
+fn solana_pubkey(key: PublicKey) -> std::result::Result<String, helium_crypto::Error> {
+    let bytes = &key.to_vec()[1..];
+    Ok(bs58::encode(bytes).into_string())
 }
