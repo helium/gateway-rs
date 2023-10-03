@@ -855,6 +855,7 @@ dependencies = [
  "async-trait",
  "base64",
  "beacon",
+ "bs58",
  "clap",
  "config",
  "exponential-backoff",

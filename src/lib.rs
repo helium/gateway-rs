@@ -15,15 +15,15 @@ pub mod settings;
 pub mod sync;
 
 mod api;
-mod traits;
+mod base64;
 
+pub(crate) use base64::*;
 pub use beacon::{Region, RegionParams};
 pub use error::{Error, Result};
 pub use keyed_uri::KeyedUri;
 pub use keypair::{Keypair, PublicKey};
 pub use packet::{PacketDown, PacketUp};
 pub use settings::Settings;
-pub(crate) use traits::*;
 
 use futures::{Future as StdFuture, Stream as StdStream};
 use std::pin::Pin;

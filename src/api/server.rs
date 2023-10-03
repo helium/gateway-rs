@@ -1,10 +1,7 @@
 use super::{
     AddGatewayReq, AddGatewayRes, PubkeyReq, PubkeyRes, RegionReq, RegionRes, RouterReq, RouterRes,
 };
-use crate::{
-    packet_router, region_watcher, settings::StakingMode, Error, Keypair, PublicKey, Result,
-    Settings, TxnFee, TxnFeeConfig,
-};
+use crate::{packet_router, region_watcher, Error, Keypair, PublicKey, Result, Settings};
 use futures::TryFutureExt;
 use helium_crypto::Sign;
 use helium_proto::services::local::{Api, Server};
@@ -90,22 +87,12 @@ impl Api for LocalServer {
         let _ = PublicKey::from_bytes(&request.payer)
             .map_err(|_err| Status::invalid_argument("Invalid payer address"))?;
 
-        let mode = StakingMode::from(request.staking_mode());
-        let fee_config = TxnFeeConfig::default();
         let mut txn = BlockchainTxnAddGatewayV1 {
             gateway: self.keypair.public_key().to_vec(),
             owner: request.owner.clone(),
             payer: request.payer,
-            fee: 0,
-            staking_fee: fee_config.get_staking_fee(&mode),
-            owner_signature: vec![],
-            gateway_signature: vec![],
-            payer_signature: vec![],
+            ..Default::default()
         };
-
-        txn.fee = txn
-            .txn_fee(&fee_config)
-            .map_err(|_err| Status::internal("Failed to get txn fees"))?;
 
         let signature = self
             .keypair
