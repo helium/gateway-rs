@@ -287,7 +287,7 @@ fn mk_beacon_offset(key: &PublicKey, interval: Duration) -> Duration {
     use rand::{Rng, SeedableRng};
     use sha2::Digest;
 
-    let hash = sha2::Sha256::digest(key.to_vec());
+    let hash = sha2::Sha256::digest(&key.to_vec());
     let mut rng = rand::rngs::StdRng::from_seed(*hash.as_ref());
     Duration::seconds(rng.gen_range(0..interval.whole_seconds()))
 }
