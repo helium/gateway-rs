@@ -17,7 +17,7 @@ pub mod sync;
 mod api;
 mod base64;
 
-pub(crate) use base64::*;
+pub(crate) use crate::base64::Base64;
 pub use beacon::{Region, RegionParams};
 pub use error::{Error, Result};
 pub use keyed_uri::KeyedUri;
