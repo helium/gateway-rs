@@ -2,10 +2,11 @@ use std::{
     sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
+use tonic::async_trait;
 
 use crate::{
     error::DecodeError,
-    service::{CONNECT_TIMEOUT, RPC_TIMEOUT},
+    service::conduit::{ConduitClient, ConduitService},
     sign, Error, Keypair, Result,
 };
 
@@ -15,81 +16,37 @@ use helium_proto::{
             envelope_down_v1, envelope_up_v1, EnvelopeDownV1, EnvelopeUpV1, PacketRouterClient,
             PacketRouterRegisterV1,
         },
-        Channel, Endpoint,
+        Channel,
     },
     Message,
 };
 
 use http::Uri;
-use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
-
-type PacketClient = PacketRouterClient<Channel>;
-
-type PacketSender = mpsc::Sender<EnvelopeUpV1>;
-type PacketReceiver = tonic::Streaming<EnvelopeDownV1>;
 
 // The router service maintains a re-connectable connection to a remote packet
 // router. The service will connect when (re)connect or a packet send is
 // attempted. It will ensure that the register rpc is called on the constructed
 // connection before a packet is sent.
-#[derive(Debug)]
-pub struct PacketRouterService {
-    pub uri: Uri,
-    conduit: Option<PacketRouterConduit>,
-    keypair: Arc<Keypair>,
-}
+pub struct PacketRouterService(
+    ConduitService<EnvelopeUpV1, EnvelopeDownV1, PacketRouterConduitClient>,
+);
 
-/// A router conduit is the tx/rx stream pair for the `route` rpc on the
-/// `packet_router` service. It does not connect on construction but on the
-/// first messsage sent.
-#[derive(Debug)]
-struct PacketRouterConduit {
-    tx: PacketSender,
-    rx: PacketReceiver,
-}
+pub struct PacketRouterConduitClient {}
 
-pub const CONDUIT_CAPACITY: usize = 50;
-
-/// The time between TCP keepalive messages to keep the connection to the packet
-/// router open. Some load balancer disconnect after a number of seconds. AWS
-/// NLBs are hardcoded to 350s so we pick a slightly shorter timeframe to send
-/// keepalives
-pub const TCP_KEEP_ALIVE_DURATION: std::time::Duration = std::time::Duration::from_secs(300);
-
-impl PacketRouterConduit {
-    async fn new(uri: Uri) -> Result<Self> {
-        let endpoint = Endpoint::from(uri)
-            .timeout(RPC_TIMEOUT)
-            .connect_timeout(CONNECT_TIMEOUT)
-            .tcp_keepalive(Some(TCP_KEEP_ALIVE_DURATION))
-            .connect_lazy();
-        let mut client = PacketClient::new(endpoint);
-        let (tx, client_rx) = mpsc::channel(CONDUIT_CAPACITY);
-        let rx = client
-            .route(ReceiverStream::new(client_rx))
-            .await?
-            .into_inner();
-        Ok(Self { tx, rx })
+#[async_trait]
+impl ConduitClient<EnvelopeUpV1, EnvelopeDownV1> for PacketRouterConduitClient {
+    async fn init(
+        &mut self,
+        endpoint: Channel,
+        client_rx: ReceiverStream<EnvelopeUpV1>,
+    ) -> Result<tonic::Streaming<EnvelopeDownV1>> {
+        let mut client = PacketRouterClient::<Channel>::new(endpoint);
+        let rx = client.route(client_rx).await?.into_inner();
+        Ok(rx)
     }
 
-    async fn recv(&mut self) -> Result<Option<envelope_down_v1::Data>> {
-        match self.rx.message().await {
-            Ok(Some(msg)) => match msg.data {
-                Some(data) => Ok(Some(data)),
-                None => Err(DecodeError::invalid_envelope()),
-            },
-            Ok(None) => Ok(None),
-            Err(err) => Err(err.into()),
-        }
-    }
-
-    async fn send(&mut self, msg: envelope_up_v1::Data) -> Result {
-        let msg = EnvelopeUpV1 { data: Some(msg) };
-        Ok(self.tx.send(msg).await?)
-    }
-
-    async fn register(&mut self, keypair: Arc<Keypair>) -> Result {
+    async fn register(&mut self, keypair: Arc<Keypair>) -> Result<EnvelopeUpV1> {
         let mut msg = PacketRouterRegisterV1 {
             timestamp: SystemTime::now()
                 .duration_since(UNIX_EPOCH)
@@ -103,69 +60,42 @@ impl PacketRouterConduit {
         let msg = EnvelopeUpV1 {
             data: Some(envelope_up_v1::Data::Register(msg)),
         };
-        Ok(self.tx.send(msg).await?)
+        Ok(msg)
+    }
+}
+
+impl std::ops::Deref for PacketRouterService {
+    type Target = ConduitService<EnvelopeUpV1, EnvelopeDownV1, PacketRouterConduitClient>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for PacketRouterService {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
 
 impl PacketRouterService {
     pub fn new(uri: Uri, keypair: Arc<Keypair>) -> Self {
-        Self {
-            uri,
-            conduit: None,
-            keypair,
-        }
+        let client = PacketRouterConduitClient {};
+        Self(ConduitService::new(uri, client, keypair))
     }
 
     pub async fn send(&mut self, msg: envelope_up_v1::Data) -> Result {
-        if self.conduit.is_none() {
-            self.connect().await?;
-        }
-        // Unwrap since the above connect early exits if no conduit is created
-        match self.conduit.as_mut().unwrap().send(msg).await {
-            Ok(()) => Ok(()),
-            other => {
-                self.disconnect();
-                other
-            }
-        }
+        let msg = EnvelopeUpV1 { data: Some(msg) };
+        self.0.send(msg).await
     }
 
     pub async fn recv(&mut self) -> Result<Option<envelope_down_v1::Data>> {
-        // Since recv is usually called from a select loop we don't try a
-        // connect every time it is called since the rate for attempted
-        // connections in failure setups would be as high as the loop rate of
-        // the caller. This relies on either a reconnect attempt or a packet
-        // send at a later time to reconnect the conduit.
-        if self.conduit.is_none() {
-            futures::future::pending::<()>().await;
-            return Ok(None);
+        match self.0.recv().await {
+            Ok(Some(msg)) => match msg.data {
+                Some(data) => Ok(Some(data)),
+                None => Err(DecodeError::invalid_envelope()),
+            },
+            Ok(None) => Ok(None),
+            Err(err) => Err(err),
         }
-        match self.conduit.as_mut().unwrap().recv().await {
-            Ok(msg) if msg.is_some() => Ok(msg),
-            other => {
-                self.disconnect();
-                other
-            }
-        }
-    }
-
-    pub fn disconnect(&mut self) {
-        self.conduit = None;
-    }
-
-    pub async fn connect(&mut self) -> Result {
-        let mut conduit = PacketRouterConduit::new(self.uri.clone()).await?;
-        conduit.register(self.keypair.clone()).await?;
-        self.conduit = Some(conduit);
-        Ok(())
-    }
-
-    pub async fn reconnect(&mut self) -> Result {
-        self.disconnect();
-        self.connect().await
-    }
-
-    pub fn is_connected(&self) -> bool {
-        self.conduit.is_some()
     }
 }

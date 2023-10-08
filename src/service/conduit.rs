@@ -21,7 +21,7 @@ struct Conduit<U, D> {
 }
 
 #[derive(Debug)]
-pub struct ConduitService<U, D, C: ConduitClient> {
+pub struct ConduitService<U, D, C: ConduitClient<U, D>> {
     pub uri: Uri,
     conduit: Option<Conduit<U, D>>,
     keypair: Arc<Keypair>,
@@ -37,18 +37,18 @@ pub const CONDUIT_CAPACITY: usize = 50;
 pub const TCP_KEEP_ALIVE_DURATION: std::time::Duration = std::time::Duration::from_secs(300);
 
 #[tonic::async_trait]
-pub trait ConduitClient {
-    async fn init<U, D>(
+pub trait ConduitClient<U, D> {
+    async fn init(
         &mut self,
         endpoint: Channel,
         client_rx: ReceiverStream<U>,
     ) -> Result<tonic::Streaming<D>>;
 
-    async fn register<U>(&mut self, keypair: Arc<Keypair>) -> Result<U>;
+    async fn register(&mut self, keypair: Arc<Keypair>) -> Result<U>;
 }
 
 impl<U, D> Conduit<U, D> {
-    async fn new<C: ConduitClient>(uri: Uri, client: &mut C) -> Result<Self> {
+    async fn new<C: ConduitClient<U, D>>(uri: Uri, client: &mut C) -> Result<Self> {
         let endpoint = Endpoint::from(uri)
             .timeout(RPC_TIMEOUT)
             .connect_timeout(CONNECT_TIMEOUT)
@@ -69,7 +69,7 @@ impl<U, D> Conduit<U, D> {
         Ok(self.tx.send(msg).await?)
     }
 
-    async fn register<C: ConduitClient>(
+    async fn register<C: ConduitClient<U, D>>(
         &mut self,
         client: &mut C,
         keypair: Arc<Keypair>,
@@ -79,7 +79,7 @@ impl<U, D> Conduit<U, D> {
     }
 }
 
-impl<U, D, C: ConduitClient> ConduitService<U, D, C> {
+impl<U, D, C: ConduitClient<U, D>> ConduitService<U, D, C> {
     pub fn new(uri: Uri, client: C, keypair: Arc<Keypair>) -> Self {
         Self {
             uri,
