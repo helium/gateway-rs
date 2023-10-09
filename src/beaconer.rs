@@ -3,14 +3,18 @@
 use crate::{
     error::DecodeError,
     gateway::{self, BeaconResp},
+    keypair::mk_session_keypair,
     message_cache::MessageCache,
     region_watcher,
-    service::{entropy::EntropyService, poc::PocIotService},
+    service::{entropy::EntropyService, poc::PocIotService, Reconnect},
     settings::Settings,
-    sign, sync, Base64, Keypair, PacketUp, PublicKey, RegionParams, Result,
+    sign, sync, Base64, Error, Keypair, PacketUp, PublicKey, RegionParams, Result,
 };
 use futures::TryFutureExt;
-use helium_proto::{services::poc_lora, Message as ProtoMessage};
+use helium_proto::{
+    services::poc_lora::{self, lora_stream_request_v1, lora_stream_response_v1},
+    Message as ProtoMessage,
+};
 use http::Uri;
 use std::sync::Arc;
 use time::{Duration, Instant};
@@ -38,23 +42,28 @@ impl MessageSender {
 pub struct Beaconer {
     /// Beacon/Witness handling disabled
     disabled: bool,
-    /// keypair to sign reports with
+    /// keypair to sign session init with
     keypair: Arc<Keypair>,
+    /// session keypair to use for reports
+    session_key: Option<Arc<Keypair>>,
     /// gateway packet transmit message queue
     transmit: gateway::MessageSender,
     /// Our receive queue.
     messages: MessageReceiver,
+    /// Service to deliver PoC reports to
+    service: PocIotService,
+    /// Service reconnect trigger
+    reconnect: Reconnect,
     /// Region change queue
     region_watch: region_watcher::MessageReceiver,
     /// Beacon interval
     interval: Duration,
-    // Time next beacon attempt is o be made
+    // Time next beacon attempt is to be made
     next_beacon_time: Instant,
     /// Last seen beacons
     last_seen: MessageCache<Vec<u8>>,
     /// Use for channel plan and FR parameters
-    region_params: RegionParams,
-    poc_ingest_uri: Uri,
+    region_params: Arc<RegionParams>,
     entropy_uri: Uri,
 }
 
@@ -66,14 +75,16 @@ impl Beaconer {
         transmit: gateway::MessageSender,
     ) -> Self {
         let interval = Duration::seconds(settings.poc.interval as i64);
-        let poc_ingest_uri = settings.poc.ingest_uri.clone();
         let entropy_uri = settings.poc.entropy_uri.clone();
+        let service = PocIotService::new(settings.poc.ingest_uri.clone(), settings.keypair.clone());
         let keypair = settings.keypair.clone();
-        let region_params = region_watcher::current_value(&region_watch);
+        let reconnect = Reconnect::default();
+        let region_params = Arc::new(region_watcher::current_value(&region_watch));
         let disabled = settings.poc.disable;
 
         Self {
             keypair,
+            session_key: None,
             transmit,
             messages,
             region_watch,
@@ -84,9 +95,10 @@ impl Beaconer {
             // cause the beacon to not occur
             next_beacon_time: Instant::now() + interval,
             region_params,
-            poc_ingest_uri,
+            service,
             entropy_uri,
             disabled,
+            reconnect,
         }
     }
 
@@ -138,32 +150,46 @@ impl Beaconer {
                             info!(delay = delay.whole_seconds(), "first beacon");
                             self.next_beacon_time = Instant::now() + delay;
                         }
-                        self.region_params = region_watcher::current_value(&self.region_watch);
+                        self.region_params = Arc::new(region_watcher::current_value(&self.region_watch));
                         info!(region = RegionParams::to_string(&self.region_params), "region updated");
                     },
                     Err(_) => warn!("region watch disconnected"),
-                }
-
+                },
+                service_message = self.service.recv() => match service_message {
+                    Ok(Some(lora_stream_response_v1::Response::Offer(message))) => {
+                        let session_result = self.handle_session_offer(message).await;
+                        if session_result.is_ok() {
+                            // (Re)set retry count to max to maximize time to
+                            // next disconnect from service
+                            self.reconnect.retry_count = self.reconnect.max_retries;
+                        } else {
+                            // Failed fto handle session offer, disconnect
+                            self.disconnect();
+                        }
+                        self.reconnect.update_next_time(session_result.is_err());
+                    },
+                    Ok(None) => {
+                        warn!("ingest disconnected");
+                        self.reconnect.update_next_time(true);
+                    },
+                    Err(err) => {
+                        warn!(?err, "ingest error");
+                        self.reconnect.update_next_time(true);
+                    },
+                },
+                _ = self.reconnect.wait() => {
+                    let reconnect_result = self.handle_reconnect().await;
+                    self.reconnect.update_next_time(reconnect_result.is_err());
+                },
 
             }
         }
     }
 
-    pub async fn mk_beacon(&self) -> Result<beacon::Beacon> {
-        self.region_params.check_valid()?;
-
-        let mut entropy_service = EntropyService::new(self.entropy_uri.clone());
-        let remote_entropy = entropy_service.get_entropy().await?;
-        let local_entropy = beacon::Entropy::local()?;
-
-        let beacon = beacon::Beacon::new(remote_entropy, local_entropy, &self.region_params)?;
-        Ok(beacon)
-    }
-
     /// Sends a gateway-to-gateway packet.
     ///
     /// See [`gateway::MessageSender::transmit_beacon`]
-    pub async fn send_beacon(&self, beacon: beacon::Beacon) -> Result<beacon::Beacon> {
+    pub async fn send_beacon(&mut self, beacon: beacon::Beacon) -> Result<beacon::Beacon> {
         let beacon_id = beacon
             .beacon_data()
             .map(|data| data.to_b64())
@@ -178,59 +204,52 @@ impl Beaconer {
             .map_ok(|BeaconResp { powe, tmst }| (powe, tmst))
             .await?;
 
-        // Construct concurrent futures for connecting to the poc ingester and
-        // signing the report
-        let report_fut = self.mk_beacon_report(beacon.clone(), powe, tmst);
-        let service_fut = PocIotService::connect(self.poc_ingest_uri.clone());
+        // Check if a session key is available to sign the report
+        let Some(session_key) = self.session_key.clone() else {
+            warn!(%beacon_id, "no session key for beacon report");
+            return Err(Error::no_service());
+        };
 
-        match tokio::try_join!(report_fut, service_fut) {
-            Ok((report, mut poc_service)) => {
-                poc_service
-                    .submit_beacon(report)
-                    .inspect_err(|err| warn!(beacon_id, %err, "submit poc beacon report"))
-                    .inspect_ok(|_| info!(beacon_id, "poc beacon report submitted"))
-                    .await?
-            }
-            Err(err) => {
-                warn!(beacon_id, %err, "poc beacon report");
-            }
-        }
+        Self::mk_beacon_report(beacon.clone(), powe, tmst, session_key)
+            .and_then(|report| self.service.submit_beacon(report))
+            .inspect_err(|err| warn!(beacon_id, %err, "submit poc beacon report"))
+            .inspect_ok(|_| info!(beacon_id, "poc beacon report submitted"))
+            .await?;
 
         Ok(beacon)
     }
 
-    async fn mk_beacon_report(
-        &self,
-        beacon: beacon::Beacon,
-        conducted_power: i32,
-        tmst: u32,
-    ) -> Result<poc_lora::LoraBeaconReportReqV1> {
-        let mut report = poc_lora::LoraBeaconReportReqV1::try_from(beacon)?;
-        report.tx_power = conducted_power;
-        report.tmst = tmst;
-        report.pub_key = self.keypair.public_key().to_vec();
-        report.signature = sign(self.keypair.clone(), report.encode_to_vec()).await?;
-        Ok(report)
+    async fn handle_session_offer(
+        &mut self,
+        message: poc_lora::LoraStreamSessionOfferV1,
+    ) -> Result {
+        let session_key = mk_session_key_init(self.keypair.clone(), &message)
+            .and_then(|(session_key, session_init)| {
+                self.service.send(session_init).map_ok(|_| session_key)
+            })
+            .inspect_err(|err| warn!(%err, "failed to initialize session"))
+            .await?;
+        self.session_key = Some(session_key.clone());
+        info!(session_key = %session_key.public_key(),"initialized session");
+        Ok(())
     }
 
-    async fn mk_witness_report(
-        &self,
-        packet: PacketUp,
-        payload: Vec<u8>,
-    ) -> Result<poc_lora::LoraWitnessReportReqV1> {
-        let mut report = poc_lora::LoraWitnessReportReqV1::try_from(packet)?;
-        report.data = payload;
-        report.pub_key = self.keypair.public_key().to_vec();
-        report.signature = sign(self.keypair.clone(), report.encode_to_vec()).await?;
-        Ok(report)
+    async fn handle_reconnect(&mut self) -> Result {
+        // Do not send waiting reports on ok here since we wait for a sesson
+        // offer. Also do not reset the reconnect retry counter since only a
+        // session key indicates a good connection
+        self.service
+            .reconnect()
+            .inspect_err(|err| warn!(%err, "failed to reconnect"))
+            .await
     }
 
     async fn handle_beacon_tick(&mut self) {
         if self.disabled {
             return;
         }
-        let last_beacon = self
-            .mk_beacon()
+
+        let last_beacon = Self::mk_beacon(self.region_params.clone(), self.entropy_uri.clone())
             .inspect_err(|err| warn!(%err, "construct beacon"))
             .and_then(|beacon| self.send_beacon(beacon))
             .map_ok_or_else(|_| None, Some)
@@ -261,24 +280,81 @@ impl Beaconer {
             return;
         }
 
-        // Construct concurrent futures for connecting to the poc ingester and
-        // signing the report
-        let report_fut = self.mk_witness_report(packet, beacon_data);
-        let service_fut = PocIotService::connect(self.poc_ingest_uri.clone());
+        // Check if a session key is available to sign the report
+        let Some(session_key) = self.session_key.clone() else {
+            warn!(%beacon_id, "no session key for witness report");
+            return;
+        };
 
-        match tokio::try_join!(report_fut, service_fut) {
-            Ok((report, mut poc_service)) => {
-                let _ = poc_service
-                    .submit_witness(report)
-                    .inspect_err(|err| warn!(beacon_id, %err, "submit poc witness report"))
-                    .inspect_ok(|_| info!(beacon_id, "poc witness report submitted"))
-                    .await;
-            }
-            Err(err) => {
-                warn!(%err, "poc witness report");
-            }
-        }
+        let _ = Self::mk_witness_report(packet, beacon_data, session_key)
+            .and_then(|report| self.service.submit_witness(report))
+            .inspect_err(|err| warn!(beacon_id, %err, "submit poc witness report"))
+            .inspect_ok(|_| info!(beacon_id, "poc witness report submitted"))
+            .await;
     }
+
+    fn disconnect(&mut self) {
+        self.service.disconnect();
+        self.session_key = None;
+    }
+
+    pub async fn mk_beacon(
+        region_params: Arc<RegionParams>,
+        entropy_uri: Uri,
+    ) -> Result<beacon::Beacon> {
+        region_params.check_valid()?;
+
+        let mut entropy_service = EntropyService::new(entropy_uri);
+        let remote_entropy = entropy_service.get_entropy().await?;
+        let local_entropy = beacon::Entropy::local()?;
+
+        let beacon = beacon::Beacon::new(remote_entropy, local_entropy, &region_params)?;
+        Ok(beacon)
+    }
+
+    async fn mk_beacon_report(
+        beacon: beacon::Beacon,
+        conducted_power: i32,
+        tmst: u32,
+        keypair: Arc<Keypair>,
+    ) -> Result<poc_lora::LoraBeaconReportReqV1> {
+        let mut report = poc_lora::LoraBeaconReportReqV1::try_from(beacon)?;
+        report.tx_power = conducted_power;
+        report.tmst = tmst;
+        report.pub_key = keypair.public_key().to_vec();
+        report.signature = sign(keypair.clone(), report.encode_to_vec()).await?;
+        Ok(report)
+    }
+
+    async fn mk_witness_report(
+        packet: PacketUp,
+        payload: Vec<u8>,
+        keypair: Arc<Keypair>,
+    ) -> Result<poc_lora::LoraWitnessReportReqV1> {
+        let mut report = poc_lora::LoraWitnessReportReqV1::try_from(packet)?;
+        report.data = payload;
+        report.pub_key = keypair.public_key().to_vec();
+        report.signature = sign(keypair.clone(), report.encode_to_vec()).await?;
+        Ok(report)
+    }
+}
+
+pub async fn mk_session_key_init(
+    keypair: Arc<Keypair>,
+    offer: &poc_lora::LoraStreamSessionOfferV1,
+) -> Result<(Arc<Keypair>, lora_stream_request_v1::Request)> {
+    let session_keypair = Arc::new(mk_session_keypair());
+    let session_key = session_keypair.public_key();
+
+    let mut session_init = poc_lora::LoraStreamSessionInitV1 {
+        pub_key: keypair.public_key().into(),
+        session_key: session_key.into(),
+        nonce: offer.nonce.clone(),
+        signature: vec![],
+    };
+    session_init.signature = sign(keypair, session_init.encode_to_vec()).await?;
+    let envelope = lora_stream_request_v1::Request::SessionInit(session_init);
+    Ok((session_keypair, envelope))
 }
 
 /// Construct a random but deterministic offset for beaconing. This is based on

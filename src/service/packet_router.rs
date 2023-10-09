@@ -1,15 +1,8 @@
-use std::{
-    sync::Arc,
-    time::{SystemTime, UNIX_EPOCH},
-};
-use tonic::async_trait;
-
 use crate::{
     error::DecodeError,
     service::conduit::{ConduitClient, ConduitService},
     sign, Error, Keypair, Result,
 };
-
 use helium_proto::{
     services::{
         router::{
@@ -20,9 +13,14 @@ use helium_proto::{
     },
     Message,
 };
-
 use http::Uri;
+use std::{
+    sync::Arc,
+    time::{SystemTime, UNIX_EPOCH},
+};
+use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
+use tonic::async_trait;
 
 // The router service maintains a re-connectable connection to a remote packet
 // router. The service will connect when (re)connect or a packet send is
@@ -39,14 +37,12 @@ impl ConduitClient<EnvelopeUpV1, EnvelopeDownV1> for PacketRouterConduitClient {
     async fn init(
         &mut self,
         endpoint: Channel,
+        tx: mpsc::Sender<EnvelopeUpV1>,
         client_rx: ReceiverStream<EnvelopeUpV1>,
+        keypair: Arc<Keypair>,
     ) -> Result<tonic::Streaming<EnvelopeDownV1>> {
         let mut client = PacketRouterClient::<Channel>::new(endpoint);
         let rx = client.route(client_rx).await?.into_inner();
-        Ok(rx)
-    }
-
-    async fn register(&mut self, keypair: Arc<Keypair>) -> Result<EnvelopeUpV1> {
         let mut msg = PacketRouterRegisterV1 {
             timestamp: SystemTime::now()
                 .duration_since(UNIX_EPOCH)
@@ -60,7 +56,8 @@ impl ConduitClient<EnvelopeUpV1, EnvelopeDownV1> for PacketRouterConduitClient {
         let msg = EnvelopeUpV1 {
             data: Some(envelope_up_v1::Data::Register(msg)),
         };
-        Ok(msg)
+        tx.send(msg).await.map_err(|_| Error::channel())?;
+        Ok(rx)
     }
 }
 

@@ -1,25 +1,21 @@
-use std::sync::Arc;
-
 use crate::{
     service::{CONNECT_TIMEOUT, RPC_TIMEOUT},
     Keypair, Result,
 };
-
 use helium_proto::services::{Channel, Endpoint};
-
 use http::Uri;
+use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
-/// A conduit is the tx/rx stream pair for the a streaming rpc on the
-/// `packet_router` service. It does not connect on construction but on the
-/// first messsage sent.
-#[derive(Debug)]
-struct Conduit<U, D> {
-    tx: mpsc::Sender<U>,
-    rx: tonic::Streaming<D>,
-}
+/// The time between TCP keepalive messages to keep the connection to the packet
+/// router open. Some load balancer disconnect after a number of seconds. AWS
+/// NLBs are hardcoded to 350s so we pick a slightly shorter timeframe to send
+/// keepalives
+pub const TCP_KEEP_ALIVE_DURATION: std::time::Duration = std::time::Duration::from_secs(300);
+pub const CONDUIT_CAPACITY: usize = 50;
 
+/// A conduit service maintains a re-connectable connection to a remote service.
 #[derive(Debug)]
 pub struct ConduitService<U, D, C: ConduitClient<U, D>> {
     pub uri: Uri,
@@ -28,27 +24,29 @@ pub struct ConduitService<U, D, C: ConduitClient<U, D>> {
     client: C,
 }
 
-pub const CONDUIT_CAPACITY: usize = 50;
-
-/// The time between TCP keepalive messages to keep the connection to the packet
-/// router open. Some load balancer disconnect after a number of seconds. AWS
-/// NLBs are hardcoded to 350s so we pick a slightly shorter timeframe to send
-/// keepalives
-pub const TCP_KEEP_ALIVE_DURATION: std::time::Duration = std::time::Duration::from_secs(300);
+#[derive(Debug)]
+struct Conduit<U, D> {
+    tx: mpsc::Sender<U>,
+    rx: tonic::Streaming<D>,
+}
 
 #[tonic::async_trait]
 pub trait ConduitClient<U, D> {
     async fn init(
         &mut self,
         endpoint: Channel,
+        tx: mpsc::Sender<U>,
         client_rx: ReceiverStream<U>,
+        keypair: Arc<Keypair>,
     ) -> Result<tonic::Streaming<D>>;
-
-    async fn register(&mut self, keypair: Arc<Keypair>) -> Result<U>;
 }
 
 impl<U, D> Conduit<U, D> {
-    async fn new<C: ConduitClient<U, D>>(uri: Uri, client: &mut C) -> Result<Self> {
+    async fn new<C: ConduitClient<U, D>>(
+        uri: Uri,
+        client: &mut C,
+        keypair: Arc<Keypair>,
+    ) -> Result<Self> {
         let endpoint = Endpoint::from(uri)
             .timeout(RPC_TIMEOUT)
             .connect_timeout(CONNECT_TIMEOUT)
@@ -56,7 +54,12 @@ impl<U, D> Conduit<U, D> {
             .connect_lazy();
         let (tx, client_rx) = mpsc::channel(CONDUIT_CAPACITY);
         let rx = client
-            .init(endpoint, ReceiverStream::new(client_rx))
+            .init(
+                endpoint,
+                tx.clone(),
+                ReceiverStream::new(client_rx),
+                keypair,
+            )
             .await?;
         Ok(Self { tx, rx })
     }
@@ -66,15 +69,6 @@ impl<U, D> Conduit<U, D> {
     }
 
     async fn send(&mut self, msg: U) -> Result {
-        Ok(self.tx.send(msg).await?)
-    }
-
-    async fn register<C: ConduitClient<U, D>>(
-        &mut self,
-        client: &mut C,
-        keypair: Arc<Keypair>,
-    ) -> Result {
-        let msg = client.register(keypair).await?;
         Ok(self.tx.send(msg).await?)
     }
 }
@@ -107,7 +101,7 @@ impl<U, D, C: ConduitClient<U, D>> ConduitService<U, D, C> {
         // Since recv is usually called from a select loop we don't try a
         // connect every time it is called since the rate for attempted
         // connections in failure setups would be as high as the loop rate of
-        // the caller. This relies on either a reconnect attempt or a packet
+        // the caller. This relies on either a reconnect attempt or a message
         // send at a later time to reconnect the conduit.
         if self.conduit.is_none() {
             futures::future::pending::<()>().await;
@@ -127,10 +121,8 @@ impl<U, D, C: ConduitClient<U, D>> ConduitService<U, D, C> {
     }
 
     pub async fn connect(&mut self) -> Result {
-        let mut conduit = Conduit::new(self.uri.clone(), &mut self.client).await?;
-        conduit
-            .register(&mut self.client, self.keypair.clone())
-            .await?;
+        let conduit =
+            Conduit::new(self.uri.clone(), &mut self.client, self.keypair.clone()).await?;
         self.conduit = Some(conduit);
         Ok(())
     }
