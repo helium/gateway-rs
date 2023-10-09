@@ -163,7 +163,7 @@ impl Beaconer {
                             // next disconnect from service
                             self.reconnect.retry_count = self.reconnect.max_retries;
                         } else {
-                            // Failed fto handle session offer, disconnect
+                            // Failed to handle session offer, disconnect
                             self.disconnect();
                         }
                         self.reconnect.update_next_time(session_result.is_err());
