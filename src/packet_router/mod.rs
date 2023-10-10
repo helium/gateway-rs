@@ -91,7 +91,7 @@ impl PacketRouter {
                 message = self.messages.recv() => match message {
                     Some(Message::Uplink{packet, received}) =>
                         if self.handle_uplink(packet, received).await.is_err() {
-                            self.disconnect();
+                            self.service.disconnect();
                             warn!("router disconnected");
                             self.reconnect.update_next_time(true);
                         },
@@ -110,8 +110,8 @@ impl PacketRouter {
                     self.reconnect.update_next_time(reconnect_result.is_err());
                 },
                 router_message = self.service.recv() => match router_message {
-                    Ok(Some(envelope_down_v1::Data::Packet(message))) => self.handle_downlink(message).await,
-                    Ok(Some(envelope_down_v1::Data::SessionOffer(message))) => {
+                    Ok(envelope_down_v1::Data::Packet(message)) => self.handle_downlink(message).await,
+                    Ok(envelope_down_v1::Data::SessionOffer(message)) => {
                         let session_result = self.handle_session_offer(message).await;
                         if session_result.is_ok() {
                             // (Re)set retry count to max to maximize time to
@@ -119,13 +119,9 @@ impl PacketRouter {
                             self.reconnect.retry_count = self.reconnect.max_retries;
                         } else {
                             // Failed fto handle session offer, disconnect
-                            self.disconnect();
+                            self.service.disconnect();
                         }
                         self.reconnect.update_next_time(session_result.is_err());
-                    },
-                    Ok(None) => {
-                        warn!("router disconnected");
-                        self.reconnect.update_next_time(true);
                     },
                     Err(err) => {
                         warn!(?err, "router error");
@@ -163,10 +159,6 @@ impl PacketRouter {
         self.send_waiting_packets()
             .inspect_err(|err| warn!(%err, "failed to send queued packets"))
             .await
-    }
-
-    fn disconnect(&mut self) {
-        self.service.disconnect();
     }
 
     async fn send_waiting_packets(&mut self) -> Result {

@@ -174,6 +174,10 @@ impl Error {
         Error::Service(ServiceError::NoSession)
     }
 
+    pub fn no_stream() -> Error {
+        Error::Service(ServiceError::Stream)
+    }
+
     pub fn gateway_service_check(age: u64, max_age: u64) -> Error {
         Error::Service(ServiceError::Check { age, max_age })
     }

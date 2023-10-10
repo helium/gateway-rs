@@ -1,4 +1,4 @@
-use crate::{error, Error, Result};
+use crate::{DecodeError, Error, Result};
 #[cfg(feature = "ecc608")]
 use helium_crypto::ecc608;
 #[cfg(feature = "tpm")]
@@ -29,10 +29,10 @@ pub trait Verify {
 
 macro_rules! uri_error {
     ($format:expr) => {
-        error::DecodeError::keypair_uri(format!($format))
+        DecodeError::keypair_uri(format!($format))
     };
     ($format:expr, $( $arg:expr ),+ ) => {
-        error::DecodeError::keypair_uri(format!($format, $( $arg ),+))
+        DecodeError::keypair_uri(format!($format, $( $arg ),+))
     };
 }
 
@@ -74,7 +74,7 @@ impl FromStr for Keypair {
             },
             #[cfg(feature = "ecc608")]
             Some("ecc") => {
-                let args = KeypairArgs::from_uri(&url).map_err(error::DecodeError::keypair_uri)?;
+                let args = KeypairArgs::from_uri(&url).map_err(DecodeError::keypair_uri)?;
 
                 let bus_address = url.port_u16().unwrap_or(96);
                 let slot = args.get::<u8>("slot", 0)?;
@@ -101,7 +101,7 @@ impl FromStr for Keypair {
             }
             #[cfg(feature = "tpm")]
             Some("tpm") => {
-                let args = KeypairArgs::from_uri(&url).map_err(error::DecodeError::keypair_uri)?;
+                let args = KeypairArgs::from_uri(&url).map_err(DecodeError::keypair_uri)?;
                 let network = args.get("network", Network::MainNet)?;
                 let path = url.path();
 

@@ -19,7 +19,7 @@ mod base64;
 
 pub(crate) use crate::base64::Base64;
 pub use beacon::{Region, RegionParams};
-pub use error::{Error, Result};
+pub use error::{DecodeError, Error, Result};
 pub use keyed_uri::KeyedUri;
 pub use keypair::{Keypair, PublicKey, Sign, Verify};
 pub use packet::{PacketDown, PacketUp};

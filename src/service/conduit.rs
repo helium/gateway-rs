@@ -108,7 +108,7 @@ impl<U, D, C: ConduitClient<U, D>> ConduitService<U, D, C> {
         }
     }
 
-    pub async fn recv(&mut self) -> Result<Option<D>> {
+    pub async fn recv(&mut self) -> Result<D> {
         // Since recv is usually called from a select loop we don't try a
         // connect every time it is called since the rate for attempted
         // connections in failure setups would be as high as the loop rate of
@@ -116,13 +116,17 @@ impl<U, D, C: ConduitClient<U, D>> ConduitService<U, D, C> {
         // send at a later time to reconnect the conduit.
         if self.conduit.is_none() {
             futures::future::pending::<()>().await;
-            return Ok(None);
+            return Err(Error::no_stream());
         }
         match self.conduit.as_mut().unwrap().recv().await {
-            Ok(msg) if msg.is_some() => Ok(msg),
-            other => {
+            Ok(Some(msg)) => Ok(msg),
+            Ok(None) => {
                 self.disconnect();
-                other
+                Err(Error::no_stream())
+            }
+            Err(err) => {
+                self.disconnect();
+                Err(err)
             }
         }
     }

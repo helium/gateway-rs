@@ -1,12 +1,11 @@
 //! This module provides proof-of-coverage (PoC) beaconing support.
 use crate::{
-    error::DecodeError,
     gateway::{self, BeaconResp},
     message_cache::MessageCache,
     region_watcher,
     service::{entropy::EntropyService, poc::PocIotService, Reconnect},
     settings::Settings,
-    sync, Base64, PacketUp, PublicKey, RegionParams, Result,
+    sync, Base64, DecodeError, PacketUp, PublicKey, RegionParams, Result,
 };
 use futures::TryFutureExt;
 use helium_proto::services::poc_lora::{self, lora_stream_response_v1};
@@ -145,7 +144,7 @@ impl Beaconer {
                     Err(_) => warn!("region watch disconnected"),
                 },
                 service_message = self.service.recv() => match service_message {
-                    Ok(Some(lora_stream_response_v1::Response::Offer(message))) => {
+                    Ok(lora_stream_response_v1::Response::Offer(message)) => {
                         let session_result = self.handle_session_offer(message).await;
                         if session_result.is_ok() {
                             // (Re)set retry count to max to maximize time to
@@ -153,13 +152,9 @@ impl Beaconer {
                             self.reconnect.retry_count = self.reconnect.max_retries;
                         } else {
                             // Failed to handle session offer, disconnect
-                            self.disconnect();
+                            self.service.disconnect();
                         }
                         self.reconnect.update_next_time(session_result.is_err());
-                    },
-                    Ok(None) => {
-                        warn!("ingest disconnected");
-                        self.reconnect.update_next_time(true);
                     },
                     Err(err) => {
                         warn!(?err, "ingest error");
@@ -265,10 +260,6 @@ impl Beaconer {
             .inspect_err(|err| warn!(beacon_id, %err, "submit poc witness report"))
             .inspect_ok(|_| info!(beacon_id, "poc witness report submitted"))
             .await;
-    }
-
-    fn disconnect(&mut self) {
-        self.service.disconnect();
     }
 
     pub async fn mk_beacon(

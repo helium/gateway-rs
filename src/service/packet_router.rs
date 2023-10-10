@@ -1,8 +1,7 @@
 use crate::{
-    error::DecodeError,
     impl_sign,
     service::conduit::{ConduitClient, ConduitService},
-    Error, Keypair, PublicKey, Result, Sign,
+    DecodeError, Error, Keypair, PublicKey, Result, Sign,
 };
 use helium_proto::{
     services::{
@@ -112,14 +111,10 @@ impl PacketRouterService {
         self.0.send(msg).await
     }
 
-    pub async fn recv(&mut self) -> Result<Option<envelope_down_v1::Data>> {
-        match self.0.recv().await {
-            Ok(Some(msg)) => match msg.data {
-                Some(data) => Ok(Some(data)),
-                None => Err(DecodeError::invalid_envelope()),
-            },
-            Ok(None) => Ok(None),
-            Err(err) => Err(err),
-        }
+    pub async fn recv(&mut self) -> Result<envelope_down_v1::Data> {
+        self.0.recv().await.and_then(|msg| match msg.data {
+            Some(data) => Ok(data),
+            None => Err(DecodeError::invalid_envelope()),
+        })
     }
 }

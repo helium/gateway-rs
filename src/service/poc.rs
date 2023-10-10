@@ -1,8 +1,7 @@
 use crate::{
-    error::DecodeError,
     impl_sign,
     service::conduit::{ConduitClient, ConduitService},
-    Keypair, PublicKey, Result, Sign,
+    DecodeError, Keypair, PublicKey, Result, Sign,
 };
 use helium_proto::{
     services::{
@@ -92,15 +91,11 @@ impl PocIotService {
         self.0.send(msg).await
     }
 
-    pub async fn recv(&mut self) -> Result<Option<lora_stream_response_v1::Response>> {
-        match self.0.recv().await {
-            Ok(Some(msg)) => match msg.response {
-                Some(data) => Ok(Some(data)),
-                None => Err(DecodeError::invalid_envelope()),
-            },
-            Ok(None) => Ok(None),
-            Err(err) => Err(err),
-        }
+    pub async fn recv(&mut self) -> Result<lora_stream_response_v1::Response> {
+        self.0.recv().await.and_then(|msg| match msg.response {
+            Some(data) => Ok(data),
+            None => Err(DecodeError::invalid_envelope()),
+        })
     }
 
     pub async fn submit_beacon(&mut self, mut req: LoraBeaconReportReqV1) -> Result {
