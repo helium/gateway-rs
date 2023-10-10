@@ -1,12 +1,14 @@
 use crate::{
     service::{CONNECT_TIMEOUT, RPC_TIMEOUT},
-    Keypair, Result,
+    Error, Keypair, PublicKey, Result, Sign,
 };
+use futures::TryFutureExt;
 use helium_proto::services::{Channel, Endpoint};
 use http::Uri;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
+use tracing::{info, warn};
 
 /// The time between TCP keepalive messages to keep the connection to the packet
 /// router open. Some load balancer disconnect after a number of seconds. AWS
@@ -19,6 +21,7 @@ pub const CONDUIT_CAPACITY: usize = 50;
 #[derive(Debug)]
 pub struct ConduitService<U, D, C: ConduitClient<U, D>> {
     pub uri: Uri,
+    session_keypair: Option<Arc<Keypair>>,
     conduit: Option<Conduit<U, D>>,
     keypair: Arc<Keypair>,
     client: C,
@@ -39,6 +42,13 @@ pub trait ConduitClient<U, D> {
         client_rx: ReceiverStream<U>,
         keypair: Arc<Keypair>,
     ) -> Result<tonic::Streaming<D>>;
+
+    async fn mk_session_init(
+        &self,
+        nonce: &[u8],
+        session_key: &PublicKey,
+        keypair: Arc<Keypair>,
+    ) -> Result<U>;
 }
 
 impl<U, D> Conduit<U, D> {
@@ -77,9 +87,10 @@ impl<U, D, C: ConduitClient<U, D>> ConduitService<U, D, C> {
     pub fn new(uri: Uri, client: C, keypair: Arc<Keypair>) -> Self {
         Self {
             uri,
-            conduit: None,
             keypair,
             client,
+            conduit: None,
+            session_keypair: None,
         }
     }
 
@@ -118,6 +129,7 @@ impl<U, D, C: ConduitClient<U, D>> ConduitService<U, D, C> {
 
     pub fn disconnect(&mut self) {
         self.conduit = None;
+        self.session_keypair = None;
     }
 
     pub async fn connect(&mut self) -> Result {
@@ -134,5 +146,41 @@ impl<U, D, C: ConduitClient<U, D>> ConduitService<U, D, C> {
 
     pub fn is_connected(&self) -> bool {
         self.conduit.is_some()
+    }
+
+    pub fn gateway_key(&self) -> &PublicKey {
+        self.keypair.public_key()
+    }
+
+    pub fn session_key(&self) -> Option<&PublicKey> {
+        self.session_keypair.as_ref().map(|k| k.public_key())
+    }
+
+    pub fn session_keypair(&self) -> Option<Arc<Keypair>> {
+        self.session_keypair.clone()
+    }
+
+    pub async fn session_sign<M: Sign>(&self, msg: &mut M) -> Result {
+        if let Some(keypair) = self.session_keypair.as_ref() {
+            msg.sign(keypair.clone()).await?;
+            Ok(())
+        } else {
+            Err(Error::no_session())
+        }
+    }
+
+    pub async fn session_init(&mut self, nonce: &[u8]) -> Result {
+        let session_keypair = Arc::new(Keypair::new());
+        let session_key = session_keypair.public_key();
+        let msg = self
+            .client
+            .mk_session_init(nonce, session_key, self.keypair.clone())
+            .await?;
+        self.send(msg)
+            .inspect_err(|err| warn!(%err, "failed to initialize session"))
+            .await?;
+        self.session_keypair = Some(session_keypair.clone());
+        info!(%session_key, "initialized session");
+        Ok(())
     }
 }

@@ -1,13 +1,14 @@
 use crate::{
     error::DecodeError,
+    impl_sign,
     service::conduit::{ConduitClient, ConduitService},
-    sign, Error, Keypair, Result,
+    Error, Keypair, PublicKey, Result, Sign,
 };
 use helium_proto::{
     services::{
         router::{
             envelope_down_v1, envelope_up_v1, EnvelopeDownV1, EnvelopeUpV1, PacketRouterClient,
-            PacketRouterRegisterV1,
+            PacketRouterPacketUpV1, PacketRouterRegisterV1, PacketRouterSessionInitV1,
         },
         Channel,
     },
@@ -52,14 +53,37 @@ impl ConduitClient<EnvelopeUpV1, EnvelopeDownV1> for PacketRouterConduitClient {
             signature: vec![],
             session_capable: true,
         };
-        msg.signature = sign(keypair.clone(), msg.encode_to_vec()).await?;
+        msg.sign(keypair.clone()).await?;
         let msg = EnvelopeUpV1 {
             data: Some(envelope_up_v1::Data::Register(msg)),
         };
         tx.send(msg).await.map_err(|_| Error::channel())?;
         Ok(rx)
     }
+
+    async fn mk_session_init(
+        &self,
+        nonce: &[u8],
+        session_key: &PublicKey,
+        keypair: Arc<Keypair>,
+    ) -> Result<EnvelopeUpV1> {
+        let mut session_init = PacketRouterSessionInitV1 {
+            gateway: keypair.public_key().into(),
+            session_key: session_key.into(),
+            nonce: nonce.to_vec(),
+            signature: vec![],
+        };
+        session_init.sign(keypair).await?;
+        let envelope = EnvelopeUpV1 {
+            data: Some(envelope_up_v1::Data::SessionInit(session_init)),
+        };
+        Ok(envelope)
+    }
 }
+
+impl_sign!(PacketRouterRegisterV1);
+impl_sign!(PacketRouterPacketUpV1);
+impl_sign!(PacketRouterSessionInitV1);
 
 impl std::ops::Deref for PacketRouterService {
     type Target = ConduitService<EnvelopeUpV1, EnvelopeDownV1, PacketRouterConduitClient>;
@@ -80,8 +104,11 @@ impl PacketRouterService {
         Self(ConduitService::new(uri, client, keypair))
     }
 
-    pub async fn send(&mut self, msg: envelope_up_v1::Data) -> Result {
-        let msg = EnvelopeUpV1 { data: Some(msg) };
+    pub async fn send_uplink(&mut self, mut msg: PacketRouterPacketUpV1) -> Result {
+        self.session_sign(&mut msg).await?;
+        let msg = EnvelopeUpV1 {
+            data: Some(envelope_up_v1::Data::Packet(msg)),
+        };
         self.0.send(msg).await
     }
 

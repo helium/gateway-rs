@@ -21,7 +21,7 @@ pub(crate) use crate::base64::Base64;
 pub use beacon::{Region, RegionParams};
 pub use error::{Error, Result};
 pub use keyed_uri::KeyedUri;
-pub use keypair::{Keypair, PublicKey};
+pub use keypair::{Keypair, PublicKey, Sign, Verify};
 pub use packet::{PacketDown, PacketUp};
 pub use settings::Settings;
 
@@ -34,7 +34,7 @@ pub type Future<T> = Pin<Box<dyn StdFuture<Output = Result<T>> + Send>>;
 /// A type alias for `Stream` that may result in `crate::error::Error`
 pub type Stream<T> = Pin<Box<dyn StdStream<Item = Result<T>> + Send>>;
 
-pub async fn sign<K>(keypair: K, data: Vec<u8>) -> Result<Vec<u8>>
+async fn sign<K>(keypair: K, data: Vec<u8>) -> Result<Vec<u8>>
 where
     K: AsRef<Keypair> + std::marker::Send + 'static,
 {
@@ -49,13 +49,46 @@ where
         .await?
 }
 
-macro_rules! verify {
-    ($key: expr, $msg: expr, $sig: ident) => {{
-        let mut _msg = $msg.clone();
-        _msg.$sig = vec![];
-        let buf = _msg.encode_to_vec();
-        $key.verify(&buf, &$msg.$sig).map_err(Error::from)
-    }};
+macro_rules! impl_sign {
+    ($type: ty) => {
+        #[tonic::async_trait]
+        impl Sign for $type {
+            async fn sign<K>(&mut self, keypair: K) -> Result
+            where
+                K: AsRef<Keypair> + std::marker::Send + 'static,
+            {
+                self.signature = crate::sign(keypair, self.encode_to_vec()).await?;
+                Ok(())
+            }
+        }
+    };
 }
+pub(crate) use impl_sign;
 
-pub(crate) use verify;
+macro_rules! impl_verify {
+    ($type: ty) => {
+        impl crate::Verify for $type {
+            fn verify(&self, pub_key: &crate::PublicKey) -> Result {
+                use helium_crypto::Verify as _;
+                let mut _msg = self.clone();
+                _msg.signature = vec![];
+                let buf = _msg.encode_to_vec();
+                pub_key
+                    .verify(&buf, &self.signature)
+                    .map_err(crate::Error::from)
+            }
+        }
+    };
+}
+pub(crate) use impl_verify;
+
+// macro_rules! verify {
+//     ($key: expr, $msg: expr, $sig: ident) => {{
+//         let mut _msg = $msg.clone();
+//         _msg.$sig = vec![];
+//         let buf = _msg.encode_to_vec();
+//         $key.verify(&buf, &$msg.$sig).map_err(Error::from)
+//     }};
+// }
+
+// pub(crate) use verify;

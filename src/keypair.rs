@@ -1,4 +1,4 @@
-use crate::*;
+use crate::{error, Error, Result};
 #[cfg(feature = "ecc608")]
 use helium_crypto::ecc608;
 #[cfg(feature = "tpm")]
@@ -10,33 +10,21 @@ use serde::{de, Deserializer};
 #[cfg(feature = "ecc608")]
 use std::path::Path;
 use std::{collections::HashMap, convert::TryFrom, fmt, fs, io, path, str::FromStr};
+use tonic::async_trait;
 
 #[derive(Debug)]
 pub struct Keypair(helium_crypto::Keypair);
 pub type PublicKey = helium_crypto::PublicKey;
 
-pub fn load_from_file(path: &str) -> error::Result<Keypair> {
-    let data = fs::read(path)?;
-    Ok(helium_crypto::Keypair::try_from(&data[..])?.into())
+#[async_trait]
+pub trait Sign {
+    async fn sign<K>(&mut self, keypair: K) -> Result
+    where
+        K: AsRef<Keypair> + std::marker::Send + 'static;
 }
 
-pub fn save_to_file(keypair: &Keypair, path: &str) -> io::Result<()> {
-    if let Some(parent) = path::PathBuf::from(path).parent() {
-        fs::create_dir_all(parent)?;
-    };
-    fs::write(path, keypair.0.to_vec())?;
-    Ok(())
-}
-
-pub fn mk_session_keypair() -> Keypair {
-    let keypair = helium_crypto::Keypair::generate(
-        KeyTag {
-            network: Network::MainNet,
-            key_type: KeyType::Ed25519,
-        },
-        &mut OsRng,
-    );
-    keypair.into()
+pub trait Verify {
+    fn verify(&self, pub_key: &crate::PublicKey) -> Result;
 }
 
 macro_rules! uri_error {
@@ -61,7 +49,7 @@ impl FromStr for Keypair {
             .parse()
             .map_err(|err| uri_error!("invalid keypair url \"{str}\": {err:?}"))?;
         match url.scheme_str() {
-            Some("file") | None => match load_from_file(url.path()) {
+            Some("file") | None => match Self::load_from_file(url.path()) {
                 Ok(k) => Ok(k),
                 Err(Error::IO(io_error)) if io_error.kind() == std::io::ErrorKind::NotFound => {
                     let args = KeypairArgs::from_uri(&url)?;
@@ -74,7 +62,7 @@ impl FromStr for Keypair {
                         &mut OsRng,
                     )
                     .into();
-                    save_to_file(&new_key, url.path()).map_err(|err| {
+                    new_key.save_to_file(url.path()).map_err(|err| {
                         uri_error!("unable to save key file \"{}\": {err:?}", url.path())
                     })?;
                     Ok(new_key)
@@ -134,6 +122,38 @@ impl std::ops::Deref for Keypair {
     type Target = helium_crypto::Keypair;
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl Keypair {
+    pub fn new() -> Self {
+        let keypair = helium_crypto::Keypair::generate(
+            KeyTag {
+                network: Network::MainNet,
+                key_type: KeyType::Ed25519,
+            },
+            &mut OsRng,
+        );
+        keypair.into()
+    }
+
+    pub fn load_from_file(path: &str) -> Result<Self> {
+        let data = fs::read(path)?;
+        Ok(helium_crypto::Keypair::try_from(&data[..])?.into())
+    }
+
+    pub fn save_to_file(&self, path: &str) -> io::Result<()> {
+        if let Some(parent) = path::PathBuf::from(path).parent() {
+            fs::create_dir_all(parent)?;
+        };
+        fs::write(path, self.0.to_vec())?;
+        Ok(())
+    }
+}
+
+impl Default for Keypair {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

@@ -1,20 +1,15 @@
 use crate::{
     gateway,
-    keypair::mk_session_keypair,
     message_cache::{CacheMessage, MessageCache},
     service::{packet_router::PacketRouterService, Reconnect},
-    sign, sync, Base64, Keypair, PacketUp, Result, Settings,
+    sync, Base64, PacketUp, PublicKey, Result, Settings,
 };
 use futures::TryFutureExt;
-use helium_proto::{
-    services::router::{
-        envelope_down_v1, envelope_up_v1, PacketRouterPacketDownV1, PacketRouterPacketUpV1,
-        PacketRouterSessionInitV1, PacketRouterSessionOfferV1,
-    },
-    Message as ProtoMessage,
+use helium_proto::services::router::{
+    envelope_down_v1, PacketRouterPacketDownV1, PacketRouterPacketUpV1, PacketRouterSessionOfferV1,
 };
 use serde::Serialize;
-use std::{sync::Arc, time::Instant as StdInstant};
+use std::{ops::Deref, time::Instant as StdInstant};
 use tokio::time::Duration;
 
 use tracing::{debug, info, warn};
@@ -35,7 +30,7 @@ pub struct RouterStatus {
     #[serde(with = "http_serde::uri")]
     pub uri: http::Uri,
     pub connected: bool,
-    pub session_key: Option<helium_crypto::PublicKey>,
+    pub session_key: Option<PublicKey>,
 }
 
 pub type MessageSender = sync::MessageSender<Message>;
@@ -60,8 +55,6 @@ pub struct PacketRouter {
     transmit: gateway::MessageSender,
     service: PacketRouterService,
     reconnect: Reconnect,
-    session_key: Option<Arc<Keypair>>,
-    keypair: Arc<Keypair>,
     store: MessageCache<PacketUp>,
 }
 
@@ -78,8 +71,6 @@ impl PacketRouter {
         let reconnect = Reconnect::default();
         Self {
             service,
-            keypair: settings.keypair.clone(),
-            session_key: None,
             transmit,
             messages,
             store,
@@ -108,7 +99,7 @@ impl PacketRouter {
                         let status = RouterStatus {
                             uri: self.service.uri.clone(),
                             connected: self.service.is_connected(),
-                            session_key: self.session_key.as_ref().map(|keypair| keypair.public_key().to_owned()),
+                            session_key: self.service.session_key().cloned(),
                         };
                         tx_resp.send(status)
                     }
@@ -158,9 +149,7 @@ impl PacketRouter {
     async fn handle_uplink(&mut self, uplink: PacketUp, received: StdInstant) -> Result {
         self.store.push_back(uplink, received);
         if self.service.is_connected() {
-            if let Some(session_key) = &self.session_key {
-                self.send_waiting_packets(session_key.clone()).await?;
-            }
+            self.send_waiting_packets().await?;
         }
         Ok(())
     }
@@ -170,31 +159,22 @@ impl PacketRouter {
     }
 
     async fn handle_session_offer(&mut self, message: PacketRouterSessionOfferV1) -> Result {
-        let session_key = mk_session_key_init(self.keypair.clone(), &message)
-            .and_then(|(session_key, session_init)| {
-                self.service.send(session_init).map_ok(|_| session_key)
-            })
-            .inspect_err(|err| warn!(%err, "failed to initialize session"))
-            .await?;
-        self.session_key = Some(session_key.clone());
-        info!(session_key = %session_key.public_key(),"initialized session");
-        self.send_waiting_packets(session_key.clone())
+        self.service.session_init(&message.nonce).await?;
+        self.send_waiting_packets()
             .inspect_err(|err| warn!(%err, "failed to send queued packets"))
-            .await?;
-        Ok(())
+            .await
     }
 
     fn disconnect(&mut self) {
         self.service.disconnect();
-        self.session_key = None;
     }
 
-    async fn send_waiting_packets(&mut self, keypair: Arc<Keypair>) -> Result {
+    async fn send_waiting_packets(&mut self) -> Result {
         while let (removed, Some(packet)) = self.store.pop_front(STORE_GC_INTERVAL) {
             if removed > 0 {
                 info!(removed, "discarded queued packets");
             }
-            if let Err(err) = self.send_packet(&packet, keypair.clone()).await {
+            if let Err(err) = self.send_packet(&packet).await {
                 warn!(%err, "failed to send uplink");
                 self.store.push_front(packet);
                 return Err(err);
@@ -203,44 +183,11 @@ impl PacketRouter {
         Ok(())
     }
 
-    async fn send_packet(
-        &mut self,
-        packet: &CacheMessage<PacketUp>,
-        keypair: Arc<Keypair>,
-    ) -> Result {
+    async fn send_packet(&mut self, packet: &CacheMessage<PacketUp>) -> Result {
         debug!(packet_hash = packet.hash().to_b64(), "sending packet");
 
-        let uplink = mk_uplink(packet, keypair).await?;
-        self.service.send(uplink).await
+        let mut uplink: PacketRouterPacketUpV1 = packet.deref().into();
+        uplink.hold_time = packet.hold_time().as_millis() as u64;
+        self.service.send_uplink(uplink).await
     }
-}
-
-pub async fn mk_uplink(
-    packet: &CacheMessage<PacketUp>,
-    keypair: Arc<Keypair>,
-) -> Result<envelope_up_v1::Data> {
-    use std::ops::Deref;
-    let mut uplink: PacketRouterPacketUpV1 = packet.deref().into();
-    uplink.hold_time = packet.hold_time().as_millis() as u64;
-    uplink.signature = sign(keypair, uplink.encode_to_vec()).await?;
-    let envelope = envelope_up_v1::Data::Packet(uplink);
-    Ok(envelope)
-}
-
-pub async fn mk_session_key_init(
-    keypair: Arc<Keypair>,
-    offer: &PacketRouterSessionOfferV1,
-) -> Result<(Arc<Keypair>, envelope_up_v1::Data)> {
-    let session_keypair = Arc::new(mk_session_keypair());
-    let session_key = session_keypair.public_key();
-
-    let mut session_init = PacketRouterSessionInitV1 {
-        gateway: keypair.public_key().into(),
-        session_key: session_key.into(),
-        nonce: offer.nonce.clone(),
-        signature: vec![],
-    };
-    session_init.signature = sign(keypair, session_init.encode_to_vec()).await?;
-    let envelope = envelope_up_v1::Data::SessionInit(session_init);
-    Ok((session_keypair, envelope))
 }

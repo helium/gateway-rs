@@ -1,14 +1,18 @@
 use crate::{
     error::DecodeError,
+    impl_sign,
     service::conduit::{ConduitClient, ConduitService},
-    Keypair, Result,
+    Keypair, PublicKey, Result, Sign,
 };
-use helium_proto::services::{
-    poc_lora::{
-        self, lora_stream_request_v1, lora_stream_response_v1, LoraBeaconReportReqV1,
-        LoraStreamRequestV1, LoraStreamResponseV1, LoraWitnessReportReqV1,
+use helium_proto::{
+    services::{
+        poc_lora::{
+            self, lora_stream_request_v1, lora_stream_response_v1, LoraBeaconReportReqV1,
+            LoraStreamRequestV1, LoraStreamResponseV1, LoraWitnessReportReqV1,
+        },
+        Channel,
     },
-    Channel,
+    Message as ProtoMessage,
 };
 use http::Uri;
 use std::sync::Arc;
@@ -39,7 +43,30 @@ impl ConduitClient<LoraStreamRequestV1, LoraStreamResponseV1> for PocIotConduitC
         let rx = client.stream_requests(client_rx).await?.into_inner();
         Ok(rx)
     }
+
+    async fn mk_session_init(
+        &self,
+        nonce: &[u8],
+        session_key: &PublicKey,
+        keypair: Arc<Keypair>,
+    ) -> Result<LoraStreamRequestV1> {
+        let mut session_init = poc_lora::LoraStreamSessionInitV1 {
+            pub_key: keypair.public_key().into(),
+            session_key: session_key.into(),
+            nonce: nonce.to_vec(),
+            signature: vec![],
+        };
+        session_init.sign(keypair).await?;
+        let envelope = LoraStreamRequestV1 {
+            request: Some(lora_stream_request_v1::Request::SessionInit(session_init)),
+        };
+        Ok(envelope)
+    }
 }
+
+impl_sign!(poc_lora::LoraStreamSessionInitV1);
+impl_sign!(poc_lora::LoraBeaconReportReqV1);
+impl_sign!(poc_lora::LoraWitnessReportReqV1);
 
 impl std::ops::Deref for PocIotService {
     type Target = ConduitService<LoraStreamRequestV1, LoraStreamResponseV1, PocIotConduitClient>;
@@ -76,12 +103,14 @@ impl PocIotService {
         }
     }
 
-    pub async fn submit_beacon(&mut self, req: LoraBeaconReportReqV1) -> Result {
+    pub async fn submit_beacon(&mut self, mut req: LoraBeaconReportReqV1) -> Result {
+        self.0.session_sign(&mut req).await?;
         let msg = lora_stream_request_v1::Request::BeaconReport(req);
         self.send(msg).await
     }
 
-    pub async fn submit_witness(&mut self, req: LoraWitnessReportReqV1) -> Result {
+    pub async fn submit_witness(&mut self, mut req: LoraWitnessReportReqV1) -> Result {
+        self.0.session_sign(&mut req).await?;
         let msg = lora_stream_request_v1::Request::WitnessReport(req);
         self.send(msg).await
     }

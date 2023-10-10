@@ -43,7 +43,7 @@ impl TryFrom<helium_proto::services::local::KeyedUri> for KeyedUri {
     fn try_from(v: helium_proto::services::local::KeyedUri) -> Result<Self> {
         let result = Self {
             uri: http::Uri::from_str(&v.uri)?,
-            pubkey: Arc::new(helium_crypto::PublicKey::from_bytes(v.address)?),
+            pubkey: Arc::new(PublicKey::from_bytes(v.address)?),
         };
         Ok(result)
     }
@@ -63,7 +63,7 @@ impl TryFrom<helium_proto::RoutingAddress> for KeyedUri {
     fn try_from(v: helium_proto::RoutingAddress) -> Result<Self> {
         let result = Self {
             uri: http::Uri::from_str(&String::from_utf8_lossy(&v.uri))?,
-            pubkey: Arc::new(helium_crypto::PublicKey::from_bytes(v.pub_key)?),
+            pubkey: Arc::new(PublicKey::from_bytes(v.pub_key)?),
         };
         Ok(result)
     }

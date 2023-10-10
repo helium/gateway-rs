@@ -11,7 +11,7 @@ pub use helium_proto::{
 };
 pub use server::LocalServer;
 
-use crate::{Error, Result};
+use crate::{Error, PublicKey, Result};
 
 impl TryFrom<RouterRes> for crate::packet_router::RouterStatus {
     type Error = Error;
@@ -20,7 +20,7 @@ impl TryFrom<RouterRes> for crate::packet_router::RouterStatus {
         Ok(Self {
             uri: http::Uri::from_str(&value.uri)?,
             connected: value.connected,
-            session_key: helium_crypto::PublicKey::try_from(value.session_key).ok(),
+            session_key: PublicKey::try_from(value.session_key).ok(),
         })
     }
 }

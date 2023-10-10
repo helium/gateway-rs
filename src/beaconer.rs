@@ -1,20 +1,15 @@
 //! This module provides proof-of-coverage (PoC) beaconing support.
-
 use crate::{
     error::DecodeError,
     gateway::{self, BeaconResp},
-    keypair::mk_session_keypair,
     message_cache::MessageCache,
     region_watcher,
     service::{entropy::EntropyService, poc::PocIotService, Reconnect},
     settings::Settings,
-    sign, sync, Base64, Error, Keypair, PacketUp, PublicKey, RegionParams, Result,
+    sync, Base64, PacketUp, PublicKey, RegionParams, Result,
 };
 use futures::TryFutureExt;
-use helium_proto::{
-    services::poc_lora::{self, lora_stream_request_v1, lora_stream_response_v1},
-    Message as ProtoMessage,
-};
+use helium_proto::services::poc_lora::{self, lora_stream_response_v1};
 use http::Uri;
 use std::sync::Arc;
 use time::{Duration, Instant};
@@ -42,10 +37,6 @@ impl MessageSender {
 pub struct Beaconer {
     /// Beacon/Witness handling disabled
     disabled: bool,
-    /// keypair to sign session init with
-    keypair: Arc<Keypair>,
-    /// session keypair to use for reports
-    session_key: Option<Arc<Keypair>>,
     /// gateway packet transmit message queue
     transmit: gateway::MessageSender,
     /// Our receive queue.
@@ -77,14 +68,11 @@ impl Beaconer {
         let interval = Duration::seconds(settings.poc.interval as i64);
         let entropy_uri = settings.poc.entropy_uri.clone();
         let service = PocIotService::new(settings.poc.ingest_uri.clone(), settings.keypair.clone());
-        let keypair = settings.keypair.clone();
         let reconnect = Reconnect::default();
         let region_params = Arc::new(region_watcher::current_value(&region_watch));
         let disabled = settings.poc.disable;
 
         Self {
-            keypair,
-            session_key: None,
             transmit,
             messages,
             region_watch,
@@ -106,6 +94,7 @@ impl Beaconer {
         info!(
             beacon_interval = self.interval.whole_seconds(),
             disabled = self.disabled,
+            uri = %self.service.uri,
             "starting"
         );
 
@@ -140,7 +129,7 @@ impl Beaconer {
                         if self.region_params.params.is_empty() {
                             // Calculate a random but deterministic time offset
                             // for this hotspot's beacons
-                            let offset = mk_beacon_offset(self.keypair.public_key(), self.interval);
+                            let offset = mk_beacon_offset(self.service.gateway_key(), self.interval);
                             // Get a delay for the first beacon based on the
                             // deterministic offset and the timestamp in the
                             // first region params. If there's an error
@@ -204,17 +193,16 @@ impl Beaconer {
             .map_ok(|BeaconResp { powe, tmst }| (powe, tmst))
             .await?;
 
-        // Check if a session key is available to sign the report
-        let Some(session_key) = self.session_key.clone() else {
-            warn!(%beacon_id, "no session key for beacon report");
-            return Err(Error::no_service());
-        };
-
-        Self::mk_beacon_report(beacon.clone(), powe, tmst, session_key)
-            .and_then(|report| self.service.submit_beacon(report))
-            .inspect_err(|err| warn!(beacon_id, %err, "submit poc beacon report"))
-            .inspect_ok(|_| info!(beacon_id, "poc beacon report submitted"))
-            .await?;
+        Self::mk_beacon_report(
+            beacon.clone(),
+            powe,
+            tmst,
+            self.service.gateway_key().clone(),
+        )
+        .and_then(|report| self.service.submit_beacon(report))
+        .inspect_err(|err| warn!(beacon_id, %err, "submit poc beacon report"))
+        .inspect_ok(|_| info!(beacon_id, "poc beacon report submitted"))
+        .await?;
 
         Ok(beacon)
     }
@@ -223,15 +211,7 @@ impl Beaconer {
         &mut self,
         message: poc_lora::LoraStreamSessionOfferV1,
     ) -> Result {
-        let session_key = mk_session_key_init(self.keypair.clone(), &message)
-            .and_then(|(session_key, session_init)| {
-                self.service.send(session_init).map_ok(|_| session_key)
-            })
-            .inspect_err(|err| warn!(%err, "failed to initialize session"))
-            .await?;
-        self.session_key = Some(session_key.clone());
-        info!(session_key = %session_key.public_key(),"initialized session");
-        Ok(())
+        self.service.session_init(&message.nonce).await
     }
 
     async fn handle_reconnect(&mut self) -> Result {
@@ -280,13 +260,7 @@ impl Beaconer {
             return;
         }
 
-        // Check if a session key is available to sign the report
-        let Some(session_key) = self.session_key.clone() else {
-            warn!(%beacon_id, "no session key for witness report");
-            return;
-        };
-
-        let _ = Self::mk_witness_report(packet, beacon_data, session_key)
+        let _ = Self::mk_witness_report(packet, beacon_data, self.service.gateway_key().clone())
             .and_then(|report| self.service.submit_witness(report))
             .inspect_err(|err| warn!(beacon_id, %err, "submit poc witness report"))
             .inspect_ok(|_| info!(beacon_id, "poc witness report submitted"))
@@ -295,7 +269,6 @@ impl Beaconer {
 
     fn disconnect(&mut self) {
         self.service.disconnect();
-        self.session_key = None;
     }
 
     pub async fn mk_beacon(
@@ -316,45 +289,25 @@ impl Beaconer {
         beacon: beacon::Beacon,
         conducted_power: i32,
         tmst: u32,
-        keypair: Arc<Keypair>,
+        gateway: PublicKey,
     ) -> Result<poc_lora::LoraBeaconReportReqV1> {
         let mut report = poc_lora::LoraBeaconReportReqV1::try_from(beacon)?;
+        report.pub_key = gateway.to_vec();
         report.tx_power = conducted_power;
         report.tmst = tmst;
-        report.pub_key = keypair.public_key().to_vec();
-        report.signature = sign(keypair.clone(), report.encode_to_vec()).await?;
         Ok(report)
     }
 
     async fn mk_witness_report(
         packet: PacketUp,
         payload: Vec<u8>,
-        keypair: Arc<Keypair>,
+        gateway: PublicKey,
     ) -> Result<poc_lora::LoraWitnessReportReqV1> {
         let mut report = poc_lora::LoraWitnessReportReqV1::try_from(packet)?;
+        report.pub_key = gateway.to_vec();
         report.data = payload;
-        report.pub_key = keypair.public_key().to_vec();
-        report.signature = sign(keypair.clone(), report.encode_to_vec()).await?;
         Ok(report)
     }
-}
-
-pub async fn mk_session_key_init(
-    keypair: Arc<Keypair>,
-    offer: &poc_lora::LoraStreamSessionOfferV1,
-) -> Result<(Arc<Keypair>, lora_stream_request_v1::Request)> {
-    let session_keypair = Arc::new(mk_session_keypair());
-    let session_key = session_keypair.public_key();
-
-    let mut session_init = poc_lora::LoraStreamSessionInitV1 {
-        pub_key: keypair.public_key().into(),
-        session_key: session_key.into(),
-        nonce: offer.nonce.clone(),
-        signature: vec![],
-    };
-    session_init.signature = sign(keypair, session_init.encode_to_vec()).await?;
-    let envelope = lora_stream_request_v1::Request::SessionInit(session_init);
-    Ok((session_keypair, envelope))
 }
 
 /// Construct a random but deterministic offset for beaconing. This is based on
@@ -447,14 +400,14 @@ mod test {
 
         const PUBKEY_1: &str = "13WvV82S7QN3VMzMSieiGxvuaPKknMtf213E5JwPnboDkUfesKw";
         const PUBKEY_2: &str = "14HZVR4bdF9QMowYxWrumcFBNfWnhDdD5XXA5za1fWwUhHxxFS1";
-        let pubkey_1 = helium_crypto::PublicKey::from_str(PUBKEY_1).expect("public key");
+        let pubkey_1 = crate::PublicKey::from_str(PUBKEY_1).expect("public key");
         let offset_1 = mk_beacon_offset(&pubkey_1, time::Duration::hours(6));
         // Same key and interval should always end up at the same offset
         assert_eq!(
             offset_1,
             mk_beacon_offset(&pubkey_1, time::Duration::hours(6))
         );
-        let pubkey_2 = helium_crypto::PublicKey::from_str(PUBKEY_2).expect("public key 2");
+        let pubkey_2 = crate::PublicKey::from_str(PUBKEY_2).expect("public key 2");
         let offset_2 = mk_beacon_offset(&pubkey_2, time::Duration::hours(6));
         assert_eq!(
             offset_2,
