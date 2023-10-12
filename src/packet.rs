@@ -1,4 +1,4 @@
-use crate::{error::DecodeError, Error, PublicKey, Region, Result};
+use crate::{DecodeError, Error, PublicKey, Region, Result};
 use helium_proto::services::{
     poc_lora,
     router::{PacketRouterPacketDownV1, PacketRouterPacketUpV1},
