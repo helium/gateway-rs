@@ -75,7 +75,7 @@ exponential-backoff = { git = "https://github.com/yoshuawuyts/exponential-backof
 semtech-udp = { version = ">=0.11", default-features = false, features = [
     "server",
 ] }
-helium-crypto = ">=0.8"
+helium-crypto = ">=0.8.3"
 time = { version = ">=0.3", features = ["std"] }
 
 [features]

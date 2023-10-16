@@ -7,7 +7,8 @@ RUN apt-get update && apt-get install --assume-yes --no-install-recommends \
     libtss2-dev \
     llvm-dev \
     libclang-dev \
-    clang    
+    clang \
+    pkg-config
 
 ENV CROSS_TOOLCHAIN_PREFIX=x86_64-linux-gnu-
 ENV CROSS_SYSROOT=/usr/x86_64-linux-gnu

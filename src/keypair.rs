@@ -103,13 +103,20 @@ impl FromStr for Keypair {
             Some("tpm") => {
                 let args = KeypairArgs::from_uri(&url).map_err(DecodeError::keypair_uri)?;
                 let network = args.get("network", Network::MainNet)?;
-                let path = url.path();
+                let key_identifier = &url.path()[1..];
+                let key_access = url.host().unwrap();
 
-                let keypair = tpm::Keypair::from_key_path(network, path)
-                    .map(helium_crypto::Keypair::from)
-                    .map_err(|err| {
-                        uri_error!("could not load tpm keypair on path {path}: {err:?}")
-                    })?;
+                let keypair = match key_access {
+                    "esys" => tpm::KeypairHandle::from_key_handle(
+                        network,
+                        u32::from_str_radix(&key_identifier[2..], 16).unwrap(),
+                    )
+                    .map(helium_crypto::Keypair::from),
+                    _ => Err(helium_crypto::Error::invalid_keytype_str(
+                        "unknown tpm key access type",
+                    )),
+                }
+                .map_err(|err| uri_error!("could not load tpm key {key_access}: {err:?}"))?;
 
                 Ok(keypair.into())
             }
