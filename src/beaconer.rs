@@ -414,7 +414,7 @@ mod test {
         let next_segment = current_segment + interval;
         assert!(current_time < next_segment);
 
-        // No beacom time, should pick a time in the current segment
+        // No beacon time, should pick a time in the current segment
         {
             let next_time = mk_next_beacon_time(current_time, None, interval);
             assert!(next_time > current_time);
