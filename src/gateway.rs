@@ -150,7 +150,7 @@ impl Gateway {
                         info!(%packet, "ignoring non-uplink packet");
                     }
                     Err(Error::Decode(DecodeError::CrcDisabled)) => {
-                        debug!("ignoring packet with disabled CRC");
+                        debug!("ignoring packet with disabled crc");
                     }
                     Err(Error::Decode(DecodeError::InvalidDataRate(datarate))) => {
                         debug!(%datarate, "ignoring packet with invalid datarate");
