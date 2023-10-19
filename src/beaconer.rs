@@ -145,6 +145,10 @@ impl Beaconer {
                             self.interval,
                         );
 
+                        // Log next beacom time if changed
+                        if Some(new_beacon_time) != self.next_beacon_time {
+                            info!(beacon_time = %new_beacon_time, "next beacon time");
+                        }
                         self.next_beacon_time = Some(new_beacon_time);
                         next_beacon_instant = Instant::now() + (new_beacon_time - new_timestamp);
 
