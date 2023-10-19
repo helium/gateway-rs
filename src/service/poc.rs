@@ -81,9 +81,9 @@ impl std::ops::DerefMut for PocIotService {
 }
 
 impl PocIotService {
-    pub fn new(uri: Uri, keypair: Arc<Keypair>) -> Self {
+    pub fn new(module: &'static str, uri: Uri, keypair: Arc<Keypair>) -> Self {
         let client = PocIotConduitClient {};
-        Self(ConduitService::new(uri, client, keypair))
+        Self(ConduitService::new(module, uri, client, keypair))
     }
 
     pub async fn send(&mut self, msg: lora_stream_request_v1::Request) -> Result {

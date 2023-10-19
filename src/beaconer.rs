@@ -66,7 +66,11 @@ impl Beaconer {
     ) -> Self {
         let interval = Duration::seconds(settings.poc.interval as i64);
         let entropy_uri = settings.poc.entropy_uri.clone();
-        let service = PocIotService::new(settings.poc.ingest_uri.clone(), settings.keypair.clone());
+        let service = PocIotService::new(
+            "beaconer",
+            settings.poc.ingest_uri.clone(),
+            settings.keypair.clone(),
+        );
         let reconnect = Reconnect::default();
         let region_params = Arc::new(region_watcher::current_value(&region_watch));
         let disabled = settings.poc.disable;

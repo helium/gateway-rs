@@ -21,6 +21,7 @@ pub const CONDUIT_CAPACITY: usize = 50;
 #[derive(Debug)]
 pub struct ConduitService<U, D, C: ConduitClient<U, D>> {
     pub uri: Uri,
+    module: &'static str,
     session_keypair: Option<Arc<Keypair>>,
     conduit: Option<Conduit<U, D>>,
     keypair: Arc<Keypair>,
@@ -84,9 +85,10 @@ impl<U, D> Conduit<U, D> {
 }
 
 impl<U, D, C: ConduitClient<U, D>> ConduitService<U, D, C> {
-    pub fn new(uri: Uri, client: C, keypair: Arc<Keypair>) -> Self {
+    pub fn new(module: &'static str, uri: Uri, client: C, keypair: Arc<Keypair>) -> Self {
         Self {
             uri,
+            module,
             keypair,
             client,
             conduit: None,
@@ -176,15 +178,16 @@ impl<U, D, C: ConduitClient<U, D>> ConduitService<U, D, C> {
     pub async fn session_init(&mut self, nonce: &[u8]) -> Result {
         let session_keypair = Arc::new(Keypair::new());
         let session_key = session_keypair.public_key();
+        let module: &'static str = self.module;
         let msg = self
             .client
             .mk_session_init(nonce, session_key, self.keypair.clone())
             .await?;
         self.send(msg)
-            .inspect_err(|err| warn!(%err, "failed to initialize session"))
+            .inspect_err(|err| warn!(module, %err, "failed to initialize session"))
             .await?;
         self.session_keypair = Some(session_keypair.clone());
-        info!(%session_key, "initialized session");
+        info!(module, %session_key, "initialized session");
         Ok(())
     }
 }

@@ -100,7 +100,7 @@ impl std::ops::DerefMut for PacketRouterService {
 impl PacketRouterService {
     pub fn new(uri: Uri, keypair: Arc<Keypair>) -> Self {
         let client = PacketRouterConduitClient {};
-        Self(ConduitService::new(uri, client, keypair))
+        Self(ConduitService::new("packet_router", uri, client, keypair))
     }
 
     pub async fn send_uplink(&mut self, mut msg: PacketRouterPacketUpV1) -> Result {
