@@ -1,6 +1,6 @@
 use crate::{
-    beaconer, packet, packet_router, region_watcher, sync, PacketDown, PacketUp, PublicKey,
-    RegionParams, Result, Settings,
+    beaconer, packet, packet_router, region_watcher, sync, DecodeError, Error, PacketDown,
+    PacketUp, PublicKey, RegionParams, Result, Settings,
 };
 use beacon::Beacon;
 use lorawan::PHYPayload;
@@ -148,6 +148,9 @@ impl Gateway {
                     }
                     Ok(packet) => {
                         info!(%packet, "ignoring non-uplink packet");
+                    }
+                    Err(Error::Decode(DecodeError::InvalidDataRate(datarate))) => {
+                        debug!(%datarate, "ignoring packet with invalid datarate");
                     }
                     Err(err) => {
                         warn!(%err, "ignoring push_data");
