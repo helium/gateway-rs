@@ -85,9 +85,12 @@ impl TryFrom<PacketUp> for poc_lora::LoraWitnessReportReqV1 {
 
 impl PacketUp {
     pub fn from_rxpk(rxpk: push_data::RxPk, gateway: &PublicKey, region: Region) -> Result<Self> {
-        if rxpk.get_crc_status() != &CRC::OK {
-            return Err(DecodeError::invalid_crc());
+        match rxpk.get_crc_status() {
+            CRC::OK => (),
+            CRC::Disabled => return Err(DecodeError::crc_disabled()),
+            CRC::Fail => return Err(DecodeError::crc_invalid()),
         }
+
         let rssi = rxpk
             .get_signal_rssi()
             .unwrap_or_else(|| rxpk.get_channel_rssi());
