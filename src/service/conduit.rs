@@ -149,7 +149,7 @@ impl<U, D, C: ConduitClient<U, D>> ConduitService<U, D, C> {
     }
 
     pub fn is_connected(&self) -> bool {
-        self.conduit.is_some()
+        self.conduit.is_some() && self.session_keypair.is_some()
     }
 
     pub fn gateway_key(&self) -> &PublicKey {
