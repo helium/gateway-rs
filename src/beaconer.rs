@@ -238,7 +238,7 @@ impl Beaconer {
     }
 
     async fn handle_beacon_tick(&mut self) {
-        // Ned to clone to allow the subsequence borrow of self for send_beacon.
+        // Need to clone to allow the subsequence borrow of self for send_beacon.
         // The Arc around the region_params makes this a cheap clone
         let region_params = self.region_params.clone();
         let last_beacon = Self::mk_beacon(&region_params, self.entropy_uri.clone())
