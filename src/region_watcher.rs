@@ -78,9 +78,9 @@ impl RegionWatcher {
                     Ok(None) => (),
                     Ok(Some(remote_params)) => {
                         self.request_retry = REGION_BACKOFF_RETRIES + 1;
-                        if remote_params != *self.watch.borrow() {
-                            _ = self.watch.send_replace(remote_params);
-                        };
+                        // We do not check for a change in params here since we
+                        // want to propagate the timestamp in the remote params
+                        _ = self.watch.send_replace(remote_params);
                     },
                 }
             }
