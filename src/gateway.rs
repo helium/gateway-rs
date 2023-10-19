@@ -118,7 +118,7 @@ impl Gateway {
                         // Only log if region parameters have changed to avoid
                         // log noise
                         if self.region_params != new_region_params {
-                            info!(region = RegionParams::to_string(&self.region_params), "region updated");
+                            info!(region = RegionParams::to_string(&new_region_params), "region updated");
                         }
                         self.region_params = new_region_params;
                     }

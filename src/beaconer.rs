@@ -238,6 +238,8 @@ impl Beaconer {
     }
 
     async fn handle_beacon_tick(&mut self) {
+        // Ned to clone to allow the subsequence borrow of self for send_beacon.
+        // The Arc around the region_params makes this a cheap clone
         let region_params = self.region_params.clone();
         let last_beacon = Self::mk_beacon(&region_params, self.entropy_uri.clone())
             .inspect_err(|err| warn!(%err, "construct beacon"))
@@ -409,7 +411,6 @@ mod test {
         let current_time = datetime!(2023-09-01 09:20 UTC);
 
         let current_segment = duration_trunc(current_time, interval);
-        assert_eq!(current_segment, duration_trunc(current_time, interval));
         let next_segment = current_segment + interval;
         assert!(current_time < next_segment);
 
