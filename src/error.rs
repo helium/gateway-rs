@@ -55,8 +55,10 @@ pub enum DecodeError {
     Prost(#[from] prost::DecodeError),
     #[error("lorawan decode: {0}")]
     LoraWan(#[from] lorawan::LoraWanError),
-    #[error("packet crc")]
-    InvalidCrc,
+    #[error("crc is invalid and packet may be corrupted")]
+    CrcInvalid,
+    #[error("crc is disabled")]
+    CrcDisabled,
     #[error("unexpected transaction in envelope")]
     InvalidEnvelope,
     #[error("no rx1 window in downlink packet")]
@@ -128,8 +130,12 @@ impl DecodeError {
         Error::Decode(DecodeError::InvalidEnvelope)
     }
 
-    pub fn invalid_crc() -> Error {
-        Error::Decode(DecodeError::InvalidCrc)
+    pub fn crc_invalid() -> Error {
+        Error::Decode(DecodeError::CrcInvalid)
+    }
+
+    pub fn crc_disabled() -> Error {
+        Error::Decode(DecodeError::CrcInvalid)
     }
 
     pub fn prost_decode(msg: &'static str) -> Error {
