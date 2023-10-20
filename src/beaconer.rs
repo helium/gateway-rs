@@ -110,10 +110,11 @@ impl Beaconer {
                     // Check if beaconing is enabled and we have valid region params
                     if !self.disabled && self.region_params.check_valid().is_ok() {
                         self.handle_beacon_tick().await;
-                    } else {
-                        // otherwise sleep for another interval period
-                        next_beacon_instant = Instant::now() + self.interval;
                     }
+                    // sleep up to another interval period. A subsequent region
+                    // param update will adjust this beack to a random offset in
+                    // the next valid window
+                    next_beacon_instant = Instant::now() + self.interval;
                 },
                 message = self.messages.recv() => match message {
                     Some(Message::ReceivedBeacon(packet)) => self.handle_received_beacon(packet).await,
