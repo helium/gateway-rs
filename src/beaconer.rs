@@ -112,7 +112,7 @@ impl Beaconer {
                         self.handle_beacon_tick().await;
                     }
                     // sleep up to another interval period. A subsequent region
-                    // param update will adjust this beack to a random offset in
+                    // param update will adjust this back to a random offset in
                     // the next valid window
                     next_beacon_instant = Instant::now() + self.interval;
                 },
