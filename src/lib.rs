@@ -81,14 +81,3 @@ macro_rules! impl_verify {
     };
 }
 pub(crate) use impl_verify;
-
-// macro_rules! verify {
-//     ($key: expr, $msg: expr, $sig: ident) => {{
-//         let mut _msg = $msg.clone();
-//         _msg.$sig = vec![];
-//         let buf = _msg.encode_to_vec();
-//         $key.verify(&buf, &$msg.$sig).map_err(Error::from)
-//     }};
-// }
-
-// pub(crate) use verify;
