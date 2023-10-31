@@ -133,7 +133,7 @@ impl PacketRouter {
     }
 
     async fn handle_reconnect(&mut self) -> Result {
-        // Do not send waiting packets on ok here since we wait for a sesson
+        // Do not send waiting packets on ok here since we wait for a session
         // offer. Also do not reset the reconnect retry counter since only a
         // session key indicates a good connection
         self.service
