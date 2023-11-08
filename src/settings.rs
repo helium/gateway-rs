@@ -124,8 +124,8 @@ impl Settings {
 
     /// Returns the onboarding key for this gateway. The onboarding key is
     /// determined by the onboarding setting. If the onbaording setting is not
-    /// present or there is any error retrievign the onboarding key from the
-    /// confignred setting the public key of the gateawy is returned.
+    /// present or there is any error retrieving the onboarding key from the
+    /// configured setting the public key of the gateway is returned.
     pub fn onboarding_key(&self) -> PublicKey {
         self.onboarding.as_ref().map_or_else(
             || self.keypair.public_key().to_owned(),
@@ -312,7 +312,7 @@ mod test {
 
         // Now try URI form
         assert_eq!(
-            Uri::try_from(&ListenAddress::Port(4468)).expect("urifrom port"),
+            Uri::try_from(&ListenAddress::Port(4468)).expect("uri from port"),
             Uri::from_static("http://127.0.0.1:4468")
         );
         assert_eq!(

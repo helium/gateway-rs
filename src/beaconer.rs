@@ -146,7 +146,7 @@ impl Beaconer {
                             self.interval,
                         );
 
-                        // Log next beacom time if changed
+                        // Log next beacon time if changed
                         if Some(new_beacon_time) != self.next_beacon_time {
                             info!(beacon_time = %new_beacon_time, "next beacon time");
                         }
