@@ -342,12 +342,17 @@ fn mk_next_beacon_time(
                 next_segment + random_duration(interval)
             } else {
                 // previous segment: Pick a time in the remainder of this
-                // segment
+                // segment. This really only happens as the current time enters
+                // a new segment
                 current_time + random_duration(next_segment - current_time)
             }
         }
-        // No next beacon time pick a time in the remainder of this segment
-        None => current_time + random_duration(next_segment - current_time),
+        // No next beacon time pick a random time in this segment as the beacon
+        // time and use this function again
+        None => {
+            let beacon_time = current_segment + random_duration(interval);
+            mk_next_beacon_time(current_time, Some(beacon_time), interval)
+        }
     }
 }
 
@@ -415,12 +420,12 @@ mod test {
         let next_segment = current_segment + interval;
         assert!(current_time < next_segment);
 
-        // No beacon time, should pick a time in the current segment
+        // No beacon time, should pick a time in the remainder of
+        // the current segment or in the next segment
         {
             let next_time = mk_next_beacon_time(current_time, None, interval);
             assert!(next_time > current_time);
-            assert!(next_time < next_segment);
-            assert_eq!(current_segment, duration_trunc(next_time, interval));
+            assert!(next_time < next_segment + interval);
         }
 
         // Beacon time in the future
