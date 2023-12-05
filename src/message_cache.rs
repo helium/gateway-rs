@@ -4,19 +4,23 @@ use std::{
     time::{Duration, Instant},
 };
 
+pub trait MessageHash {
+    fn hash(&self) -> Vec<u8>;
+}
+
 #[derive(Debug)]
-pub struct MessageCache<T: PartialEq> {
+pub struct MessageCache<T: PartialEq + MessageHash> {
     cache: VecDeque<CacheMessage<T>>,
     max_messages: u16,
 }
 
 #[derive(Debug, Clone)]
-pub struct CacheMessage<T: PartialEq> {
+pub struct CacheMessage<T: PartialEq + MessageHash> {
     received: Instant,
     message: T,
 }
 
-impl<T: PartialEq> CacheMessage<T> {
+impl<T: PartialEq + MessageHash> CacheMessage<T> {
     pub fn new(message: T, received: Instant) -> Self {
         Self { message, received }
     }
@@ -26,7 +30,7 @@ impl<T: PartialEq> CacheMessage<T> {
     }
 }
 
-impl<T: PartialEq> Deref for CacheMessage<T> {
+impl<T: PartialEq + MessageHash> Deref for CacheMessage<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -34,7 +38,12 @@ impl<T: PartialEq> Deref for CacheMessage<T> {
     }
 }
 
-impl<T: PartialEq> MessageCache<T> {
+pub enum PopFront<'a> {
+    Duration(Duration),
+    Ack(&'a [u8]),
+}
+
+impl<T: PartialEq + MessageHash> MessageCache<T> {
     pub fn new(max_messages: u16) -> Self {
         let waiting = VecDeque::new();
         Self {
@@ -91,15 +100,25 @@ impl<T: PartialEq> MessageCache<T> {
         self.cache.push_front(cache_message);
     }
 
-    pub fn pop_front(&mut self, duration: Duration) -> (usize, Option<CacheMessage<T>>) {
+    pub fn pop_front(&mut self, args: PopFront) -> (usize, Option<CacheMessage<T>>) {
         let mut dropped = 0;
         let mut front = None;
         while let Some(msg) = self.cache.pop_front() {
-            if msg.hold_time() <= duration {
-                front = Some(msg);
-                break;
-            }
-            // held for too long, count as dropped and move on
+            match args {
+                PopFront::Duration(duration) => {
+                    if msg.hold_time() <= duration {
+                        front = Some(msg);
+                        break;
+                    }
+                }
+                PopFront::Ack(ack) => {
+                    if msg.hash() == ack {
+                        front = self.cache.pop_front();
+                        break;
+                    }
+                }
+            };
+            // held for too long or acked, count as dropped and move on
             dropped += 1;
         }
         (dropped, front)

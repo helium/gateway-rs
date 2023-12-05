@@ -9,7 +9,6 @@ use semtech_udp::{
     push_data::{self, CRC},
     CodingRate, DataRate, Modulation,
 };
-use sha2::{Digest, Sha256};
 use std::{
     convert::TryFrom,
     fmt,
@@ -150,10 +149,6 @@ impl PacketUp {
         lorawan::PHYPayload::read(direction, &mut Cursor::new(payload))
             .map(|p| p.payload)
             .map_err(Error::from)
-    }
-
-    pub fn hash(&self) -> Vec<u8> {
-        Sha256::digest(&self.0.payload).to_vec()
     }
 }
 

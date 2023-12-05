@@ -1,14 +1,16 @@
 use crate::{
     gateway,
-    message_cache::{CacheMessage, MessageCache},
+    message_cache::{CacheMessage, MessageCache, MessageHash, PopFront},
     service::{packet_router::PacketRouterService, Reconnect},
     sync, Base64, PacketUp, PublicKey, Result, Settings,
 };
 use futures::TryFutureExt;
 use helium_proto::services::router::{
-    envelope_down_v1, PacketRouterPacketDownV1, PacketRouterPacketUpV1, PacketRouterSessionOfferV1,
+    envelope_down_v1, PacketRouterPacketAckV1, PacketRouterPacketDownV1, PacketRouterPacketUpV1,
+    PacketRouterSessionOfferV1,
 };
 use serde::Serialize;
+use sha2::{Digest, Sha256};
 use std::{ops::Deref, time::Instant as StdInstant};
 use tokio::time::Duration;
 
@@ -56,6 +58,12 @@ pub struct PacketRouter {
     service: PacketRouterService,
     reconnect: Reconnect,
     store: MessageCache<PacketUp>,
+}
+
+impl MessageHash for PacketUp {
+    fn hash(&self) -> Vec<u8> {
+        Sha256::digest(&self.payload).to_vec()
+    }
 }
 
 impl PacketRouter {
@@ -123,6 +131,7 @@ impl PacketRouter {
                         }
                         self.reconnect.update_next_time(session_result.is_err());
                     },
+                    Ok(envelope_down_v1::Data::PacketAck(message)) => self.handle_packet_ack(message).await,
                     Err(err) => {
                         warn!(?err, "router error");
                         self.reconnect.update_next_time(true);
@@ -154,6 +163,10 @@ impl PacketRouter {
         self.transmit.downlink(message.into()).await;
     }
 
+    async fn handle_packet_ack(&mut self, message: PacketRouterPacketAckV1) {
+        self.store.pop_front(PopFront::Ack(&message.payload_hash));
+    }
+
     async fn handle_session_offer(&mut self, message: PacketRouterSessionOfferV1) -> Result {
         self.service.session_init(&message.nonce).await?;
         self.send_waiting_packets()
@@ -162,7 +175,9 @@ impl PacketRouter {
     }
 
     async fn send_waiting_packets(&mut self) -> Result {
-        while let (removed, Some(packet)) = self.store.pop_front(STORE_GC_INTERVAL) {
+        while let (removed, Some(packet)) =
+            self.store.pop_front(PopFront::Duration(STORE_GC_INTERVAL))
+        {
             if removed > 0 {
                 info!(removed, "discarded queued packets");
             }
