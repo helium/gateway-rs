@@ -1,7 +1,7 @@
 use crate::{
     gateway,
-    message_cache::{CacheMessage, MessageCache, MessageHash, PopFront},
-    service::{packet_router::PacketRouterService, Reconnect},
+    message_cache::{CacheMessage, MessageCache, MessageHash},
+    service::{packet_router::PacketRouterService, AckTimer, Reconnect},
     sync, Base64, PacketUp, PublicKey, Result, Settings,
 };
 use futures::TryFutureExt;
@@ -13,7 +13,6 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::{ops::Deref, time::Instant as StdInstant};
 use tokio::time::Duration;
-
 use tracing::{debug, info, warn};
 
 const STORE_GC_INTERVAL: Duration = Duration::from_secs(60);
@@ -57,6 +56,7 @@ pub struct PacketRouter {
     transmit: gateway::MessageSender,
     service: PacketRouterService,
     reconnect: Reconnect,
+    ack_timer: AckTimer,
     store: MessageCache<PacketUp>,
 }
 
@@ -73,16 +73,21 @@ impl PacketRouter {
         transmit: gateway::MessageSender,
     ) -> Self {
         let router_settings = &settings.router;
-        let service =
-            PacketRouterService::new(router_settings.uri.clone(), settings.keypair.clone());
+        let service = PacketRouterService::new(
+            router_settings.uri.clone(),
+            router_settings.ack_timeout(),
+            settings.keypair.clone(),
+        );
         let store = MessageCache::new(router_settings.queue);
         let reconnect = Reconnect::default();
+        let ack_timer = AckTimer::new(router_settings.ack_timeout());
         Self {
             service,
             transmit,
             messages,
             store,
             reconnect,
+            ack_timer,
         }
     }
 
@@ -102,6 +107,7 @@ impl PacketRouter {
                             self.service.disconnect();
                             warn!("router disconnected");
                             self.reconnect.update_next_time(true);
+                            self.ack_timer.update_next_time(false);
                         },
                     Some(Message::Status(tx_resp)) => {
                         let status = RouterStatus {
@@ -116,6 +122,13 @@ impl PacketRouter {
                 _ = self.reconnect.wait() => {
                     let reconnect_result = self.handle_reconnect().await;
                     self.reconnect.update_next_time(reconnect_result.is_err());
+                    self.ack_timer.update_next_time(reconnect_result.is_ok());
+                },
+                _ = self.ack_timer.wait() => {
+                    warn!("no packet acks received");
+                    let reconnect_result = self.handle_reconnect().await;
+                    self.reconnect.update_next_time(reconnect_result.is_err());
+                    self.ack_timer.update_next_time(reconnect_result.is_ok());
                 },
                 router_message = self.service.recv() => match router_message {
                     Ok(envelope_down_v1::Data::Packet(message)) => self.handle_downlink(message).await,
@@ -130,11 +143,16 @@ impl PacketRouter {
                             self.service.disconnect();
                         }
                         self.reconnect.update_next_time(session_result.is_err());
+                        self.ack_timer.update_next_time(session_result.is_ok());
                     },
-                    Ok(envelope_down_v1::Data::PacketAck(message)) => self.handle_packet_ack(message).await,
+                    Ok(envelope_down_v1::Data::PacketAck(message)) => {
+                        self.handle_packet_ack(message).await;
+                        self.ack_timer.update_next_time(true);
+                    },
                     Err(err) => {
                         warn!(?err, "router error");
                         self.reconnect.update_next_time(true);
+                        self.ack_timer.update_next_time(false);
                     },
                 }
             }
@@ -164,7 +182,14 @@ impl PacketRouter {
     }
 
     async fn handle_packet_ack(&mut self, message: PacketRouterPacketAckV1) {
-        self.store.pop_front(PopFront::Ack(&message.payload_hash));
+        if message.payload_hash.is_empty() {
+            // Empty ack is just a heartbeat and is ignored
+            return;
+        }
+        if let Some(index) = self.store.index_of(|msg| msg.hash == message.payload_hash) {
+            self.store.remove_to(index);
+            debug!(removed = index, "removed acked packets");
+        }
     }
 
     async fn handle_session_offer(&mut self, message: PacketRouterSessionOfferV1) -> Result {
@@ -175,9 +200,7 @@ impl PacketRouter {
     }
 
     async fn send_waiting_packets(&mut self) -> Result {
-        while let (removed, Some(packet)) =
-            self.store.pop_front(PopFront::Duration(STORE_GC_INTERVAL))
-        {
+        while let (removed, Some(packet)) = self.store.pop_front(STORE_GC_INTERVAL) {
             if removed > 0 {
                 info!(removed, "discarded queued packets");
             }

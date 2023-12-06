@@ -2,7 +2,7 @@ use crate::{api::GatewayStakingMode, KeyedUri, Keypair, PublicKey, Region, Resul
 use config::{Config, Environment, File};
 use http::uri::Uri;
 use serde::Deserialize;
-use std::{fmt, path::Path, str::FromStr, sync::Arc};
+use std::{fmt, path::Path, str::FromStr, sync::Arc, time::Duration};
 
 pub fn version() -> semver::Version {
     semver::Version::parse(env!("CARGO_PKG_VERSION")).expect("unable to parse version")
@@ -102,6 +102,15 @@ pub struct RouterSettings {
     pub uri: Uri,
     // Maximum number of packets to queue up for the packet router
     pub queue: u16,
+    /// Timeout for packet acks in seconds
+    #[serde(default = "default_ack_timeout")]
+    pub ack: u64,
+}
+
+impl RouterSettings {
+    pub fn ack_timeout(&self) -> Duration {
+        Duration::from_secs(self.ack)
+    }
 }
 
 impl Settings {
@@ -149,6 +158,11 @@ fn default_api() -> ListenAddress {
 fn default_poc_interval() -> u64 {
     // every 6 hours
     6 * 3600
+}
+
+fn default_ack_timeout() -> u64 {
+    // disabled = 0
+    0
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Copy, clap::ValueEnum)]
