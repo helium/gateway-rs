@@ -16,8 +16,8 @@ pub struct MessageCache<T: PartialEq + MessageHash> {
 
 #[derive(Debug, Clone)]
 pub struct CacheMessage<T: PartialEq + MessageHash> {
-    received: Instant,
-    message: T,
+    pub received: Instant,
+    pub message: T,
 }
 
 impl<T: PartialEq + MessageHash> CacheMessage<T> {
@@ -53,13 +53,14 @@ impl<T: PartialEq + MessageHash> MessageCache<T> {
     ///
     /// Pushing a packet onto the back of a full cache will cause the oldest
     /// (first) message in the cache to be dropped.
-    pub fn push_back(&mut self, message: T, received: Instant) -> Option<CacheMessage<T>> {
-        self.cache.push_back(CacheMessage::new(message, received));
+    pub fn push_back(&mut self, message: T, received: Instant) -> &CacheMessage<T> {
+        let message = CacheMessage::new(message, received);
+        self.cache.push_back(message);
         if self.len() > self.max_messages as usize {
-            self.cache.pop_front()
-        } else {
-            None
+            self.cache.pop_front();
         }
+        // safe to unwrap given that the message we just pushed to the back
+        self.cache.back().unwrap()
     }
 
     /// Returns the index of the first matching message in the cache or None if
@@ -126,6 +127,10 @@ impl<T: PartialEq + MessageHash> MessageCache<T> {
     /// message in the cache
     pub fn peek_front(&self) -> Option<&CacheMessage<T>> {
         self.cache.front()
+    }
+
+    pub fn peek_back(&self) -> Option<&CacheMessage<T>> {
+        self.cache.back()
     }
 
     pub fn len(&self) -> usize {

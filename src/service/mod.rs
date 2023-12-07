@@ -66,9 +66,9 @@ pub struct AckTimer {
 }
 
 impl AckTimer {
-    pub fn new(timeout: Duration) -> Self {
+    pub fn new(timeout: Duration, active: bool) -> Self {
         Self {
-            next_time: Instant::now() + timeout,
+            next_time: Self::calc_next_time(timeout, active),
             timeout,
         }
     }
@@ -82,12 +82,16 @@ impl AckTimer {
     }
 
     pub fn update_next_time(&mut self, active: bool) {
+        self.next_time = Self::calc_next_time(self.timeout, active)
+    }
+
+    fn calc_next_time(timeout: Duration, active: bool) -> Instant {
         // timeout is 0 if the ack timer is not requested. Active means the
         // connection is open and acks are to be expected
-        self.next_time = if self.timeout.as_secs() > 0 && active {
-            Instant::now() + self.timeout
+        if timeout.as_secs() > 0 && active {
+            Instant::now() + timeout + Duration::from_secs(1)
         } else {
-            Instant::now() - self.timeout
-        };
+            Instant::now() - timeout
+        }
     }
 }

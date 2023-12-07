@@ -40,12 +40,6 @@ impl From<PacketUp> for PacketRouterPacketUpV1 {
     }
 }
 
-impl From<&PacketUp> for PacketRouterPacketUpV1 {
-    fn from(value: &PacketUp) -> Self {
-        value.packet.clone()
-    }
-}
-
 impl From<PacketRouterPacketDownV1> for PacketDown {
     fn from(value: PacketRouterPacketDownV1) -> Self {
         Self(value)

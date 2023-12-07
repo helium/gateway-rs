@@ -11,7 +11,7 @@ use helium_proto::services::router::{
 };
 use serde::Serialize;
 use sha2::{Digest, Sha256};
-use std::{ops::Deref, time::Instant as StdInstant};
+use std::time::Instant as StdInstant;
 use tokio::time::Duration;
 use tracing::{debug, info, warn};
 
@@ -80,7 +80,7 @@ impl PacketRouter {
         );
         let store = MessageCache::new(router_settings.queue);
         let reconnect = Reconnect::default();
-        let ack_timer = AckTimer::new(router_settings.ack_timeout());
+        let ack_timer = AckTimer::new(router_settings.ack_timeout(), false);
         Self {
             service,
             transmit,
@@ -126,9 +126,9 @@ impl PacketRouter {
                 },
                 _ = self.ack_timer.wait() => {
                     warn!("no packet acks received");
-                    let reconnect_result = self.handle_reconnect().await;
-                    self.reconnect.update_next_time(reconnect_result.is_err());
-                    self.ack_timer.update_next_time(reconnect_result.is_ok());
+                    self.service.disconnect();
+                    self.reconnect.update_next_time(true);
+                    self.ack_timer.update_next_time(false);
                 },
                 router_message = self.service.recv() => match router_message {
                     Ok(envelope_down_v1::Data::Packet(message)) => self.handle_downlink(message).await,
@@ -151,6 +151,7 @@ impl PacketRouter {
                     },
                     Err(err) => {
                         warn!(?err, "router error");
+                        self.service.disconnect();
                         self.reconnect.update_next_time(true);
                         self.ack_timer.update_next_time(false);
                     },
@@ -170,9 +171,9 @@ impl PacketRouter {
     }
 
     async fn handle_uplink(&mut self, uplink: PacketUp, received: StdInstant) -> Result {
-        self.store.push_back(uplink, received);
+        let message = self.store.push_back(uplink, received).clone();
         if self.service.is_connected() {
-            self.send_waiting_packets().await?;
+            self.send_packet(message).await?;
         }
         Ok(())
     }
@@ -188,23 +189,23 @@ impl PacketRouter {
         }
         if let Some(index) = self.store.index_of(|msg| msg.hash == message.payload_hash) {
             self.store.remove_to(index);
-            debug!(removed = index, "removed acked packets");
+            info!(removed = index + 1, "cleared acked packets");
         }
     }
 
     async fn handle_session_offer(&mut self, message: PacketRouterSessionOfferV1) -> Result {
         self.service.session_init(&message.nonce).await?;
-        self.send_waiting_packets()
+        self.send_unacked_packets()
             .inspect_err(|err| warn!(%err, "failed to send queued packets"))
             .await
     }
 
-    async fn send_waiting_packets(&mut self) -> Result {
+    async fn send_unacked_packets(&mut self) -> Result {
         while let (removed, Some(packet)) = self.store.pop_front(STORE_GC_INTERVAL) {
             if removed > 0 {
                 info!(removed, "discarded queued packets");
             }
-            if let Err(err) = self.send_packet(&packet).await {
+            if let Err(err) = self.send_packet(packet.clone()).await {
                 warn!(%err, "failed to send uplink");
                 self.store.push_front(packet);
                 return Err(err);
@@ -213,11 +214,12 @@ impl PacketRouter {
         Ok(())
     }
 
-    async fn send_packet(&mut self, packet: &CacheMessage<PacketUp>) -> Result {
+    async fn send_packet(&mut self, packet: CacheMessage<PacketUp>) -> Result {
         debug!(packet_hash = packet.hash().to_b64(), "sending packet");
 
-        let mut uplink: PacketRouterPacketUpV1 = packet.deref().into();
-        uplink.hold_time = packet.hold_time().as_millis() as u64;
+        let hold_time = packet.hold_time().as_millis() as u64;
+        let mut uplink: PacketRouterPacketUpV1 = packet.message.into();
+        uplink.hold_time = hold_time;
         self.service.send_uplink(uplink).await
     }
 }
