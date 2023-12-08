@@ -54,5 +54,13 @@ uri = "http://mainnet-config.helium.io:6080/"
 [router]
 uri = "http://mainnet-router.helium.io:8080/"
 # Maximum number of packets to queue up for the packet router
+# Do NOT set hiher than 25 to avoid hpr rate limiting restrictions
 queue = 20
+# When non 0, the numnber of seconds to expect an ack for uplink packets
+#
+# ack_timeout = 0
 
+# maximum time a packet is queued for before considered to stale to uplink. 
+# Default is 60s
+#
+# gc_timeout = 60

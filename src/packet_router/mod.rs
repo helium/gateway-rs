@@ -11,11 +11,8 @@ use helium_proto::services::router::{
 };
 use serde::Serialize;
 use sha2::{Digest, Sha256};
-use std::time::Instant as StdInstant;
-use tokio::time::Duration;
+use std::time::{Duration, Instant as StdInstant};
 use tracing::{debug, info, warn};
-
-const STORE_GC_INTERVAL: Duration = Duration::from_secs(60);
 
 #[derive(Debug)]
 pub enum Message {
@@ -57,6 +54,7 @@ pub struct PacketRouter {
     service: PacketRouterService,
     reconnect: Reconnect,
     ack_timer: AckTimer,
+    gc_timeout: Duration,
     store: MessageCache<PacketUp>,
 }
 
@@ -81,6 +79,7 @@ impl PacketRouter {
         let store = MessageCache::new(router_settings.queue);
         let reconnect = Reconnect::default();
         let ack_timer = AckTimer::new(router_settings.ack_timeout(), false);
+        let gc_timeout = router_settings.gc_timeout();
         Self {
             service,
             transmit,
@@ -88,6 +87,7 @@ impl PacketRouter {
             store,
             reconnect,
             ack_timer,
+            gc_timeout,
         }
     }
 
@@ -201,7 +201,7 @@ impl PacketRouter {
     }
 
     async fn send_unacked_packets(&mut self) -> Result {
-        while let (removed, Some(packet)) = self.store.pop_front(STORE_GC_INTERVAL) {
+        while let (removed, Some(packet)) = self.store.pop_front(self.gc_timeout) {
             if removed > 0 {
                 info!(removed, "discarded queued packets");
             }

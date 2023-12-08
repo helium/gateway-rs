@@ -104,12 +104,18 @@ pub struct RouterSettings {
     pub queue: u16,
     /// Timeout for packet acks in seconds
     #[serde(default = "default_ack_timeout")]
-    pub ack: u64,
+    pub ack_timeout: u64,
+    #[serde(default = "default_gc_timeout")]
+    pub gc_timeout: u64,
 }
 
 impl RouterSettings {
     pub fn ack_timeout(&self) -> Duration {
-        Duration::from_secs(self.ack)
+        Duration::from_secs(self.ack_timeout)
+    }
+
+    pub fn gc_timeout(&self) -> Duration {
+        Duration::from_secs(self.gc_timeout)
     }
 }
 
@@ -161,8 +167,13 @@ fn default_poc_interval() -> u64 {
 }
 
 fn default_ack_timeout() -> u64 {
-    // disabled = 0
+    // in seconds, disabled = 0
     0
+}
+
+fn default_gc_timeout() -> u64 {
+    // 60 seconds
+    60
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Copy, clap::ValueEnum)]
