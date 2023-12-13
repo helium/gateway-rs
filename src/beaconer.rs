@@ -1,7 +1,7 @@
 //! This module provides proof-of-coverage (PoC) beaconing support.
 use crate::{
     gateway::{self, BeaconResp},
-    message_cache::MessageCache,
+    message_cache::{MessageCache, MessageHash},
     region_watcher,
     service::{entropy::EntropyService, poc::PocIotService, Reconnect},
     settings::Settings,
@@ -10,6 +10,7 @@ use crate::{
 use futures::TryFutureExt;
 use helium_proto::services::poc_lora::{self, lora_stream_response_v1};
 use http::Uri;
+use sha2::{Digest, Sha256};
 use std::sync::Arc;
 use time::{Duration, Instant, OffsetDateTime};
 use tracing::{info, warn};
@@ -55,6 +56,12 @@ pub struct Beaconer {
     /// Use for channel plan and FR parameters
     region_params: Arc<RegionParams>,
     entropy_uri: Uri,
+}
+
+impl MessageHash for Vec<u8> {
+    fn hash(&self) -> Vec<u8> {
+        Sha256::digest(self).to_vec()
+    }
 }
 
 impl Beaconer {
