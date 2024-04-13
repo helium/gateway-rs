@@ -293,3 +293,19 @@ pub(crate) mod datarate {
         Ok(rate)
     }
 }
+
+#[test]
+fn snr_conversion() {
+    use semtech_udp::{push_data, MacAddress};
+    let json = "{\"rxpk\":[{\"jver\":1,\"tmst\":682631918,\"chan\":0,\"rfch\":0,\"freq\":865.062500,\"mid\": 0,\"stat\":1,\"modu\":\"LORA\",\"datr\":\"SF12BW125\",\"codr\":\"4/5\",\"rssis\":-95,\"lsnr\":6.8,\"foff\":-1300,\"rssi\":-94,\"size\":20,\"data\":\"QNbPNwABAQANyqD8ngiq26Hk4gs=\"}]}";
+    let data: push_data::Data = serde_json::from_str(json).expect("Error parsing push_data::Data");
+    let rxpk = push_data::Packet {
+        random_token: 0,
+        gateway_mac: MacAddress::from([0, 0, 0, 0, 0, 0, 0, 0]),
+        data,
+    };
+    // random pubkey
+    let public_key = PublicKey::from_bytes(&[0; 33]).unwrap();
+    let packet_up = PacketUp::from_rxpk(rxpk.data.rxpk.unwrap().pop().unwrap(), &public_key, Region::from_i32(1).unwrap()).unwrap();
+    assert_eq!(packet_up.snr, 6.8);
+}
