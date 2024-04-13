@@ -50,10 +50,16 @@ impl From<PacketRouterPacketDownV1> for PacketDown {
 
 impl fmt::Display for PacketUp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut decimal = self.0.frequency.to_string();
+        // insert period before the last 6 digits
+        decimal.insert(decimal.len() - 6, '.');
+        // remove trailing 0's
+        decimal = decimal.trim_end_matches('0').to_string();
+
         f.write_fmt(format_args!(
-            "@{} us, {:.2} MHz, {:?}, snr: {}, rssi: {}, len: {}",
+            "@{} us, {} MHz, {:?}, snr: {}, rssi: {}, len: {}",
             self.0.timestamp,
-            self.0.frequency,
+            decimal,
             self.0.datarate(),
             self.0.snr,
             self.0.rssi,
