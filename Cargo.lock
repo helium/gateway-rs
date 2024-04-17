@@ -850,6 +850,7 @@ dependencies = [
  "lorawan",
  "prost",
  "rand",
+ "rust_decimal",
  "semtech-udp",
  "semver",
  "serde",
