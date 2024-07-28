@@ -25,7 +25,7 @@ rand = "0.8"
 base64 = ">=0.21"
 sha2 = "0"
 thiserror = "1.0"
-prost = "0"
+prost = "0.12"
 
 [dependencies]
 clap = { version = "4", default-features = false, features = [
@@ -61,8 +61,8 @@ tracing-appender = "0"
 thiserror = { workspace = true }
 rand = { workspace = true }
 prost = { workspace = true }
-tonic = "0"
-http = "0"
+tonic = "0.10"
+http = "0.2" # match with tonic's version
 sha2 = { workspace = true }
 base64 = { workspace = true }
 helium-proto = { workspace = true }

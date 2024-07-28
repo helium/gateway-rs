@@ -37,7 +37,7 @@ impl LocalServer {
 
     pub async fn run(self, shutdown: &triggered::Listener) -> Result {
         let listen_addr = self.listen_addr;
-        tracing::Span::current().record("listen", &listen_addr.to_string());
+        tracing::Span::current().record("listen", listen_addr.to_string());
         info!(listen = %listen_addr, "starting");
         TransportServer::builder()
             .add_service(Server::new(self))
