@@ -232,7 +232,7 @@ To use in your `settings.toml` override the `keypair` setting to reflect the use
 of the ECC and specify the bus address and slot to use. For example:
 
 ```
-keypair = "ecc://i2c-1:96?slot=0&network=mainnet"
+keypair = "ecc://i2c-1:96?slot=0"
 ```
 
 will have helium_gateway use the ECC at the `/dev/i2c-1` device driver location,
@@ -284,29 +284,26 @@ the information you will need to use it can be gleaned by using the `--help`
 flag which provides the following output:
 
 ```
-Helium Light Gateway
+Helium Gateway
 
-USAGE:
-    helium_gateway [FLAGS] [OPTIONS] <SUBCOMMAND>
+Usage:
 
-FLAGS:
-        --daemon     Daemonize the application
-    -h, --help       Prints help information
-    -V, --version    Prints version information
+Commands:
+  key     Commands on gateway keys
+  info    Info command. Retrieve all or a subset of information from the running service
+  server  Run the gateway service
+  add     Construct an add gateway transaction for this gateway
+  help    Print this message or the help of the given subcommand(s)
 
-OPTIONS:
-    -c <config>        Configuration file to use [default: /etc/helium_gateway/settings.toml]
-
-SUBCOMMANDS:
-    add       Construct an add gateway transaction for this gateway
-    help      Prints this message or the help of the given subcommand(s)
-    info      Info command. Retrieve all or a subset of information from the running service
-    key       Commands on gateway keys
-    server    Run the gateway service
+Options:
+  -c <CONFIG>      Configuration file to use [default: /etc/helium_gateway/settings.toml]
+      --stdin      Monitor stdin and terminate when stdin closes
+  -h, --help       Print help
+  -V, --version    Print version
 ```
 
 As you can see, apart from the `help` command, there are four core subcommands
-that you can pass: `add`, `key`, `server`. The descriptions of what these
+that you can pass: `key`, `info`, `server` and `add`. The descriptions of what these
 subcommands do is shown in brief in the above help output, and are explained in
 more detail in the sections below.
 
@@ -319,8 +316,7 @@ follows whilst passing any of the other commands such as `server` or `add`
 ./helium_gateway -c /location/of/config/file server
 ```
 
-Lastly you can check the version, read the help information, or daemonize the
-application using the `--version`, `--help` and `--daemon` flags respectively.
+Lastly you can check the version using `--version` or read the help information using the `--help` flag.
 
 ### Add gateway subcommand
 
@@ -333,17 +329,13 @@ Hotspots](https://docs.helium.com/mine-hnt/data-only-hotspots/#add-hotspot).
 ```
 Construct an add gateway transaction for this gateway
 
-USAGE:
-helium_gateway add [OPTIONS] --owner <owner> --payer <payer>
+Usage:
 
-FLAGS:
--h, --help Prints help information
--V, --version Prints version information
-
-OPTIONS:
---mode <mode> The staking mode for adding the light gateway [default: dataonly]
---owner <owner> The target owner account of this gateway
---payer <payer> The account that will pay account for this addition
+Options:
+      --owner <OWNER>  The solana address of the target owner for this gateway
+      --payer <PAYER>  The solana address of the payer account that will pay account for this addition
+      --mode <MODE>    The staking mode for adding the gateway [default: dataonly] [possible values: dataonly, full]
+  -h, --help           Print help
 ```
 
 So for example, to construct a data-only add gateway transaction you would enter
@@ -363,26 +355,22 @@ The output of this command is a JSON object which looks like the following:
 
 ```json
 {
-  "address": "11TL62V8NYvSTXmV5CZCjaucskvNR1Fdar1Pg4Hzmzk5tk2JBac",
-  "fee": 65000,
+  "address": "13GAPer3q5D4X4xFDeSaDtqq1mYji4tCjbMcQN7fL3YVvvgXyer",
   "mode": "dataonly",
-  "owner": "14GWyFj9FjLHzoN3aX7Tq7PL6fEg4dfWPY8CrK8b9S5ZrcKDz6S",
-  "payer": "14GWyFj9FjLHzoN3aX7Tq7PL6fEg4dfWPY8CrK8b9S5ZrcKDz6S",
-  "staking fee": 1000000,
-  "txn": "CrkBCiEBrlImpYLbJ0z0hw5b4g9isRyPrgbXs9X+RrJ4pJJc9MkSIQA7yIy7F+9oPYCTmDz+v782GMJ4AC+jM+VfjvUgAHflWSJGMEQCIGfugfLkXv23vJcfwPYjLlMyzYhKp+Rg8B2YKwnsDHaUAiASkdxUO4fdS33D7vyid8Tulizo9SLEL1lduyvda9YVRCohAa5SJqWC2ydM9IcOW+IPYrEcj64G17PV/kayeKSSXPTJOMCEPUDo+wM="
+  "owner": "97Zvc7qgUJHgPWUBrPbCDowvuLo49NpjzPMYiGcQ6QRd",
+  "payer": "97Zvc7qgUJHgPWUBrPbCDowvuLo49NpjzPMYiGcQ6QRd",
+  "txn": "CqsBCiEBeIw1M0Uk4cPSIzXN0dYvm75a/gemuzpP5ACRRhZZyygSIQEp0bQLLyCMNqYqDUQSNZRs6UuPMCQf5JYYBDpU15+2nSJAbf3/EvyxZY+2mXXUxFYteQdWuV78DgwoQuQ1MWokUk7be9XiNBBBQF72WzTci8VMD7kcLGCqhu6lI6rtKXFEDSohAXiMNTNFJOHD0iM1zdHWL5u+Wv4Hprs6T+QAkUYWWcso"
 }
 ```
 
-You can also pass a `--mode` flag followed by the hotspot type (`dataonly |
-light | full`) as shown below:
+You can also pass a `--mode` flag followed by the hotspot type (`dataonly | full`) as shown below:
 
 ```
-./helium_gateway add --owner WALLET_ADDRESS --payer WALLET_ADDRESS --mode light
+./helium_gateway add --owner WALLET_ADDRESS --payer WALLET_ADDRESS --mode full
 ```
 
 The output of this command will be mostly the same as if you used the default
-`dataonly` however you will see that the mode has changed to `"mode": "light",`
-and the staking fee amount has changed to `"staking fee": 4000000`.
+`dataonly` however you will see that the mode has changed to `"mode": "full"`.
 
 The ` txn` field from the JSON object needs to be used as the input to the wallet
 command `helium-wallet hotspot add` when you subsequently want to add it to the
@@ -390,7 +378,7 @@ blockchain. For example, using the above JSON object as an example, you would
 use the following command:
 
 ```
-helium-wallet hotspots add CrkBCiEBrlImpYLbJ0z0hw5b4g9isRyPrgbXs9X+RrJ4pJJc9MkSIQA7yIy7F+9oPYCTmDz+v782GMJ4AC+jM+VfjvUgAHflWSJGMEQCIGfugfLkXv23vJcfwPYjLlMyzYhKp+Rg8B2YKwnsDHaUAiASkdxUO4fdS33D7vyid8Tulizo9SLEL1lduyvda9YVRCohAa5SJqWC2ydM9IcOW+IPYrEcj64G17PV/kayeKSSXPTJOMCEPUDo+wM=
+helium-wallet hotspots add CqsBCiEBeIw1M0Uk4cPSIzXN0dYvm75a/gemuzpP5ACRRhZZyygSIQEp0bQLLyCMNqYqDUQSNZRs6UuPMCQf5JYYBDpU15+2nSJAbf3/EvyxZY+2mXXUxFYteQdWuV78DgwoQuQ1MWokUk7be9XiNBBBQF72WzTci8VMD7kcLGCqhu6lI6rtKXFEDSohAXiMNTNFJOHD0iM1zdHWL5u+Wv4Hprs6T+QAkUYWWcso
 ```
 
 ### Gateway keys subcommand
@@ -402,16 +390,14 @@ helium_gateway server has to be running for this command to work.
 ```
 Commands on gateway keys
 
-USAGE:
-    helium_gateway key <SUBCOMMAND>
+Usage:
 
-FLAGS:
-    -h, --help       Prints help information
-    -V, --version    Prints version information
+Commands:
+  info  Commands on gateway keys
+  help  Print this message or the help of the given subcommand(s)
 
-SUBCOMMANDS:
-    help    Prints this message or the help of the given subcommand(s)
-    info    Commands on gateway keys
+Options:
+  -h, --help  Print help
 ```
 
 Using this is as simple as passing the following command in a terminal from
@@ -426,8 +412,9 @@ the hotspot as shown below:
 
 ```json
 {
-  "address": "11TL62V8NYvSTXmV5CZCjaucskvNR1Fdar1Pg4Hzmzk5tk2JBac",
-  "name": "wide-neon-kestrel"
+  "key": "13GAPer3q5D4X4xFDeSaDtqq1mYji4tCjbMcQN7fL3YVvvgXyer",
+  "name": "fantastic-white-copperhead",
+  "onboarding": "13GAPer3q5D4X4xFDeSaDtqq1mYji4tCjbMcQN7fL3YVvvgXyer"
 }
 ```
 
@@ -439,12 +426,10 @@ device.
 ```
 Run the gateway service
 
-USAGE:
-    helium_gateway server
+Usage:
 
-FLAGS:
-    -h, --help       Prints help information
-    -V, --version    Prints version information
+Options:
+  -h, --help  Print help
 ```
 
 Running it is as simple as:
