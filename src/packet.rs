@@ -18,7 +18,10 @@ use std::{
 };
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct PacketUp(PacketRouterPacketUpV1);
+pub struct PacketUp {
+    packet: PacketRouterPacketUpV1,
+    pub(crate) hash: Vec<u8>,
+}
 
 #[derive(Debug, Clone)]
 pub struct PacketDown(PacketRouterPacketDownV1);
@@ -27,18 +30,13 @@ impl Deref for PacketUp {
     type Target = PacketRouterPacketUpV1;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.packet
     }
 }
 
 impl From<PacketUp> for PacketRouterPacketUpV1 {
     fn from(value: PacketUp) -> Self {
-        value.0
-    }
-}
-impl From<&PacketUp> for PacketRouterPacketUpV1 {
-    fn from(value: &PacketUp) -> Self {
-        value.0.clone()
+        value.packet
     }
 }
 
@@ -52,12 +50,12 @@ impl fmt::Display for PacketUp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_fmt(format_args!(
             "@{} us, {:.2} MHz, {:?}, snr: {}, rssi: {}, len: {}",
-            self.0.timestamp,
-            self.0.frequency,
-            self.0.datarate(),
-            self.0.snr,
-            self.0.rssi,
-            self.0.payload.len()
+            self.packet.timestamp,
+            self.packet.frequency,
+            self.packet.datarate(),
+            self.packet.snr,
+            self.packet.rssi,
+            self.packet.payload.len()
         ))
     }
 }
@@ -67,15 +65,15 @@ impl TryFrom<PacketUp> for poc_lora::LoraWitnessReportReqV1 {
     fn try_from(value: PacketUp) -> Result<Self> {
         let report = poc_lora::LoraWitnessReportReqV1 {
             data: vec![],
-            tmst: value.0.timestamp as u32,
+            tmst: value.packet.timestamp as u32,
             timestamp: SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .map_err(Error::from)?
                 .as_nanos() as u64,
-            signal: value.0.rssi * 10,
-            snr: (value.0.snr * 10.0) as i32,
-            frequency: value.0.frequency as u64,
-            datarate: value.0.datarate,
+            signal: value.packet.rssi * 10,
+            snr: (value.packet.snr * 10.0) as i32,
+            frequency: value.packet.frequency as u64,
+            datarate: value.packet.datarate,
             pub_key: vec![],
             signature: vec![],
         };
@@ -107,7 +105,10 @@ impl PacketUp {
             gateway: gateway.into(),
             signature: vec![],
         };
-        Ok(Self(packet))
+        Ok(Self {
+            hash: Sha256::digest(&packet.payload).to_vec(),
+            packet,
+        })
     }
 
     pub fn is_potential_beacon(&self) -> bool {
@@ -133,7 +134,7 @@ impl PacketUp {
     }
 
     pub fn payload(&self) -> &[u8] {
-        &self.0.payload
+        &self.packet.payload
     }
 
     pub fn parse_header(payload: &[u8]) -> Result<MHDR> {
@@ -150,10 +151,6 @@ impl PacketUp {
         lorawan::PHYPayload::read(direction, &mut Cursor::new(payload))
             .map(|p| p.payload)
             .map_err(Error::from)
-    }
-
-    pub fn hash(&self) -> Vec<u8> {
-        Sha256::digest(&self.0.payload).to_vec()
     }
 }
 

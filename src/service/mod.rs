@@ -59,3 +59,39 @@ impl Reconnect {
         self.next_time = Instant::now() + backoff;
     }
 }
+
+pub struct AckTimer {
+    next_time: Instant,
+    timeout: Duration,
+}
+
+impl AckTimer {
+    pub fn new(timeout: Duration, active: bool) -> Self {
+        Self {
+            next_time: Self::calc_next_time(timeout, active),
+            timeout,
+        }
+    }
+
+    pub async fn wait(&self) {
+        if self.next_time >= Instant::now() {
+            time::sleep_until(self.next_time).await
+        } else {
+            std::future::pending().await
+        }
+    }
+
+    pub fn update_next_time(&mut self, active: bool) {
+        self.next_time = Self::calc_next_time(self.timeout, active)
+    }
+
+    fn calc_next_time(timeout: Duration, active: bool) -> Instant {
+        // timeout is 0 if the ack timer is not requested. Active means the
+        // connection is open and acks are to be expected
+        if timeout.as_secs() > 0 && active {
+            Instant::now() + timeout + Duration::from_secs(1)
+        } else {
+            Instant::now() - timeout
+        }
+    }
+}

@@ -1,20 +1,18 @@
 use crate::{
     gateway,
-    message_cache::{CacheMessage, MessageCache},
-    service::{packet_router::PacketRouterService, Reconnect},
+    message_cache::{CacheMessage, MessageCache, MessageHash},
+    service::{packet_router::PacketRouterService, AckTimer, Reconnect},
     sync, Base64, PacketUp, PublicKey, Result, Settings,
 };
 use futures::TryFutureExt;
 use helium_proto::services::router::{
-    envelope_down_v1, PacketRouterPacketDownV1, PacketRouterPacketUpV1, PacketRouterSessionOfferV1,
+    envelope_down_v1, PacketRouterPacketAckV1, PacketRouterPacketDownV1, PacketRouterPacketUpV1,
+    PacketRouterSessionOfferV1,
 };
 use serde::Serialize;
-use std::{ops::Deref, time::Instant as StdInstant};
-use tokio::time::Duration;
-
+use sha2::{Digest, Sha256};
+use std::time::{Duration, Instant as StdInstant};
 use tracing::{debug, info, warn};
-
-const STORE_GC_INTERVAL: Duration = Duration::from_secs(60);
 
 #[derive(Debug)]
 pub enum Message {
@@ -55,7 +53,15 @@ pub struct PacketRouter {
     transmit: gateway::MessageSender,
     service: PacketRouterService,
     reconnect: Reconnect,
+    ack_timer: AckTimer,
+    gc_timeout: Duration,
     store: MessageCache<PacketUp>,
+}
+
+impl MessageHash for PacketUp {
+    fn hash(&self) -> Vec<u8> {
+        Sha256::digest(&self.payload).to_vec()
+    }
 }
 
 impl PacketRouter {
@@ -65,16 +71,23 @@ impl PacketRouter {
         transmit: gateway::MessageSender,
     ) -> Self {
         let router_settings = &settings.router;
-        let service =
-            PacketRouterService::new(router_settings.uri.clone(), settings.keypair.clone());
+        let service = PacketRouterService::new(
+            router_settings.uri.clone(),
+            router_settings.ack_timeout(),
+            settings.keypair.clone(),
+        );
         let store = MessageCache::new(router_settings.queue);
         let reconnect = Reconnect::default();
+        let ack_timer = AckTimer::new(router_settings.ack_timeout(), false);
+        let gc_timeout = router_settings.gc_timeout();
         Self {
             service,
             transmit,
             messages,
             store,
             reconnect,
+            ack_timer,
+            gc_timeout,
         }
     }
 
@@ -94,6 +107,7 @@ impl PacketRouter {
                             self.service.disconnect();
                             warn!("router disconnected");
                             self.reconnect.update_next_time(true);
+                            self.ack_timer.update_next_time(false);
                         },
                     Some(Message::Status(tx_resp)) => {
                         let status = RouterStatus {
@@ -108,6 +122,13 @@ impl PacketRouter {
                 _ = self.reconnect.wait() => {
                     let reconnect_result = self.handle_reconnect().await;
                     self.reconnect.update_next_time(reconnect_result.is_err());
+                    self.ack_timer.update_next_time(reconnect_result.is_ok());
+                },
+                _ = self.ack_timer.wait() => {
+                    warn!("no packet acks received");
+                    self.service.disconnect();
+                    self.reconnect.update_next_time(true);
+                    self.ack_timer.update_next_time(false);
                 },
                 router_message = self.service.recv() => match router_message {
                     Ok(envelope_down_v1::Data::Packet(message)) => self.handle_downlink(message).await,
@@ -122,10 +143,17 @@ impl PacketRouter {
                             self.service.disconnect();
                         }
                         self.reconnect.update_next_time(session_result.is_err());
+                        self.ack_timer.update_next_time(session_result.is_ok());
+                    },
+                    Ok(envelope_down_v1::Data::PacketAck(message)) => {
+                        self.handle_packet_ack(message).await;
+                        self.ack_timer.update_next_time(true);
                     },
                     Err(err) => {
                         warn!(?err, "router error");
+                        self.service.disconnect();
                         self.reconnect.update_next_time(true);
+                        self.ack_timer.update_next_time(false);
                     },
                 }
             }
@@ -143,9 +171,9 @@ impl PacketRouter {
     }
 
     async fn handle_uplink(&mut self, uplink: PacketUp, received: StdInstant) -> Result {
-        self.store.push_back(uplink, received);
+        let message = self.store.push_back(uplink, received).clone();
         if self.service.is_connected() {
-            self.send_waiting_packets().await?;
+            self.send_packet(message).await?;
         }
         Ok(())
     }
@@ -154,19 +182,30 @@ impl PacketRouter {
         self.transmit.downlink(message.into()).await;
     }
 
+    async fn handle_packet_ack(&mut self, message: PacketRouterPacketAckV1) {
+        if message.payload_hash.is_empty() {
+            // Empty ack is just a heartbeat and is ignored
+            return;
+        }
+        if let Some(index) = self.store.index_of(|msg| msg.hash == message.payload_hash) {
+            self.store.remove_to(index);
+            info!(removed = index + 1, "cleared acked packets");
+        }
+    }
+
     async fn handle_session_offer(&mut self, message: PacketRouterSessionOfferV1) -> Result {
         self.service.session_init(&message.nonce).await?;
-        self.send_waiting_packets()
+        self.send_unacked_packets()
             .inspect_err(|err| warn!(%err, "failed to send queued packets"))
             .await
     }
 
-    async fn send_waiting_packets(&mut self) -> Result {
-        while let (removed, Some(packet)) = self.store.pop_front(STORE_GC_INTERVAL) {
+    async fn send_unacked_packets(&mut self) -> Result {
+        while let (removed, Some(packet)) = self.store.pop_front(self.gc_timeout) {
             if removed > 0 {
                 info!(removed, "discarded queued packets");
             }
-            if let Err(err) = self.send_packet(&packet).await {
+            if let Err(err) = self.send_packet(packet.clone()).await {
                 warn!(%err, "failed to send uplink");
                 self.store.push_front(packet);
                 return Err(err);
@@ -175,11 +214,12 @@ impl PacketRouter {
         Ok(())
     }
 
-    async fn send_packet(&mut self, packet: &CacheMessage<PacketUp>) -> Result {
+    async fn send_packet(&mut self, packet: CacheMessage<PacketUp>) -> Result {
         debug!(packet_hash = packet.hash().to_b64(), "sending packet");
 
-        let mut uplink: PacketRouterPacketUpV1 = packet.deref().into();
-        uplink.hold_time = packet.hold_time().as_millis() as u64;
+        let hold_time = packet.hold_time().as_millis() as u64;
+        let mut uplink: PacketRouterPacketUpV1 = packet.message.into();
+        uplink.hold_time = hold_time;
         self.service.send_uplink(uplink).await
     }
 }

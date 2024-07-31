@@ -16,7 +16,7 @@ use helium_proto::{
 use http::Uri;
 use std::{
     sync::Arc,
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
@@ -30,7 +30,9 @@ pub struct PacketRouterService(
     ConduitService<EnvelopeUpV1, EnvelopeDownV1, PacketRouterConduitClient>,
 );
 
-pub struct PacketRouterConduitClient {}
+pub struct PacketRouterConduitClient {
+    ack_timeout: Duration,
+}
 
 #[async_trait]
 impl ConduitClient<EnvelopeUpV1, EnvelopeDownV1> for PacketRouterConduitClient {
@@ -51,6 +53,7 @@ impl ConduitClient<EnvelopeUpV1, EnvelopeDownV1> for PacketRouterConduitClient {
             gateway: keypair.public_key().into(),
             signature: vec![],
             session_capable: true,
+            packet_ack_interval: self.ack_timeout.as_secs() as u32,
         };
         msg.sign(keypair.clone()).await?;
         let msg = EnvelopeUpV1 {
@@ -98,8 +101,8 @@ impl std::ops::DerefMut for PacketRouterService {
 }
 
 impl PacketRouterService {
-    pub fn new(uri: Uri, keypair: Arc<Keypair>) -> Self {
-        let client = PacketRouterConduitClient {};
+    pub fn new(uri: Uri, ack_timeout: Duration, keypair: Arc<Keypair>) -> Self {
+        let client = PacketRouterConduitClient { ack_timeout };
         Self(ConduitService::new("packet_router", uri, client, keypair))
     }
 
