@@ -11,7 +11,8 @@ use futures::TryFutureExt;
 use helium_proto::services::poc_lora::{self, lora_stream_response_v1};
 use http::Uri;
 use std::sync::Arc;
-use time::{Duration, Instant, OffsetDateTime};
+use std::time::Instant;
+use time::{Duration, OffsetDateTime};
 use tracing::{info, warn};
 
 /// Message types that can be sent to `Beaconer`'s inbox.
@@ -106,7 +107,7 @@ impl Beaconer {
                     info!("shutting down");
                     return Ok(())
                 },
-                _ = tokio::time::sleep_until(next_beacon_instant.into_inner().into()) => {
+                _ = tokio::time::sleep_until(next_beacon_instant.into()) => {
                     // Check if beaconing is enabled and we have valid region params
                     if !self.disabled && self.region_params.check_valid().is_ok() {
                         self.handle_beacon_tick().await;
