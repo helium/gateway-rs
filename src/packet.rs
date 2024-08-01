@@ -50,10 +50,21 @@ impl From<PacketRouterPacketDownV1> for PacketDown {
 
 impl fmt::Display for PacketUp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use rust_decimal::Decimal;
+        // format the frequency to appropriate units
+        let (mut frequency, f_units) = if self.frequency >= 1_000_000 {
+            (Decimal::new(self.frequency.into(), 6), "MHz")
+        } else if self.frequency >= 1_000 {
+            (Decimal::new(self.frequency.into(), 3), "kHz")
+        } else {
+            (Decimal::new(self.frequency.into(), 0), "Hz")
+        };
+        frequency.normalize_assign();
         f.write_fmt(format_args!(
-            "@{} us, {:.2} MHz, {:?}, snr: {}, rssi: {}, len: {}",
+            "@{} us, {} {}, {:?}, snr: {}, rssi: {}, len: {}",
             self.0.timestamp,
-            self.0.frequency,
+            frequency,
+            f_units,
             self.0.datarate(),
             self.0.snr,
             self.0.rssi,
