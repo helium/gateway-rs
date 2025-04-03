@@ -72,7 +72,7 @@ angry-purple-tiger = "0"
 lorawan = { package = "lorawan", path = "lorawan" }
 beacon = { git = "https://github.com/helium/proto", rev = "d94ed4b" }
 exponential-backoff = { git = "https://github.com/yoshuawuyts/exponential-backoff", branch = "master" }
-semtech-udp = { version = ">=0.11", default-features = false, features = [
+semtech-udp = { version = ">=0.12", default-features = false, features = [
     "server",
 ] }
 helium-crypto = ">=0.8.3"
