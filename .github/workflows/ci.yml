@@ -91,7 +91,7 @@ jobs:
         run: cargo make --profile ${{ matrix.target }} pkg
 
       - name: Build | Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: helium-gateway-${{ matrix.target }}
           if-no-files-found: error
