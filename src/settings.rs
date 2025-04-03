@@ -267,7 +267,7 @@ pub mod log_level {
         {
             struct LevelVisitor;
 
-            impl<'de> Visitor<'de> for LevelVisitor {
+            impl Visitor<'_> for LevelVisitor {
                 type Value = Level;
                 fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
                     formatter.write_str("log level")
