@@ -1,6 +1,5 @@
 use clap::Parser;
 use gateway_rs::{cmd, error::Result, settings::Settings};
-use std::path::PathBuf;
 use tokio::{io::AsyncReadExt, signal, time::Duration};
 use tracing::{debug, error, Level};
 use tracing_subscriber::prelude::*;
