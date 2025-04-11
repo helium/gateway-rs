@@ -51,6 +51,7 @@ impl ConduitClient<EnvelopeUpV1, EnvelopeDownV1> for PacketRouterConduitClient {
             gateway: keypair.public_key().into(),
             signature: vec![],
             session_capable: true,
+            packet_ack_interval: 0,
         };
         msg.sign(keypair.clone()).await?;
         let msg = EnvelopeUpV1 {
