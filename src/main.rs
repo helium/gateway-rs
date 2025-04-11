@@ -12,7 +12,7 @@ use tracing_subscriber::prelude::*;
 pub struct Cli {
     /// Configuration file to use
     #[arg(short = 'c', default_value = "/etc/helium_gateway/settings.toml")]
-    config: PathBuf,
+    config: std::path::PathBuf,
 
     /// Monitor stdin and terminate when stdin closes.
     #[arg(long)]
