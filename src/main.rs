@@ -15,7 +15,7 @@ pub struct Cli {
 
     /// Monitor stdin and terminate when stdin closes.
     #[arg(long)]
-    stdin: bool,
+    stin: bool,
 
     #[command(subcommand)]
     cmd: Cmd,
@@ -77,7 +77,7 @@ pub fn main() -> Result {
                 loop {
                     tokio::select!(
                         _ = signal::ctrl_c() => break,
-                        read = stdin.read(&mut in_buf), if cli.stdin => if let Ok(0) = read { break },
+                        read = stdin.read(&mut in_buf), if cli.stin => if let Ok(0) = read { break },
                     )
                 }
                 shutdown_trigger.trigger()
