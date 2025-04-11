@@ -50,6 +50,7 @@ tokio = { version = "1", default-features = false, features = [
 ] }
 tokio-stream = { version = "0", default-features = false }
 futures = "*"
+rust_decimal = { workspace = true }
 triggered = "0.1"
 tracing = "0"
 tracing-subscriber = { version = "0", default-features = false, features = [
