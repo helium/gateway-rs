@@ -123,6 +123,9 @@ impl PacketRouter {
                         }
                         self.reconnect.update_next_time(session_result.is_err());
                     },
+                    Ok(envelope_down_v1::Data::PacketAck(_)) => {
+                        warn!("received packet_ack from router but this is not handled")
+                    }
                     Err(err) => {
                         warn!(?err, "router error");
                         self.reconnect.update_next_time(true);

@@ -85,23 +85,21 @@ impl TryFrom<PacketUp> for poc_lora::LoraWitnessReportReqV1 {
 
 impl PacketUp {
     pub fn from_rxpk(rxpk: push_data::RxPk, gateway: &PublicKey, region: Region) -> Result<Self> {
-        match rxpk.get_crc_status() {
+        match rxpk.crc_status() {
             CRC::OK => (),
             CRC::Disabled => return Err(DecodeError::crc_disabled()),
             CRC::Fail => return Err(DecodeError::crc_invalid()),
         }
 
-        let rssi = rxpk
-            .get_signal_rssi()
-            .unwrap_or_else(|| rxpk.get_channel_rssi());
+        let rssi = rxpk.signal_rssi().unwrap_or_else(|| rxpk.channel_rssi());
 
         let packet = PacketRouterPacketUpV1 {
             rssi,
-            timestamp: *rxpk.get_timestamp() as u64,
-            payload: rxpk.get_data().to_vec(),
-            frequency: to_hz(*rxpk.get_frequency()) as u32,
-            datarate: datarate::to_proto(rxpk.get_datarate())? as i32,
-            snr: rxpk.get_snr(),
+            timestamp: rxpk.timestamp() as u64,
+            payload: rxpk.data().to_vec(),
+            frequency: to_hz(rxpk.frequency()) as u32,
+            datarate: datarate::to_proto(rxpk.datarate())? as i32,
+            snr: rxpk.snr(),
             region: region.into(),
             hold_time: 0,
             gateway: gateway.into(),
@@ -199,7 +197,7 @@ impl PacketDown {
             time,
             ipol: true,
             modu: Modulation::LORA,
-            codr: CodingRate::_4_5,
+            codr: Some(CodingRate::_4_5),
             datr: datarate,
             // for normal lorawan packets we're not selecting different frequencies
             // like we are for PoC
@@ -229,26 +227,26 @@ pub(crate) mod datarate {
 
     pub fn from_proto(rate: ProtoRate) -> Result<DataRate> {
         let (spreading_factor, bandwidth) = match rate {
-            ProtoRate::Sf12bw125 => (SpreadingFactor::SF12, Bandwidth::BW125),
-            ProtoRate::Sf11bw125 => (SpreadingFactor::SF11, Bandwidth::BW125),
-            ProtoRate::Sf10bw125 => (SpreadingFactor::SF10, Bandwidth::BW125),
-            ProtoRate::Sf9bw125 => (SpreadingFactor::SF9, Bandwidth::BW125),
-            ProtoRate::Sf8bw125 => (SpreadingFactor::SF8, Bandwidth::BW125),
-            ProtoRate::Sf7bw125 => (SpreadingFactor::SF7, Bandwidth::BW125),
+            ProtoRate::Sf12bw125 => (SpreadingFactor::_12, Bandwidth::_125KHz),
+            ProtoRate::Sf11bw125 => (SpreadingFactor::_11, Bandwidth::_125KHz),
+            ProtoRate::Sf10bw125 => (SpreadingFactor::_10, Bandwidth::_125KHz),
+            ProtoRate::Sf9bw125 => (SpreadingFactor::_9, Bandwidth::_125KHz),
+            ProtoRate::Sf8bw125 => (SpreadingFactor::_8, Bandwidth::_125KHz),
+            ProtoRate::Sf7bw125 => (SpreadingFactor::_7, Bandwidth::_125KHz),
 
-            ProtoRate::Sf12bw250 => (SpreadingFactor::SF12, Bandwidth::BW250),
-            ProtoRate::Sf11bw250 => (SpreadingFactor::SF11, Bandwidth::BW250),
-            ProtoRate::Sf10bw250 => (SpreadingFactor::SF10, Bandwidth::BW250),
-            ProtoRate::Sf9bw250 => (SpreadingFactor::SF9, Bandwidth::BW250),
-            ProtoRate::Sf8bw250 => (SpreadingFactor::SF8, Bandwidth::BW250),
-            ProtoRate::Sf7bw250 => (SpreadingFactor::SF7, Bandwidth::BW250),
+            ProtoRate::Sf12bw250 => (SpreadingFactor::_12, Bandwidth::_250KHz),
+            ProtoRate::Sf11bw250 => (SpreadingFactor::_11, Bandwidth::_250KHz),
+            ProtoRate::Sf10bw250 => (SpreadingFactor::_10, Bandwidth::_250KHz),
+            ProtoRate::Sf9bw250 => (SpreadingFactor::_9, Bandwidth::_250KHz),
+            ProtoRate::Sf8bw250 => (SpreadingFactor::_8, Bandwidth::_250KHz),
+            ProtoRate::Sf7bw250 => (SpreadingFactor::_7, Bandwidth::_250KHz),
 
-            ProtoRate::Sf12bw500 => (SpreadingFactor::SF12, Bandwidth::BW500),
-            ProtoRate::Sf11bw500 => (SpreadingFactor::SF11, Bandwidth::BW500),
-            ProtoRate::Sf10bw500 => (SpreadingFactor::SF10, Bandwidth::BW500),
-            ProtoRate::Sf9bw500 => (SpreadingFactor::SF9, Bandwidth::BW500),
-            ProtoRate::Sf8bw500 => (SpreadingFactor::SF8, Bandwidth::BW500),
-            ProtoRate::Sf7bw500 => (SpreadingFactor::SF7, Bandwidth::BW500),
+            ProtoRate::Sf12bw500 => (SpreadingFactor::_12, Bandwidth::_500KHz),
+            ProtoRate::Sf11bw500 => (SpreadingFactor::_11, Bandwidth::_500KHz),
+            ProtoRate::Sf10bw500 => (SpreadingFactor::_10, Bandwidth::_500KHz),
+            ProtoRate::Sf9bw500 => (SpreadingFactor::_9, Bandwidth::_500KHz),
+            ProtoRate::Sf8bw500 => (SpreadingFactor::_8, Bandwidth::_500KHz),
+            ProtoRate::Sf7bw500 => (SpreadingFactor::_7, Bandwidth::_500KHz),
 
             ProtoRate::Lrfhss2bw137
             | ProtoRate::Lrfhss1bw336
@@ -265,30 +263,28 @@ pub(crate) mod datarate {
 
     pub fn to_proto(rate: DataRate) -> Result<ProtoRate> {
         let rate = match (rate.spreading_factor(), rate.bandwidth()) {
-            (SpreadingFactor::SF12, Bandwidth::BW125) => ProtoRate::Sf12bw125,
-            (SpreadingFactor::SF11, Bandwidth::BW125) => ProtoRate::Sf11bw125,
-            (SpreadingFactor::SF10, Bandwidth::BW125) => ProtoRate::Sf10bw125,
-            (SpreadingFactor::SF9, Bandwidth::BW125) => ProtoRate::Sf9bw125,
-            (SpreadingFactor::SF8, Bandwidth::BW125) => ProtoRate::Sf8bw125,
-            (SpreadingFactor::SF7, Bandwidth::BW125) => ProtoRate::Sf7bw125,
+            (SpreadingFactor::_12, Bandwidth::_125KHz) => ProtoRate::Sf12bw125,
+            (SpreadingFactor::_11, Bandwidth::_125KHz) => ProtoRate::Sf11bw125,
+            (SpreadingFactor::_10, Bandwidth::_125KHz) => ProtoRate::Sf10bw125,
+            (SpreadingFactor::_9, Bandwidth::_125KHz) => ProtoRate::Sf9bw125,
+            (SpreadingFactor::_8, Bandwidth::_125KHz) => ProtoRate::Sf8bw125,
+            (SpreadingFactor::_7, Bandwidth::_125KHz) => ProtoRate::Sf7bw125,
 
-            (SpreadingFactor::SF12, Bandwidth::BW250) => ProtoRate::Sf12bw250,
-            (SpreadingFactor::SF11, Bandwidth::BW250) => ProtoRate::Sf11bw250,
-            (SpreadingFactor::SF10, Bandwidth::BW250) => ProtoRate::Sf10bw250,
-            (SpreadingFactor::SF9, Bandwidth::BW250) => ProtoRate::Sf9bw250,
-            (SpreadingFactor::SF8, Bandwidth::BW250) => ProtoRate::Sf8bw250,
-            (SpreadingFactor::SF7, Bandwidth::BW250) => ProtoRate::Sf7bw250,
+            (SpreadingFactor::_12, Bandwidth::_250KHz) => ProtoRate::Sf12bw250,
+            (SpreadingFactor::_11, Bandwidth::_250KHz) => ProtoRate::Sf11bw250,
+            (SpreadingFactor::_10, Bandwidth::_250KHz) => ProtoRate::Sf10bw250,
+            (SpreadingFactor::_9, Bandwidth::_250KHz) => ProtoRate::Sf9bw250,
+            (SpreadingFactor::_8, Bandwidth::_250KHz) => ProtoRate::Sf8bw250,
+            (SpreadingFactor::_7, Bandwidth::_250KHz) => ProtoRate::Sf7bw250,
 
-            (SpreadingFactor::SF12, Bandwidth::BW500) => ProtoRate::Sf12bw500,
-            (SpreadingFactor::SF11, Bandwidth::BW500) => ProtoRate::Sf11bw500,
-            (SpreadingFactor::SF10, Bandwidth::BW500) => ProtoRate::Sf10bw500,
-            (SpreadingFactor::SF9, Bandwidth::BW500) => ProtoRate::Sf9bw500,
-            (SpreadingFactor::SF8, Bandwidth::BW500) => ProtoRate::Sf8bw500,
-            (SpreadingFactor::SF7, Bandwidth::BW500) => ProtoRate::Sf7bw500,
+            (SpreadingFactor::_12, Bandwidth::_500KHz) => ProtoRate::Sf12bw500,
+            (SpreadingFactor::_11, Bandwidth::_500KHz) => ProtoRate::Sf11bw500,
+            (SpreadingFactor::_10, Bandwidth::_500KHz) => ProtoRate::Sf10bw500,
+            (SpreadingFactor::_9, Bandwidth::_500KHz) => ProtoRate::Sf9bw500,
+            (SpreadingFactor::_8, Bandwidth::_500KHz) => ProtoRate::Sf8bw500,
+            (SpreadingFactor::_7, Bandwidth::_500KHz) => ProtoRate::Sf7bw500,
 
-            (SpreadingFactor::SF6, _) | (SpreadingFactor::SF5, _) => {
-                return Err(DecodeError::invalid_data_rate(rate.to_string()))
-            }
+            (_, _) => return Err(DecodeError::invalid_data_rate(rate.to_string())),
         };
         Ok(rate)
     }

@@ -350,7 +350,7 @@ pub fn beacon_to_pull_resp(beacon: &Beacon, tx_power: u64) -> Result<pull_resp::
         time: Time::immediate(),
         ipol: false,
         modu: Modulation::LORA,
-        codr: CodingRate::_4_5,
+        codr: Some(CodingRate::_4_5),
         datr,
         freq,
         data: pull_resp::PhyData::new(data),

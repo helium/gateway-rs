@@ -91,7 +91,7 @@ jobs:
         run: cargo make --profile ${{ matrix.target }} pkg
 
       - name: Build | Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: helium-gateway-${{ matrix.target }}
           if-no-files-found: error
@@ -127,6 +127,11 @@ jobs:
     # Ensure we don't publish images until we pass clippy.
     needs: [hygiene]
     runs-on: ubuntu-22.04
+    # Only run Quay.io uploads from the main repository
+    if: |
+      github.repository == 'helium/gateway-rs' && 
+      (github.event_name != 'pull_request' || 
+       github.event.pull_request.head.repo.full_name == 'helium/gateway-rs')
     steps:
       - name: Setup | Cancel Previous Runs
         uses: styfle/cancel-workflow-action@0.11.0

@@ -199,7 +199,7 @@ impl<'de> de::Deserialize<'de> for Keypair {
     {
         struct _Visitor;
 
-        impl<'de> de::Visitor<'de> for _Visitor {
+        impl de::Visitor<'_> for _Visitor {
             type Value = Keypair;
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
                 formatter.write_str("keypair uri")
